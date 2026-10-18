@@ -428,14 +428,17 @@ once, in the Client, to add Bash, C, C++, CSS, Go, HTML, Java, JSON, Lua, PHP, P
 Rust, TOML and YAML. That import also replaces OpenTUI's TypeScript grammar, and gives TSX a
 grammar of its own.
 
-`markdownStyle(palette, renderer)` derives every group that `<Markdown>` reads from the 12 colors of a
-`MarkdownPalette`. Both helpers take the `CliRenderer` returned by `useRenderer()` from
-`@opentui/react` inside a Client component, or by `createCliRenderer()` in a script.
-Create and cache styles for each renderer; never share them across renderers.
+`markdownStyle(palette, renderer)` derives every group that `<Markdown>` reads from the 12
+colors of a `MarkdownPalette`. Each color is a hex string: `#rgb`, `#rgba`, `#rrggbb` or
+`#rrggbbaa`. OpenTUI shows an invalid color as magenta, with a warning on the console.
+
 `syntaxStyle(styles, renderer)` accepts a `Record<string, StyleDefinition>` of OpenTUI groups
-and returns a `SyntaxStyle`. It runs in the Client only, since a `SyntaxStyle` is a native object. Each
-color is a hex string: `#rgb`, `#rgba`, `#rrggbb` or `#rrggbbaa`. OpenTUI shows an invalid
-color as magenta, with a warning on the console.
+and returns a `SyntaxStyle`. Both helpers run in the Client only, since a `SyntaxStyle` is
+a native object.
+
+Pass the `CliRenderer` returned by `useRenderer()` from `@opentui/react` inside a Client
+component, or by `createCliRenderer()` in a script. Create and cache styles for each
+renderer; never share them across renderers.
 
 | Key         | Colors                                    |
 | ----------- | ----------------------------------------- |
