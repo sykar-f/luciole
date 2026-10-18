@@ -62,13 +62,13 @@ test("a version changed in a manifest, the ABI or .bun-version fails", async () 
   ).toHaveLength(2);
   const catalog = changed(
     files.workspace,
-    `"@tanstack/react-router": "1.170.38"`,
+    `"@tanstack/react-router": "1.170.45"`,
     `"@tanstack/react-router": "1.171.0"`,
   );
   expectLines(await problems(page, { ...files, workspace: catalog }), [
     /for catalog:@tanstack\/react-router, .* is 1\.171\.0$/,
   ]);
-  const abi = changed(files.abi, `react: "19.3.0"`, `react: "19.4.0"`);
+  const abi = changed(files.abi, `react: "19.3.1"`, `react: "19.4.0"`);
   expectLines(await problems(page, { ...files, abi }), [
     /for abi:react, but packages\/core\/src\/abi\.ts, ABI_PACKAGES\.react is 19\.4\.0$/,
   ]);

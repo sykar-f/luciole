@@ -38,13 +38,13 @@ export const isAbiSpecifier = (specifier: string): specifier is AbiSpecifier =>
   ABI_SPECIFIERS.some((s) => s === specifier);
 /** The exact versions behind those specifiers, as package.json pins them. */
 export const ABI_PACKAGES = {
-  react: "19.3.0",
+  react: "19.3.1",
   "@opentui/core": "0.5.12",
   "@opentui/react": "0.5.12",
   "@opentui/keymap": "0.5.12",
-  "@tanstack/react-router": "1.170.38",
-  "react-server-dom-webpack": "19.3.0",
-  zod: "4.6.5",
+  "@tanstack/react-router": "1.170.45",
+  "react-server-dom-webpack": "19.3.1",
+  zod: "4.6.7",
 } as const;
 const KEY_HEX = 16;
 /** `<version>-<sha256 short>` of the version, the specifiers and the package versions. */
