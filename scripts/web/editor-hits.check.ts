@@ -1,15 +1,12 @@
 /** Ordinary editor hits through the same WASM and xterm path as the web runtime. */
 import { expect, test } from "bun:test";
-import { createHash } from "node:crypto";
 import { join } from "node:path";
-import { defaultCache } from "../../packages/core/src/compile";
-import { webRuntimeDirectory } from "../../packages/core/src/web-runtime";
+import { openTuiCheckoutDirectory, webRuntimeDirectory } from "../../packages/core/src/web-runtime";
 import { opentuiWasm } from "../../packages/core/src/web/opentui/plugin";
 import { browserNode } from "../../packages/core/src/web/node/plugin";
 import { Browser } from "./cdp";
 
 const TIMEOUT_MS = 240_000;
-const HASH_LENGTH = 16;
 const LAST_ROW = 4;
 const FIRST_OFFSET = 3;
 test(
@@ -26,14 +23,7 @@ test(
     );
     expect(await prepared.exited).toBe(0);
     const runtime = await webRuntimeDirectory();
-    const patch = await Bun.file(
-      join(import.meta.dir, "../../packages/core/web/opentui-v0.6.6.patch"),
-    ).arrayBuffer();
-    const key = createHash("sha256")
-      .update(new Uint8Array(patch))
-      .digest("hex")
-      .slice(0, HASH_LENGTH);
-    const checkout = join(defaultCache(), "web", `opentui-v0.6.6-${key}`);
+    const checkout = openTuiCheckoutDirectory();
     const bundled = await Bun.build({
       entrypoints: [join(import.meta.dir, "editor-hits-page.ts")],
       target: "browser",

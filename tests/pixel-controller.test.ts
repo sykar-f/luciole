@@ -5,7 +5,7 @@ import { PixelController } from "../packages/core/src/web/pixel-scroll/controlle
 import { OrdinaryPixelInput } from "../packages/core/src/web/pixel-scroll/ordinary-input";
 import { PixelHistory, RETAINED_GENERATIONS } from "../packages/core/src/web/pixel-scroll/history";
 import { PixelDiscovery } from "../packages/core/src/web/pixel-scroll/discovery";
-import { expect, test } from "bun:test";
+import { expect, spyOn, test } from "bun:test";
 import { decode, encode } from "../packages/core/src/pixel-scroll/protocol";
 import {
   clipPixelRect,
@@ -396,7 +396,22 @@ test("owner pointer dispatch scopes the named origin without changing event coor
       height: 10,
       currentFocusedRenderable: owner,
       keyInput: new EventEmitter(),
-      nextRenderBuffer: { buffers: { cells: new Uint32Array([1]) } },
+      nextRenderBuffer: {
+        withBuffers: (
+          read: (access: {
+            char: Uint32Array;
+            fg: Uint16Array;
+            bg: Uint16Array;
+            attributes: Uint32Array;
+          }) => boolean,
+        ) =>
+          read({
+            char: new Uint32Array([1]),
+            fg: new Uint16Array(),
+            bg: new Uint16Array(),
+            attributes: new Uint32Array(),
+          }),
+      },
       requestRender: () => {},
       captureHitMap: () => map,
       setFramePlan: (value: (() => RenderFramePlan | null) | null) => {
@@ -651,7 +666,22 @@ function windowController(version: 1 | 2 = 2) {
     height: 10,
     currentFocusedRenderable: owners[0],
     keyInput: new EventEmitter(),
-    nextRenderBuffer: { buffers: { cells } },
+    nextRenderBuffer: {
+      withBuffers: (
+        read: (access: {
+          char: Uint32Array;
+          fg: Uint16Array;
+          bg: Uint16Array;
+          attributes: Uint32Array;
+        }) => boolean,
+      ) =>
+        read({
+          char: cells,
+          fg: new Uint16Array(),
+          bg: new Uint16Array(),
+          attributes: new Uint32Array(),
+        }),
+    },
     requestRender: () => {
       requests++;
     },
@@ -699,11 +729,16 @@ function windowController(version: 1 | 2 = 2) {
   return {
     plan,
     send,
+    renderer,
     writes,
     observed,
     positions,
     cells,
     requests: () => requests,
+    projecting: (value: boolean) => {
+      Object.assign(renderer, { isFramePlanPass: value });
+      if (!value) renderer.emit("frame:plan:end");
+    },
     close: () => {
       controller.dispose();
       for (const owner of owners) Renderable.renderablesByNumber.delete(owner.num);
@@ -918,5 +953,89 @@ test("invalidation abandons a full v2 window and renegotiates without reusing ge
     expect(messages(recovered?.projection?.after)[0]).toMatchObject({ fraction: 0.75 });
   } finally {
     f.close();
+  }
+});
+
+test("private input waits only for planned paint, then resumes before sink delivery", () => {
+  const f = windowController();
+  try {
+    f.plan();
+    f.projecting(true);
+    f.send({
+      op: "wheel",
+      version: 1,
+      id: 1,
+      generation: 1,
+      phase: 0.75,
+      x: 4,
+      y: 3,
+      modifiers: 0,
+      dx: 0,
+      dy: 0.5,
+      source: "precise",
+    });
+    f.send({
+      op: "pointer",
+      version: 1,
+      id: 1,
+      generation: 1,
+      phase: 0.75,
+      x: 4,
+      y: 3,
+      modifiers: 0,
+      action: "down",
+      button: 0,
+      buttons: 1,
+    });
+    expect(f.positions[0]).toBe(0.75);
+    expect(f.observed).toEqual([]);
+    f.projecting(false);
+    expect(f.positions[0]).toBe(1.25);
+    expect(f.observed).toMatchObject([{ type: "scroll" }, { type: "down" }]);
+  } finally {
+    f.close();
+  }
+});
+
+test("a throwing private report is logged and later deferred reports keep their order", () => {
+  for (const deferred of [false, true]) {
+    const f = windowController();
+    const failure = new Error("report handler failed");
+    const errors = spyOn(console, "error").mockImplementation(() => {});
+    const dispatch = f.renderer.dispatchMouseEventFromHitMap;
+    const delivered: number[] = [];
+    f.renderer.dispatchMouseEventFromHitMap = (event) => {
+      delivered.push(event.x);
+      if (delivered.length === 1) throw failure;
+      return dispatch(event);
+    };
+    try {
+      f.plan();
+      if (deferred) f.projecting(true);
+      for (const x of [2, 3, 4])
+        f.send({
+          op: "pointer",
+          version: 1,
+          id: 1,
+          generation: 1,
+          phase: 0.75,
+          x,
+          y: 3,
+          modifiers: 0,
+          action: "down",
+          button: 0,
+          buttons: 1,
+        });
+      if (deferred) {
+        expect(delivered).toEqual([]);
+        f.projecting(false);
+      }
+      expect(delivered).toEqual([2, 3, 4]);
+      expect(f.observed).toMatchObject([{ x: 3 }, { x: 4 }]);
+      expect(errors.mock.calls).toEqual([["Error in pixel-scroll report:", failure]]);
+    } finally {
+      errors.mockRestore();
+      f.close();
+    }
   }
 });

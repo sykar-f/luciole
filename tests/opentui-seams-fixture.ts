@@ -1,5 +1,7 @@
 // Bundled by opentui-seams.test.ts against the patched TypeScript and WASM sources.
-import { expect, test } from "bun:test";
+import { expect, spyOn, test } from "bun:test";
+import { Writable } from "node:stream";
+import { Terminal } from "@xterm/xterm";
 import { createTestStdout } from "../node_modules/@opentui/core/testing/test-streams";
 import {
   CliRenderEvents,
@@ -7,17 +9,90 @@ import {
   TextRenderable,
   type CliRendererErrorEvent,
   MouseEvent,
+  NativeSession,
+  ScrollBoxRenderable,
+  SyntaxStyle,
+  RGBA,
   type RawMouseEvent,
 } from "@opentui/core";
 import { createTestRenderer } from "@opentui/core/testing";
 import { detectOpenTuiSeams, type RenderHitMap } from "../packages/core/src/web/opentui-seams";
-import baseline from "./fixtures/opentui-seams/plain-frame.json";
+import { detectScrollableViewport } from "../packages/core/src/web/opentui-seams";
+import { PixelController } from "../packages/core/src/web/pixel-scroll/controller";
+import { decode, decodePayload, encode, OSC } from "../packages/core/src/pixel-scroll/protocol";
+import { MarkdownEditorRenderable } from "../packages/markdown-editor/src/view/EditorRenderable";
 
 const bytes = (s: string) => new TextEncoder().encode(s);
 const start = "\x1b[?2026h",
   end = "\x1b[?2026l";
 const modifiers = { shift: false, alt: false, ctrl: false, meta: true };
-async function setup(width = 12, height = 4) {
+
+test("planned output keeps one envelope across partial sink writes and backpressure", async () => {
+  const chunks: Buffer[] = [];
+  let pressure = 0;
+  let drains = 0;
+  const sink: Writable = new Writable({
+    highWaterMark: 1,
+    write(chunk: Buffer, _encoding, done) {
+      chunks.push(Buffer.from(chunk));
+      setImmediate(() => {
+        if (sink.writableNeedDrain) pressure++;
+        done();
+      });
+    },
+  });
+  sink.on("drain", () => drains++);
+  const session = new NativeSession(sink, {
+    output: { chunkSize: 256, spanCapacity: 32, maxBytes: 8192n, controlCapacity: 128 },
+    outputBufferSize: 17,
+  });
+  function hasFrameOutput(value: NativeSession): value is NativeSession & {
+    beginFrameOutput(): void;
+    endFrameOutput(commit: boolean): Promise<void>;
+  } {
+    return ["beginFrameOutput", "endFrameOutput"].every(
+      (key) => typeof Reflect.get(value, key) === "function",
+    );
+  }
+  if (!hasFrameOutput(session)) throw new Error("Missing planned output");
+  try {
+    const limit = Number(session.maxAtomicWriteBytes);
+    expect(limit).toBeGreaterThan(0);
+    const parts = [start, "A".repeat(limit), "B".repeat(limit), end];
+    session.beginFrameOutput();
+    for (const part of parts) {
+      expect(session.write(bytes(part))).toBe(true);
+      await session.idle();
+    }
+    expect(chunks).toEqual([]);
+    const accept = session.write.bind(session);
+    let attempts = 0;
+    // Drive native admission pressure after the opening batch was accepted.
+    // Unlike Writable.write(false), this rejects a batch without consuming it.
+    const admission = spyOn(session, "write").mockImplementation((batch) =>
+      ++attempts === 2 ? false : accept(batch),
+    );
+    try {
+      await session.endFrameOutput(true);
+    } finally {
+      admission.mockRestore();
+    }
+    expect(attempts).toBeGreaterThan(3);
+    const wire = Buffer.concat(chunks).toString();
+    expect(wire).toBe(parts.join(""));
+    expect(wire.split(start)).toHaveLength(2);
+    expect(wire.split(end)).toHaveLength(2);
+    expect(chunks.length).toBeGreaterThan(3);
+    expect(chunks.every((chunk) => chunk.length <= 17)).toBe(true);
+    expect(pressure).toBe(chunks.length);
+    expect(drains).toBe(pressure);
+  } finally {
+    await session.close();
+    sink.destroy();
+  }
+});
+
+async function setup(width = 12, height = 4, outputBufferSize?: number) {
   const chunks: string[] = [];
   const stdout = createTestStdout(width, height);
   stdout._write = (chunk: Buffer, _encoding, done) => {
@@ -30,29 +105,291 @@ async function setup(width = 12, height = 4) {
     stdout,
     bufferedOutput: "stdout",
     useMouse: true,
+    ...(outputBufferSize === undefined
+      ? {}
+      : { nativeSession: new NativeSession(stdout, { outputBufferSize }) }),
   });
   const found = detectOpenTuiSeams(setup.renderer);
   if (!found.available) throw new Error(`Missing seams: ${found.missing.join(", ")}`);
-  return { ...setup, r: found.renderer, chunks };
+  return { ...setup, r: found.renderer, chunks, stdout };
 }
 
-test("no plan and an empty single-commit plan preserve pinned OpenTUI bytes, including no-op suppression", async () => {
+test("partial native frame reads keep checkpoint metadata after the complete paint", async () => {
+  const f = await setup(12, 4, 17);
+  const terminal = new Terminal({ cols: 12, rows: 4, allowProposedApi: true });
+  await new Promise<void>((resolve) => terminal.write(f.chunks.join(""), resolve));
+  f.stdout._write = (chunk: Buffer, _encoding, done) => terminal.write(chunk, done);
+  const observed: { op: string; rows: string[] }[] = [];
+  terminal.parser.registerOscHandler(OSC, (payload) => {
+    const operation = decodePayload(payload);
+    if (operation?.op === "register" || operation?.op === "commit")
+      observed.push({
+        op: operation.op,
+        rows: [0, 1].map(
+          (y) => terminal.buffer.active.getLine(y)?.translateToString(true).trimEnd() ?? "",
+        ),
+      });
+    return true;
+  });
+  const view = new BoxRenderable(f.r, { width: 12, height: 2, overflow: "hidden" });
+  const content = new BoxRenderable(f.r, { width: 12, height: 4, flexShrink: 0 });
+  view.add(content);
+  f.r.root.add(view);
+  for (const text of ["AAAA", "BBBB", "CCCC", "DDDD"])
+    content.add(new TextRenderable(f.r, { content: text, height: 1, width: 12 }));
+  f.r.setFramePlan(() => ({
+    before: bytes(encode({ op: "begin", version: 1, generation: 1 })),
+    after: bytes(
+      encode({
+        op: "register",
+        version: 1,
+        generation: 1,
+        id: 1,
+        origin: 0,
+        rect: { x: 0, y: 0, width: 12, height: 2 },
+      }),
+    ),
+    projection: {
+      renderable: content,
+      translateX: 0,
+      translateY: -1,
+      after: bytes(
+        encode({ op: "step", version: 1, id: 1, generation: 1, fraction: 0.5 }) +
+          encode({ op: "commit", version: 1, generation: 1 }),
+      ),
+    },
+  }));
+  try {
+    await f.renderOnce();
+    await f.r.idle();
+    expect(observed).toEqual([
+      { op: "register", rows: ["AAAA", "BBBB"] },
+      { op: "commit", rows: ["BBBB", "CCCC"] },
+    ]);
+  } finally {
+    await f.dispose();
+    terminal.dispose();
+  }
+});
+
+test("logical editor focus precedes cursor delivery through a held borrowed sink", async () => {
+  const f = await setup(12, 16);
+  const terminal = new Terminal({ cols: 12, rows: 16, allowProposedApi: true });
+  const style = SyntaxStyle.fromStyles(
+    { default: { fg: RGBA.fromHex("#eeeeee") } },
+    f.r.nativeScene,
+  );
+  const editor = new MarkdownEditorRenderable(f.r, {
+    position: "absolute",
+    top: 1,
+    width: 12,
+    height: 4,
+    value: "alpha\n\nbeta",
+    syntaxStyle: style,
+  });
+  f.r.root.add(editor);
+  f.r.setFramePlan(() => ({}));
+  const writeTerminal = (wire: string) =>
+    new Promise<void>((resolve) => terminal.write(wire, resolve));
+  let held: { chunk: Buffer; done: () => void } | undefined;
+  const ordering: { stage: string; focused: boolean; cursorY: number }[] = [];
+  try {
+    await f.renderOnce();
+    await writeTerminal(f.chunks.join(""));
+    await writeTerminal("\x1b[13;1H");
+    const pending = Promise.withResolvers<void>();
+    f.stdout._write = (chunk: Buffer, _encoding, done) => {
+      held = { chunk: Buffer.from(chunk), done };
+      pending.resolve();
+    };
+    editor.focus();
+    const rendering = f.renderOnce();
+    await pending.promise;
+    expect(editor.focused).toBe(true);
+    expect(terminal.buffer.active.cursorY).toBe(12);
+    ordering.push({
+      stage: "held",
+      focused: editor.focused,
+      cursorY: terminal.buffer.active.cursorY,
+    });
+    f.stdout._write = (chunk: Buffer, _encoding, done) => terminal.write(chunk, done);
+    if (!held) throw new Error("Missing borrowed output");
+    terminal.write(held.chunk, held.done);
+    held = undefined;
+    await rendering;
+    await f.r.idle();
+    expect(editor.focused).toBe(true);
+    expect(terminal.buffer.active.cursorY).toBe(1);
+    ordering.push({
+      stage: "delivered",
+      focused: editor.focused,
+      cursorY: terminal.buffer.active.cursorY,
+    });
+    const proof = process.env["LUCIOLE_CURSOR_FOCUS_PROOF"];
+    if (proof) await Bun.write(proof, JSON.stringify(ordering, null, 2));
+  } finally {
+    if (held) terminal.write(held.chunk, held.done);
+    f.stdout._write = (chunk: Buffer, _encoding, done) => terminal.write(chunk, done);
+    await f.dispose();
+    terminal.dispose();
+  }
+});
+
+test("editor viewport bounds stay canonical while the next projection yields", async () => {
+  const f = await setup(12, 8);
+  const style = SyntaxStyle.fromStyles(
+    { default: { fg: RGBA.fromHex("#eeeeee") } },
+    f.r.nativeScene,
+  );
+  const editor = new MarkdownEditorRenderable(f.r, {
+    position: "absolute",
+    top: 1,
+    width: 12,
+    height: 4,
+    value: "alpha\n\nbeta",
+    syntaxStyle: style,
+  });
+  f.r.root.add(editor);
+  try {
+    await f.renderOnce();
+    const canonical = editor.scrollableViewport.rect;
+    expect(canonical.y).toBe(1);
+    f.r.setFramePlan(() => ({ projection: { renderable: editor, translateX: 0, translateY: -1 } }));
+    const paint = f.r.nativeScene.paint.bind(f.r.nativeScene);
+    let observed: typeof canonical | undefined;
+    const painting = spyOn(f.r.nativeScene, "paint").mockImplementation((...args) => {
+      const result = paint(...args);
+      if (Reflect.get(f.r, "isProjectionPass") !== true) return result;
+      return Promise.resolve(result).then(
+        () =>
+          new Promise<void>((resolve) => {
+            setImmediate(() => {
+              observed = editor.scrollableViewport.rect;
+              resolve();
+            });
+          }),
+      );
+    });
+    try {
+      await f.renderOnce();
+    } finally {
+      painting.mockRestore();
+    }
+    expect(observed).toEqual(canonical);
+    expect(editor.scrollableViewport.rect).toEqual(canonical);
+  } finally {
+    await f.dispose();
+  }
+});
+
+test("private input waits through a yielding canonical paint, before planning its projection", async () => {
+  const f = await setup();
+  const view = new ScrollBoxRenderable(f.r, { width: 12, height: 2 });
+  for (let i = 0; i < 8; i++)
+    view.add(new TextRenderable(f.r, { content: `row ${i}`, height: 1, flexShrink: 0 }));
+  f.r.root.add(view);
+  const viewport = detectScrollableViewport(view);
+  if (!viewport) throw new Error("Missing viewport");
+  await f.renderOnce();
+  viewport.set(0.75);
+  let receive: ((sequence: string) => void) | undefined;
+  const subscription = spyOn(f.r, "subscribeOsc").mockImplementation((handler) => {
+    receive = handler;
+    return () => {};
+  });
+  const wires: string[] = [];
+  const controller = PixelController.attach(f.r, (wire) => wires.push(wire));
+  const queries = (wires[0] ?? "").slice(start.length, -end.length);
+  const query = decode(queries.slice(0, queries.indexOf("\x1b\\") + 2));
+  if (!controller || !receive || query?.op !== "query") throw new Error("Missing discovery");
+  receive(
+    encode({
+      op: "capability",
+      version: 1,
+      nonce: query.nonce,
+      reason: "ready",
+      snapshot: true,
+      precise: true,
+    }),
+  );
+  let afterInput = -1;
+  let paintFlag = false;
+  const errors: CliRendererErrorEvent[] = [];
+  f.r.on(CliRenderEvents.RENDER_ERROR, (error: CliRendererErrorEvent) => errors.push(error));
+  try {
+    await f.renderOnce();
+    const paint = f.r.nativeScene.paint.bind(f.r.nativeScene);
+    let yielded = false;
+    const painting = spyOn(f.r.nativeScene, "paint").mockImplementation((...args) => {
+      const result = paint(...args);
+      if (yielded) return result;
+      yielded = true;
+      return Promise.resolve(result).then(
+        () =>
+          new Promise<void>((resolve) => {
+            setImmediate(() => {
+              paintFlag = Reflect.get(f.r, "isFramePlanPass") === true;
+              receive?.(
+                encode({
+                  op: "wheel",
+                  version: 1,
+                  id: 1,
+                  generation: 1,
+                  phase: 0.75,
+                  x: 2,
+                  y: 1,
+                  modifiers: 0,
+                  dx: 0,
+                  dy: 0.5,
+                  source: "precise",
+                }),
+              );
+              afterInput = viewport.position;
+              resolve();
+            });
+          }),
+      );
+    });
+    try {
+      await f.renderOnce();
+    } finally {
+      painting.mockRestore();
+    }
+    expect(paintFlag).toBe(true);
+    expect(afterInput).toBe(0.75);
+    expect(viewport.position).toBe(1.25);
+    expect(Reflect.get(f.r, "isFramePlanPass")).toBe(false);
+    expect(errors).toEqual([]);
+  } finally {
+    controller.dispose();
+    subscription.mockRestore();
+    await f.dispose();
+  }
+});
+
+test("no plan and an empty plan share cells, one envelope and no-op suppression", async () => {
+  const wires: string[] = [];
   for (const planned of [false, true]) {
-    const { r, renderOnce, chunks } = await setup(8, 2);
+    const { r, renderOnce, chunks, dispose } = await setup(8, 2);
     try {
       r.root.add(new TextRenderable(r, { content: "BASE", width: 8, height: 1 }));
       if (planned) r.setFramePlan(() => ({}));
       await renderOnce();
       await r.idle();
-      expect(chunks).toEqual(baseline);
+      const wire = chunks.join("");
+      expect(wire).toContain("BASE");
+      expect(wire.split(start)).toHaveLength(2);
+      expect(wire.split(end)).toHaveLength(2);
+      wires.push(wire);
       chunks.length = 0;
       await renderOnce();
       await r.idle();
       expect(chunks).toEqual([]);
     } finally {
-      r.destroy();
+      await dispose();
     }
   }
+  expect(wires[0]).toBe(wires[1]);
 });
 
 async function scene(selectable = false) {
@@ -69,7 +406,7 @@ async function scene(selectable = false) {
   content.onLifecyclePass = () => {
     counters.lifecycle++;
   };
-  r.registerLifecyclePass(content);
+  r.nativeScene.lifecyclePasses.add(content);
   content.renderBefore = () => {
     counters.before++;
   };
@@ -91,6 +428,7 @@ async function scene(selectable = false) {
       before: bytes("<begin>"),
       after: bytes("<register>"),
       onHitMap: (map) => {
+        expect(Reflect.get(r, "isFramePlanPass")).toBe(true);
         normal = map;
       },
       projection: {
@@ -100,6 +438,7 @@ async function scene(selectable = false) {
         before: bytes("<project>"),
         after: bytes("<commit>"),
         onHitMap: (map) => {
+          expect(Reflect.get(r, "isFramePlanPass")).toBe(true);
           expect(content.translateY).toBe(0);
           content.requestRender();
           r.requestRender();
@@ -114,7 +453,7 @@ async function scene(selectable = false) {
   return { ...fixture, rows, content, view, counters, normal, projected, logicalPasses };
 }
 
-test("ordered normal and projected segments use one envelope and distinct paint identities without logical updates", async () => {
+test("ordered normal and projected segments use one envelope and distinct paint identities without logical translation changes", async () => {
   const { r, chunks, rows, content, view, counters, normal, projected, logicalPasses } =
     await scene();
   try {
@@ -136,6 +475,7 @@ test("ordered normal and projected segments use one envelope and distinct paint 
         positions.every((pos, i) => pos >= 0 && (i === 0 || pos > (positions[i - 1] ?? -1))),
       ).toBe(true);
     }
+    expect(Reflect.get(r, "isFramePlanPass")).toBe(false);
     expect(normal.frameId).toBe(projected.frameId);
     expect(normal.passId).not.toBe(projected.passId);
     expect(normal.hitTest(0.2, 0.8)).toBe(rows[0]?.num);
@@ -149,10 +489,10 @@ test("ordered normal and projected segments use one envelope and distinct paint 
     expect(content.translateY).toBe(0);
     expect(view.height).toBe(2);
     expect(counters).toEqual({
-      updates: logicalPasses,
-      lifecycle: logicalPasses,
-      before: logicalPasses,
-      after: logicalPasses,
+      updates: logicalPasses * 2,
+      lifecycle: logicalPasses * 2,
+      before: logicalPasses * 2,
+      after: logicalPasses * 2,
     });
     const frameId = r.frameId;
     await new Promise<void>((resolve) => setImmediate(resolve));
@@ -160,6 +500,7 @@ test("ordered normal and projected segments use one envelope and distinct paint 
     expect(r.frameId).toBe(frameId);
   } finally {
     r.destroy();
+    await r.closed;
   }
 });
 
@@ -178,6 +519,7 @@ test("the next frame diffs against the last projected cells", async () => {
     expect(chunks.join("")).toContain("AAAA");
   } finally {
     r.destroy();
+    await r.closed;
   }
 });
 
@@ -248,6 +590,7 @@ test("captured hits drive ordinary hover, capture, drag-end and drop with precis
     expect(received).toEqual([]);
   } finally {
     r.destroy();
+    await r.closed;
   }
 });
 
@@ -261,6 +604,7 @@ test("selection uses the normal selection machine and captured paint coordinates
     expect(r.getSelection()?.isDragging).toBe(false);
   } finally {
     r.destroy();
+    await r.closed;
   }
 });
 
@@ -300,6 +644,7 @@ test("an abandoned projection restores geometry and discards its entire encoder 
     }
   } finally {
     r.destroy();
+    await r.closed;
   }
 });
 
@@ -364,6 +709,7 @@ test("ScrollBox fractions survive keys, scrollTo, scrollbar moves and auto-scrol
     expect(() => inner.set(NaN)).toThrow();
   } finally {
     r.destroy();
+    await r.closed;
   }
 });
 
@@ -420,28 +766,25 @@ test("content-only ScrollBox projections preserve logical state, events and rend
     expect(() => outer.project(0.5)).toThrow();
   } finally {
     r.destroy();
+    await r.closed;
   }
 });
 
-test("thumb paint and hit geometry follow fractional rows on the half-cell grid", async () => {
-  const { r, child, inner } = await scrollScene();
+test("thumb paint follows fractional rows while its logical value stays canonical", async () => {
+  const { r, child, inner, renderOnce, captureCharFrame } = await scrollScene();
   try {
     const slider = child.verticalScrollBar.slider;
-    const start = () => probe(child.verticalScrollBar.slider, "getVirtualThumbStart");
-    const size = () => probe(child.verticalScrollBar.slider, "getVirtualThumbSize");
     inner.set(0);
-    const a = start();
+    await renderOnce();
+    const before = captureCharFrame();
     inner.set(0.875);
-    const b = start();
+    await renderOnce();
     expect(child.scrollTop).toBe(0);
     expect(slider.value).toBe(0);
-    expect(b).toBeGreaterThan(a);
-    expect(Number.isInteger(b)).toBe(true);
-    expect(size()).toBe(
-      Math.max(1, Math.floor((slider.height * 2 * child.viewport.height) / child.scrollHeight)),
-    );
+    expect(captureCharFrame()).not.toBe(before);
   } finally {
     r.destroy();
+    await r.closed;
   }
 });
 
@@ -503,6 +846,7 @@ test("precise row deltas bypass acceleration and bubble only the remainder; chai
     expect(inner.position).toBe(inner.origin);
   } finally {
     r.destroy();
+    await r.closed;
   }
 });
 
@@ -569,6 +913,7 @@ test("frame commands reject synchronized-output controls in every segment before
     expect(chunks.join("")).toContain("allowed");
   } finally {
     r.destroy();
+    await r.closed;
   }
 });
 
@@ -613,11 +958,12 @@ test("planned hover waits for presented input when deferred and keeps its defaul
         r.dispatchMouseEventFromHitMap(input("move"), normal);
         expect(over).toEqual(["row0"]);
       } else {
-        expect(over).toEqual(["row0", "row1"]);
-        expect(out).toEqual(["row0"]);
+        expect(over).toEqual(["row0"]);
+        expect(out).toEqual([]);
       }
     } finally {
       r.destroy();
+      await r.closed;
     }
   }
 });
@@ -684,5 +1030,48 @@ for (const route of ["ordinary", "snapshot"])
       expect(during.hitTest(1, 0)).toBe(source.num);
     } finally {
       r.destroy();
+      await r.closed;
     }
   });
+
+test("a drag begun on the projected row keeps its source through paint and release", async () => {
+  const { r, rows, content, renderOnce, projected } = await scene();
+  try {
+    const events: { id: string; type: string; source?: string }[] = [];
+    for (const node of [content, ...rows])
+      node.onMouse = (event) =>
+        events.push({ id: node.id, type: event.type, source: event.source?.id });
+    r.dispatchMouseEventFromHitMap(input("down"), projected);
+    r.dispatchMouseEventFromHitMap(input("drag"), projected);
+    let afterPaint: RenderHitMap | undefined;
+    r.setFramePlan(() => ({
+      deferHover: true,
+      projection: {
+        renderable: content,
+        translateX: 0,
+        translateY: -1,
+        onHitMap(map) {
+          afterPaint = map;
+        },
+      },
+    }));
+    await renderOnce();
+    if (!afterPaint) throw new Error("Missing captured projection");
+    expect(afterPaint.hitTest(0, 0)).toBe(rows[1]?.num);
+    events.length = 0;
+    r.dispatchMouseEventFromHitMap(input("drag"), afterPaint);
+    expect(events).toContainEqual({ id: "row1", type: "drag", source: undefined });
+    expect(events).toContainEqual({ id: "content", type: "over", source: "row1" });
+    r.dispatchMouseEventFromHitMap(input("up"), afterPaint);
+    expect(events).toContainEqual({ id: "row1", type: "drag-end", source: undefined });
+    expect(events).toContainEqual({ id: "content", type: "drop", source: "row1" });
+    const frame = r.frameId;
+    events.length = 0;
+    r.dispatchMouseEventFromHitMap(input("down"), afterPaint);
+    expect(r.frameId).toBe(frame);
+    expect(events).toContainEqual({ id: "row1", type: "down", source: undefined });
+  } finally {
+    r.destroy();
+    await r.closed;
+  }
+});

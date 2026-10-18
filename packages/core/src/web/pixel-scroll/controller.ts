@@ -59,6 +59,7 @@ export class PixelController {
   private generation = 0;
   private releasing = false;
   private disposed = false;
+  private deferredReports: string[] = [];
   private rediscoveryQueued = false;
   private normal: (Uint32Array | Uint16Array)[] = [];
   private settleTimer: ReturnType<typeof setTimeout> | undefined;
@@ -89,7 +90,7 @@ export class PixelController {
     this.write = write;
     this.settle = settle;
     renderer.setFramePlan(() => this.plan());
-    this.unsubscribe = renderer.subscribeOsc((sequence) => this.receive(sequence));
+    this.unsubscribe = renderer.subscribeOsc((sequence) => this.deliverReport(sequence));
     renderer.keyInput.on("keypress", this.key);
     renderer.on("destroy", this.dispose);
     this.query();
@@ -145,13 +146,15 @@ export class PixelController {
   }
 
   private changed(): boolean {
-    const buffers = Object.values(this.renderer.nextRenderBuffer.buffers);
-    const changed = buffers.some((buffer, index) => {
-      const old = this.normal[index];
-      return !old || old.length !== buffer.length || buffer.some((value, i) => value !== old[i]);
+    return this.renderer.nextRenderBuffer.withBuffers(({ char, fg, bg, attributes }) => {
+      const planes = [char, fg, bg, attributes];
+      const changed = planes.some((buffer, index) => {
+        const old = this.normal[index];
+        return !old || old.length !== buffer.length || buffer.some((value, i) => value !== old[i]);
+      });
+      if (changed) this.normal = planes.map((buffer) => buffer.slice());
+      return changed;
     });
-    if (changed) this.normal = buffers.map((buffer) => buffer.slice());
-    return changed;
   }
 
   private sameHits(a: RenderHitMap | undefined, b: RenderHitMap): boolean {
@@ -292,7 +295,31 @@ export class PixelController {
     return plan;
   }
 
+  private readonly flushReports = () => {
+    this.renderer.off("frame:plan:end", this.flushReports);
+    const reports = this.deferredReports;
+    this.deferredReports = [];
+    if (!this.disposed) for (const sequence of reports) this.deliverReport(sequence);
+  };
+
+  private deliverReport(sequence: string) {
+    try {
+      this.receive(sequence);
+    } catch (error) {
+      console.error("Error in pixel-scroll report:", error);
+    }
+  }
+
   private receive(sequence: string) {
+    // A 0.6.6 projection can yield while native presentation completes. Keep
+    // input in ingress order until geometry is restored, before output can stall.
+    if (Reflect.get(this.renderer, "isFramePlanPass") === true) {
+      if (this.deferredReports.length === 0) {
+        this.renderer.once("frame:plan:end", this.flushReports);
+      }
+      this.deferredReports.push(sequence);
+      return;
+    }
     const capability = this.discovery.receive(sequence);
     if (capability) {
       this.history.presentations = this.discovery.presentations;
@@ -513,6 +540,8 @@ export class PixelController {
     if (this.disposed) return;
     this.disposed = true;
     this.stopSettle();
+    this.deferredReports = [];
+    this.renderer.off("frame:plan:end", this.flushReports);
     this.unsubscribe();
     this.renderer.keyInput.off("keypress", this.key);
     this.renderer.off("destroy", this.dispose);

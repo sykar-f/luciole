@@ -1,11 +1,9 @@
 import { expect, test } from "bun:test";
-import { createHash } from "node:crypto";
-import { mkdtemp, readFile } from "node:fs/promises";
+import { mkdtemp } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import { createTestRenderer } from "@opentui/core/testing";
-import { defaultCache } from "../packages/core/src/compile";
-import { webRuntimeDirectory } from "../packages/core/src/web-runtime";
+import { openTuiCheckoutDirectory, webRuntimeDirectory } from "../packages/core/src/web-runtime";
 import { opentuiWasm } from "../packages/core/src/web/opentui/plugin";
 import { detectOpenTuiSeams } from "../packages/core/src/web/opentui-seams";
 
@@ -56,9 +54,7 @@ test.skipIf(process.env["LUCIOLE_OPENTUI_INTEGRATION"] !== "1")(
     ]);
     expect({ code: preparedCode, output: preparedOut + preparedErr }).toMatchObject({ code: 0 });
     const runtime = await webRuntimeDirectory();
-    const patch = await readFile(join(root, "packages/core/web/opentui-v0.6.6.patch"));
-    const key = createHash("sha256").update(patch).digest("hex").slice(0, 16);
-    const checkout = join(defaultCache(), "web", `opentui-v0.6.6-${key}`);
+    const checkout = openTuiCheckoutDirectory();
     const directory = await mkdtemp(join(process.env["TMPDIR"] ?? tmpdir(), "opentui-seams-"));
     const result = await Bun.build({
       entrypoints: [join(import.meta.dir, "opentui-seams-fixture.ts")],

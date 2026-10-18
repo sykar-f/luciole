@@ -175,7 +175,7 @@ export class MarkdownEditorRenderable extends Renderable {
       get rect() {
         return {
           x: editor.screenX,
-          y: editor.screenY,
+          y: editor.windowY,
           width: Math.max(0, editor.width - (editor.bar ? 1 : 0)),
           height: editor.height,
         };
@@ -215,7 +215,16 @@ export class MarkdownEditorRenderable extends Renderable {
 
   /** The paint-only translation must not move the document window or its chrome. */
   private get windowY() {
-    return this.y;
+    const projection: unknown = Reflect.get(this.ctx, "projection");
+    if (
+      projection &&
+      typeof projection === "object" &&
+      Reflect.get(projection, "renderable") === this
+    ) {
+      const translateY: unknown = Reflect.get(projection, "translateY");
+      if (typeof translateY === "number") return this.screenY - (translateY - this.translateY);
+    }
+    return this.screenY;
   }
   private get projecting() {
     return Reflect.get(this.ctx, "isProjectionPass") === true;

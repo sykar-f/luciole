@@ -1,19 +1,19 @@
 /** On demand: Zig 0.16.0 + network + Chrome; no version pin changes and no CI discovery. */
 import { test, expect } from "bun:test";
-import { copyFileSync, mkdtempSync, readFileSync } from "node:fs";
+import { copyFileSync, mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { createHash } from "node:crypto";
 import { join } from "node:path";
 import type { BunPlugin } from "bun";
 import * as z from "zod/mini";
-import { defaultCache } from "../../packages/core/src/compile";
-import { prepareWebRuntimeEntry } from "../../packages/core/src/web-runtime";
+import {
+  openTuiCheckoutDirectory,
+  prepareWebRuntimeEntry,
+} from "../../packages/core/src/web-runtime";
 import { browserNode } from "../../packages/core/src/web/node/plugin";
 import { opentuiWasm } from "../../packages/core/src/web/opentui/plugin";
 import { Browser } from "./cdp";
 
 const VERSION = "0.6.6";
-const HASH_LENGTH = 16;
 const TIMEOUT_MS = 240_000;
 const NOT_FOUND = 404;
 const Result = z.object({ ok: z.literal(true) });
@@ -22,11 +22,7 @@ test(
   "OpenTUI 0.6.6 wasm32: box, changing text, and cells after memory growth",
   async () => {
     const patch = join(import.meta.dir, `../../packages/core/web/opentui-v${VERSION}.patch`);
-    const patchKey = createHash("sha256")
-      .update(readFileSync(patch))
-      .digest("hex")
-      .slice(0, HASH_LENGTH);
-    const checkout = join(defaultCache(), "web", `opentui-v${VERSION}-${patchKey}`);
+    const checkout = openTuiCheckoutDirectory();
     const scratch = mkdtempSync(join(process.env["TMPDIR"] ?? tmpdir(), "opentui-066-"));
     const directory = await prepareWebRuntimeEntry({
       directory: join(scratch, "page"),

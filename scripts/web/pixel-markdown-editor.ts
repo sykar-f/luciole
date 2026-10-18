@@ -1,21 +1,19 @@
 /* eslint-disable no-magic-numbers -- Scripted browser proof coordinates and bounds. */
 import { expect } from "bun:test";
 import * as z from "zod/mini";
-import { createHash } from "node:crypto";
 import { join } from "node:path";
-import { defaultCache } from "../../packages/core/src/compile";
-import { prepareWebRuntime, webRuntimeDirectory } from "../../packages/core/src/web-runtime";
+import {
+  openTuiCheckoutDirectory,
+  prepareWebRuntime,
+  webRuntimeDirectory,
+} from "../../packages/core/src/web-runtime";
 import { opentuiWasm } from "../../packages/core/src/web/opentui/plugin";
 import { browserNode } from "../../packages/core/src/web/node/plugin";
 import { Browser } from "./cdp";
 
 await prepareWebRuntime();
 const runtime = await webRuntimeDirectory();
-const patch = await Bun.file(
-  import.meta.dir + "/../../packages/core/web/opentui-v0.6.6.patch",
-).arrayBuffer();
-const key = createHash("sha256").update(new Uint8Array(patch)).digest("hex").slice(0, 16);
-const checkout = join(defaultCache(), "web", `opentui-v0.6.6-${key}`);
+const checkout = openTuiCheckoutDirectory();
 const build = await Bun.build({
   entrypoints: [import.meta.dir + "/pixel-markdown-editor-page.ts"],
   target: "browser",
@@ -163,7 +161,11 @@ try {
   await browser.evaluate(
     "{const r=probe.state().rect;probe.pointer('mousedown',r.x+4.5,r.y+.1,1);probe.pointer('mouseup',r.x+4.5,r.y+.1)}",
   );
-  await wait("probe.editor.focused", "editor focus by click");
+  // Focus is logical; OpenTUI 0.6.6 delivers its cursor bytes asynchronously.
+  await wait(
+    "probe.editor.focused && probe.state().cursor===1",
+    "editor focus and cursor by click",
+  );
   expect(await browser.evaluate("probe.state().selection.head")).toEqual({ block: 0, offset: 4 });
   expect(await browser.evaluate("probe.state().cursor")).toBe(1);
   await browser.evaluate("probe.terminal.input('\\x1b[B')");

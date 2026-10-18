@@ -10,17 +10,15 @@ import {
 } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { createHash } from "node:crypto";
-import { ABI_PACKAGES } from "../packages/core/src/abi";
 import { TREE_SITTER_DIRECTORY, WEB_RUNTIME_FILES } from "../packages/core/src/web/build";
 import {
+  openTuiCheckoutDirectory,
   prepareOpenTuiCheckout,
+  prepareOpenTui,
   prepareWebRuntimeEntry,
   prepareWebRuntime,
   webRuntimeDirectory,
 } from "../packages/core/src/web-runtime";
-
-const PATCH_KEY_LENGTH = 16;
 
 async function fixture(
   run: (source: string, checkout: string, directory: string) => void | Promise<void>,
@@ -36,6 +34,7 @@ async function fixture(
     mkdirSync(source);
     git("init", "--quiet");
     writeFileSync(join(source, "tracked.txt"), "original\n");
+    writeFileSync(join(source, ".gitignore"), "build/\npackages/native/lib/\n");
     git("add", ".");
     git(
       "-c",
@@ -73,12 +72,110 @@ test("replaces a checkout with HEAD but missing tracked files", async () => {
   });
 });
 
-test("reuses complete checkouts and preserves applied patches", async () => {
-  await fixture((source, checkout) => {
-    prepareOpenTuiCheckout(checkout, source, "fixture");
-    writeFileSync(join(checkout, "tracked.txt"), "patched\n");
-    prepareOpenTuiCheckout(checkout, join(source, "unavailable"), "fixture");
+function patchStack(source: string, directory: string) {
+  const git = (...args: string[]) => {
+    const result = Bun.spawnSync(["git", ...args], { cwd: source, stderr: "pipe" });
+    if (result.exitCode !== 0) throw new Error(result.stderr.toString());
+    return result.stdout;
+  };
+  writeFileSync(join(source, "tracked.txt"), "first\n");
+  writeFileSync(join(source, "added.txt"), "first new file\n");
+  git("add", "-N", "added.txt");
+  const first = join(directory, "first.patch");
+  writeFileSync(first, git("diff", "--binary"));
+  git("add", ".");
+  writeFileSync(join(source, "tracked.txt"), "patched\n");
+  writeFileSync(join(source, "added.txt"), "patched new file\n");
+  const second = join(directory, "second.patch");
+  writeFileSync(second, git("diff", "--binary"));
+  git("reset", "--hard", "--quiet", "fixture");
+  return [first, second];
+}
+
+for (const extra of ["tracked change", "untracked file"]) {
+  test(`replaces a patched checkout with an extra ${extra}`, async () => {
+    await fixture((source, checkout, directory) => {
+      const patches = patchStack(source, directory);
+      prepareOpenTuiCheckout(checkout, source, "fixture");
+      // This reproduces the previous reverse-check validation: every expected
+      // patch is present, but an unrelated source change must still be rejected.
+      for (const patch of patches) {
+        const applied = Bun.spawnSync(["git", "apply", patch], { cwd: checkout });
+        expect(applied.exitCode).toBe(0);
+      }
+      if (extra === "tracked change")
+        writeFileSync(join(checkout, "tracked.txt"), "patched\nextra\n");
+      else writeFileSync(join(checkout, "extra.txt"), "unexpected source\n");
+      prepareOpenTuiCheckout(checkout, source, "fixture", patches);
+      expect(readFileSync(join(checkout, "tracked.txt"), "utf8")).toBe("patched\n");
+      expect(readFileSync(join(checkout, "added.txt"), "utf8")).toBe("patched new file\n");
+      expect(existsSync(join(checkout, "extra.txt"))).toBe(false);
+    });
+  });
+}
+
+test("reuses exactly the ordered patch stack, including its new files", async () => {
+  await fixture((source, checkout, directory) => {
+    const patches = patchStack(source, directory);
+    prepareOpenTuiCheckout(checkout, source, "fixture", patches);
+    const index = readFileSync(join(checkout, ".git/index"));
+    prepareOpenTuiCheckout(checkout, join(source, "unavailable"), "fixture", patches);
     expect(readFileSync(join(checkout, "tracked.txt"), "utf8")).toBe("patched\n");
+    expect(readFileSync(join(checkout, "added.txt"), "utf8")).toBe("patched new file\n");
+    expect(readFileSync(join(checkout, ".git/index"))).toEqual(index);
+  });
+});
+
+test("reuses validated sources with ignored build output", async () => {
+  await fixture((source, checkout, directory) => {
+    const patches = patchStack(source, directory);
+    const tree = prepareOpenTuiCheckout(checkout, source, "fixture", patches);
+    mkdirSync(join(checkout, "build"));
+    writeFileSync(join(checkout, "build", "output"), "generated");
+    expect(prepareOpenTuiCheckout(checkout, join(source, "unavailable"), "fixture", patches)).toBe(
+      tree,
+    );
+    expect(readFileSync(join(checkout, "build", "output"), "utf8")).toBe("generated");
+  });
+});
+
+test("WASM without matching source provenance is rebuilt before reuse", async () => {
+  await fixture((source, checkout, directory) => {
+    const [patch] = patchStack(source, directory);
+    if (!patch) throw new Error("Missing patch");
+    const tree = prepareOpenTuiCheckout(checkout, source, "fixture", [patch]);
+    const wasm = join(checkout, "packages/native/lib/wasm32-wasi/opentui.wasm");
+    mkdirSync(join(checkout, "packages/native/lib/wasm32-wasi"), { recursive: true });
+    writeFileSync(wasm, "untrusted");
+    const spawn = Bun.spawnSync;
+    let builds = 0;
+    const buildCommands: typeof spawn = (command, options?) => {
+      if (!Array.isArray(command)) throw new Error("Expected a command array");
+      if (options !== undefined && (typeof options !== "object" || options === null))
+        throw new Error("Expected spawn options");
+      if (["fake-zig", "bun", "sh"].includes(command[0] ?? "")) {
+        if (command[1] === "build") {
+          builds++;
+          writeFileSync(wasm, `built ${builds}`);
+        }
+        return spawn([process.execPath, "--eval", "console.log('0.16.0')"]);
+      }
+      return spawn(command, options);
+    };
+    const commands = spyOn(Bun, "spawnSync").mockImplementation(buildCommands);
+    try {
+      for (const record of [undefined, "another-tree"]) {
+        if (record !== undefined) writeFileSync(`${wasm}.source-tree`, record);
+        expect(prepareOpenTui(checkout, "fake-zig", { tag: "fixture", patch })).toBe(wasm);
+        expect(readFileSync(`${wasm}.source-tree`, "utf8").trim()).toBe(tree);
+      }
+      expect(builds).toBe(2);
+      expect(prepareOpenTui(checkout, "missing-zig", { tag: "fixture", patch })).toBe(wasm);
+      expect(builds).toBe(2);
+      expect(readFileSync(wasm, "utf8")).toBe("built 2");
+    } finally {
+      commands.mockRestore();
+    }
   });
 });
 
@@ -289,6 +386,43 @@ test("two calls in one process reuse the runtime after waiting", async () => {
   });
 });
 
+for (const provenance of ["missing", "another tree"]) {
+  test(`rebuilds a runtime with ${provenance} source provenance`, async () => {
+    await fixture(async (source, checkout, directory) => {
+      const patches = patchStack(source, directory);
+      const runtime = join(directory, "runtime");
+      if (provenance === "missing") writeRuntime(runtime, "untrusted");
+      else
+        await prepareWebRuntimeEntry({
+          directory: runtime,
+          checkout,
+          sourceTree: () =>
+            prepareOpenTuiCheckout(checkout, source, "fixture", patches.slice(0, 1)),
+          async build(temporary) {
+            writeRuntime(temporary, "old tree");
+          },
+        });
+      let builds = 0;
+      const prepare = () =>
+        prepareWebRuntimeEntry({
+          directory: runtime,
+          checkout,
+          sourceTree: () => prepareOpenTuiCheckout(checkout, source, "fixture", patches),
+          async build(temporary) {
+            builds++;
+            writeRuntime(temporary, "validated");
+          },
+        });
+      await prepare();
+      await prepare();
+      expect(builds).toBe(1);
+      expect(readFileSync(join(runtime, "runtime.js"), "utf8")).toBe("validated");
+      const expected = prepareOpenTuiCheckout(checkout, source, "fixture", patches);
+      expect(readFileSync(join(runtime, "opentui-source-tree"), "utf8").trim()).toBe(expected);
+    });
+  });
+}
+
 test("accepts a complete runtime published before the final rename", async () => {
   await fixture(async (_source, checkout, directory) => {
     const runtime = join(directory, "runtime");
@@ -367,10 +501,7 @@ test("prepareWebRuntime reports lock contention once before reusing the winner",
   await fixture(async (_source, _checkout, directory) => {
     const cache = join(directory, "cache");
     const runtime = await webRuntimeDirectory(cache);
-    const tag = `v${ABI_PACKAGES["@opentui/core"]}`;
-    const patch = readFileSync(join(import.meta.dir, `../packages/core/web/opentui-${tag}.patch`));
-    const patchKey = createHash("sha256").update(patch).digest("hex").slice(0, PATCH_KEY_LENGTH);
-    const checkout = join(cache, "web", `opentui-${tag}-${patchKey}`);
+    const checkout = openTuiCheckoutDirectory(cache);
     const release = Promise.withResolvers<void>();
     const owner = prepareWebRuntimeEntry({
       directory: runtime,
@@ -378,8 +509,29 @@ test("prepareWebRuntime reports lock contention once before reusing the winner",
       async build(temporary) {
         await release.promise;
         writeRuntime(temporary, "winner");
+        mkdirSync(join(checkout, ".git"), { recursive: true });
+        writeFileSync(join(temporary, "opentui-source-tree"), "a".repeat(40));
       },
     });
+    // Source validation has its own real-repository tests above. Here the winner
+    // already has validated sources; isolate the production lock/waiting path.
+    const spawn = Bun.spawnSync;
+    const validateCommands: typeof spawn = (command, options?) => {
+      if (!Array.isArray(command)) throw new Error("Expected a command array");
+      if (options !== undefined && (typeof options !== "object" || options === null))
+        throw new Error("Expected spawn options");
+      if (command[0] === "git" && options && "cwd" in options && options.cwd === checkout) {
+        const output =
+          command[1] === "rev-parse" || command[1] === "write-tree" ? "a".repeat(40) : "";
+        return spawn([
+          process.execPath,
+          "--eval",
+          `process.stdout.write(${JSON.stringify(output)})`,
+        ]);
+      }
+      return spawn(command, options);
+    };
+    const validation = spyOn(Bun, "spawnSync").mockImplementation(validateCommands);
     const messages: string[] = [];
     const log = spyOn(console, "error").mockImplementation((message: unknown) => {
       messages.push(String(message));
@@ -400,6 +552,7 @@ test("prepareWebRuntime reports lock contention once before reusing the winner",
       release.resolve();
       retry.mockRestore();
       log.mockRestore();
+      validation.mockRestore();
       await owner;
     }
   });
