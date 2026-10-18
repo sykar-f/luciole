@@ -287,7 +287,7 @@ index ff4ebe5..0aed61a 100644
      if (value === this._value) return
      this._value = value
 diff --git a/packages/core/src/renderer.ts b/packages/core/src/renderer.ts
-index 91a46db..4b859da 100644
+index 91a46db..0febe79 100644
 --- a/packages/core/src/renderer.ts
 +++ b/packages/core/src/renderer.ts
 @@ -902,6 +902,30 @@ export enum RendererControlState {
@@ -321,7 +321,7 @@ index 91a46db..4b859da 100644
  export class CliRenderer extends EventEmitter implements RenderContext {
    private static animationFrameId = 0
    private lib: RenderLib
-@@ -977,6 +1001,181 @@ export class CliRenderer extends EventEmitter implements RenderContext {
+@@ -977,6 +1001,187 @@ export class CliRenderer extends EventEmitter implements RenderContext {
    private frameCount: number = 0
    // Bumped once per loop() iteration; see RenderContext.frameId.
    private _frameId: number = 0
@@ -333,6 +333,12 @@ index 91a46db..4b859da 100644
 +    return this._isFramePlanPass
 +  }
 +  private framePlan: (() => RenderFramePlan | null) | null = null
++
++  private finishFramePlanPass(): void {
++    if (!this._isFramePlanPass) return
++    this._isFramePlanPass = false
++    this.emit("frame:plan:end")
++  }
 +
 +  public get renderPassId(): number {
 +    return this._renderPassId
@@ -432,6 +438,7 @@ index 91a46db..4b859da 100644
 +    }
 +    validatePlan()
 +    if (!plan.projection && !plan.before?.length && !plan.after?.length && !plan.onHitMap) {
++      this.finishFramePlanPass()
 +      return this.presentNativeScene()
 +    }
 +    session.beginFrameOutput()
@@ -488,12 +495,11 @@ index 91a46db..4b859da 100644
 +    } finally {
 +      this._isProjectionPass = false
 +      this._projection = null
-+      this._isFramePlanPass = false
 +      session.write(SYNC_RESET)
 +      this.lib.sessionSetFrameSync(session.context, session.session, 0)
 +      try {
 +        // Geometry is canonical now. Input must resume before the real sink can stall.
-+        this.emit("frame:plan:end")
++        this.finishFramePlanPass()
 +      } finally {
 +        await session.endFrameOutput(complete)
 +        if (!complete) this.forceFullRepaintRequested = true
@@ -503,7 +509,7 @@ index 91a46db..4b859da 100644
    private lastFpsTime: number = 0
    private currentFps: number = 0
    private targetFrameTime: number = 1000 / this._targetFps
-@@ -1681,6 +1880,7 @@ export class CliRenderer extends EventEmitter implements RenderContext {
+@@ -1681,6 +1886,7 @@ export class CliRenderer extends EventEmitter implements RenderContext {
    }
  
    public requestRender() {
@@ -511,7 +517,7 @@ index 91a46db..4b859da 100644
      if (this._isDestroyed || this._controlState === RendererControlState.EXPLICIT_SUSPENDED) {
        return
      }
-@@ -3589,7 +3789,11 @@ export class CliRenderer extends EventEmitter implements RenderContext {
+@@ -3589,7 +3795,11 @@ export class CliRenderer extends EventEmitter implements RenderContext {
      }
    }
  
@@ -524,7 +530,7 @@ index 91a46db..4b859da 100644
      if (this._splitHeight > 0) {
        if (mouseEvent.y < this.renderOffset) {
          return false
-@@ -3617,7 +3821,7 @@ export class CliRenderer extends EventEmitter implements RenderContext {
+@@ -3617,7 +3827,7 @@ export class CliRenderer extends EventEmitter implements RenderContext {
      }
  
      if (mouseEvent.type === "scroll") {
@@ -533,7 +539,7 @@ index 91a46db..4b859da 100644
        const maybeRenderable = Renderable.renderablesByNumber.get(maybeRenderableId)
        const fallbackTarget =
          this._currentFocusedRenderable &&
-@@ -3634,7 +3838,7 @@ export class CliRenderer extends EventEmitter implements RenderContext {
+@@ -3634,7 +3844,7 @@ export class CliRenderer extends EventEmitter implements RenderContext {
        return true
      }
  
@@ -542,7 +548,7 @@ index 91a46db..4b859da 100644
      const sameElement = maybeRenderableId === this.lastOverRenderableNum
      this.lastOverRenderableNum = maybeRenderableId
      const maybeRenderable = Renderable.renderablesByNumber.get(maybeRenderableId)
-@@ -3831,7 +4035,8 @@ export class CliRenderer extends EventEmitter implements RenderContext {
+@@ -3831,7 +4041,8 @@ export class CliRenderer extends EventEmitter implements RenderContext {
    }
  
    public hitTest(x: number, y: number): number {
@@ -552,7 +558,7 @@ index 91a46db..4b859da 100644
    }
  
    private takeMemorySnapshot(): void {
-@@ -4798,6 +5003,7 @@ export class CliRenderer extends EventEmitter implements RenderContext {
+@@ -4798,6 +5009,7 @@ export class CliRenderer extends EventEmitter implements RenderContext {
          return
        // Bump before any work so all callers this iteration see the new id.
        this._frameId++
@@ -560,27 +566,33 @@ index 91a46db..4b859da 100644
  
        const now = this.normalizeClockTime(this.clock.now(), this.lastTime)
        const elapsed = this.getElapsedMs(now, this.lastTime)
-@@ -4844,6 +5050,9 @@ export class CliRenderer extends EventEmitter implements RenderContext {
+@@ -4844,6 +5056,14 @@ export class CliRenderer extends EventEmitter implements RenderContext {
        // Callbacks can start terminal setup; a frame step is invalid until it settles.
        if (this.nativeTerminalTransition && !(await this.waitForTerminalTransition())) return
        if (!this.canRender || this.currentControlState === RendererControlState.EXPLICIT_SUSPENDED) return
 +      // Drain previous output before painting a planned draft, while input is live.
 +      // Staging the new plan then starts synchronously and cannot freeze input on a sink.
-+      if (this.framePlan && this._splitHeight === 0) await this.nativeSession.idle()
++      if (this.framePlan && this._splitHeight === 0) {
++        await this.nativeSession.idle()
++        // Canonical painting can yield too. Its cells and the following plan
++        // must describe the same logical input state.
++        this._isFramePlanPass = true
++      }
        const sceneStart = performance.now()
        const requestedBeforeScene = this.immediateRerenderRequested
        try {
-@@ -4877,7 +5086,8 @@ export class CliRenderer extends EventEmitter implements RenderContext {
+@@ -4877,7 +5097,9 @@ export class CliRenderer extends EventEmitter implements RenderContext {
  
        // If destroy() was requested during this frame, skip native work and scheduling.
        if (this.canRender && !this.nativeSplitFlush) {
 -        const nativeStatus = await this.presentNativeScene()
 +        const plan = this._splitHeight > 0 ? null : this.framePlan?.()
++        if (!plan) this.finishFramePlanPass()
 +        const nativeStatus = plan ? await this.renderPlannedFrame(plan, deltaTime) : await this.presentNativeScene()
          if (!this.canRender || this.currentControlState === RendererControlState.EXPLICIT_SUSPENDED) return
          if (nativeStatus === "rendered") this.frameCount++
          if (this.getElapsedMs(now, this.lastFpsTime) >= 1000) {
-@@ -4889,7 +5099,7 @@ export class CliRenderer extends EventEmitter implements RenderContext {
+@@ -4889,7 +5111,7 @@ export class CliRenderer extends EventEmitter implements RenderContext {
  
          if (nativeStatus === "rendered") {
            // Check if hit grid changed and recheck hover state if needed
@@ -589,6 +601,49 @@ index 91a46db..4b859da 100644
              this.recheckHoverState()
            }
            if (!this.canRender) return
+@@ -4950,22 +5172,27 @@ export class CliRenderer extends EventEmitter implements RenderContext {
+       const completion = this.renderingCompletion
+       this.renderingCompletion = null
+       try {
+-        this.nativeScene.cancelFrame()
+-        this.rendering = false
+-        this.logNativeDiagnostics()
+-        if (!this.canRender && !this._isDestroyed) this.destroy()
+-        if (this._destroyPending) {
+-          this.finalizeDestroy()
+-        }
+-        if (renderFailed && (this._isRunning || this.immediateRerenderRequested) && !this._isDestroyed) {
+-          this.immediateRerenderRequested = false
+-          this.scheduleRenderTimer()
++        try {
++          // Errors before a plan is built must release deferred input too.
++          this.finishFramePlanPass()
++        } finally {
++          this.nativeScene.cancelFrame()
++          this.rendering = false
++          this.logNativeDiagnostics()
++          if (!this.canRender && !this._isDestroyed) this.destroy()
++          if (this._destroyPending) {
++            this.finalizeDestroy()
++          }
++          if (renderFailed && (this._isRunning || this.immediateRerenderRequested) && !this._isDestroyed) {
++            this.immediateRerenderRequested = false
++            this.scheduleRenderTimer()
++          }
++          // Keep the old dimensions through FRAME publication, even if the output
++          // driver completed its presentation and drain in the same turn.
++          this.applyPendingNativeModeReported()
++          this.applyPendingNativeResize()
++          this.resolveIdleIfNeeded()
+         }
+-        // Keep the old dimensions through FRAME publication, even if the output
+-        // driver completed its presentation and drain in the same turn.
+-        this.applyPendingNativeModeReported()
+-        this.applyPendingNativeResize()
+-        this.resolveIdleIfNeeded()
+       } finally {
+         completion?.resolve()
+       }
 diff --git a/packages/core/src/zig.ts b/packages/core/src/zig.ts
 index d83570a..0bd604f 100644
 --- a/packages/core/src/zig.ts

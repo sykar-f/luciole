@@ -9,10 +9,14 @@ import {
   type CliRendererErrorEvent,
   MouseEvent,
   NativeSession,
+  ScrollBoxRenderable,
   type RawMouseEvent,
 } from "@opentui/core";
 import { createTestRenderer } from "@opentui/core/testing";
 import { detectOpenTuiSeams, type RenderHitMap } from "../packages/core/src/web/opentui-seams";
+import { detectScrollableViewport } from "../packages/core/src/web/opentui-seams";
+import { PixelController } from "../packages/core/src/web/pixel-scroll/controller";
+import { decode, encode } from "../packages/core/src/pixel-scroll/protocol";
 
 const bytes = (s: string) => new TextEncoder().encode(s);
 const start = "\x1b[?2026h",
@@ -102,6 +106,91 @@ async function setup(width = 12, height = 4) {
   if (!found.available) throw new Error(`Missing seams: ${found.missing.join(", ")}`);
   return { ...setup, r: found.renderer, chunks };
 }
+
+test("private input waits through a yielding canonical paint, before planning its projection", async () => {
+  const f = await setup();
+  const view = new ScrollBoxRenderable(f.r, { width: 12, height: 2 });
+  for (let i = 0; i < 8; i++)
+    view.add(new TextRenderable(f.r, { content: `row ${i}`, height: 1, flexShrink: 0 }));
+  f.r.root.add(view);
+  const viewport = detectScrollableViewport(view);
+  if (!viewport) throw new Error("Missing viewport");
+  await f.renderOnce();
+  viewport.set(0.75);
+  let receive: ((sequence: string) => void) | undefined;
+  const subscription = spyOn(f.r, "subscribeOsc").mockImplementation((handler) => {
+    receive = handler;
+    return () => {};
+  });
+  const wires: string[] = [];
+  const controller = PixelController.attach(f.r, (wire) => wires.push(wire));
+  const queries = (wires[0] ?? "").slice(start.length, -end.length);
+  const query = decode(queries.slice(0, queries.indexOf("\x1b\\") + 2));
+  if (!controller || !receive || query?.op !== "query") throw new Error("Missing discovery");
+  receive(
+    encode({
+      op: "capability",
+      version: 1,
+      nonce: query.nonce,
+      reason: "ready",
+      snapshot: true,
+      precise: true,
+    }),
+  );
+  let afterInput = -1;
+  let paintFlag = false;
+  const errors: CliRendererErrorEvent[] = [];
+  f.r.on(CliRenderEvents.RENDER_ERROR, (error: CliRendererErrorEvent) => errors.push(error));
+  try {
+    await f.renderOnce();
+    const paint = f.r.nativeScene.paint.bind(f.r.nativeScene);
+    let yielded = false;
+    const painting = spyOn(f.r.nativeScene, "paint").mockImplementation((...args) => {
+      const result = paint(...args);
+      if (yielded) return result;
+      yielded = true;
+      return Promise.resolve(result).then(
+        () =>
+          new Promise<void>((resolve) => {
+            setImmediate(() => {
+              paintFlag = Reflect.get(f.r, "isFramePlanPass") === true;
+              receive?.(
+                encode({
+                  op: "wheel",
+                  version: 1,
+                  id: 1,
+                  generation: 1,
+                  phase: 0.75,
+                  x: 2,
+                  y: 1,
+                  modifiers: 0,
+                  dx: 0,
+                  dy: 0.5,
+                  source: "precise",
+                }),
+              );
+              afterInput = viewport.position;
+              resolve();
+            });
+          }),
+      );
+    });
+    try {
+      await f.renderOnce();
+    } finally {
+      painting.mockRestore();
+    }
+    expect(paintFlag).toBe(true);
+    expect(afterInput).toBe(0.75);
+    expect(viewport.position).toBe(1.25);
+    expect(Reflect.get(f.r, "isFramePlanPass")).toBe(false);
+    expect(errors).toEqual([]);
+  } finally {
+    controller.dispose();
+    subscription.mockRestore();
+    await f.dispose();
+  }
+});
 
 test("no plan and an empty plan share cells, one envelope and no-op suppression", async () => {
   const wires: string[] = [];
