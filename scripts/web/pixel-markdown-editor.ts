@@ -161,7 +161,11 @@ try {
   await browser.evaluate(
     "{const r=probe.state().rect;probe.pointer('mousedown',r.x+4.5,r.y+.1,1);probe.pointer('mouseup',r.x+4.5,r.y+.1)}",
   );
-  await wait("probe.editor.focused", "editor focus by click");
+  // Focus is logical; OpenTUI 0.6.6 delivers its cursor bytes asynchronously.
+  await wait(
+    "probe.editor.focused && probe.state().cursor===1",
+    "editor focus and cursor by click",
+  );
   expect(await browser.evaluate("probe.state().selection.head")).toEqual({ block: 0, offset: 4 });
   expect(await browser.evaluate("probe.state().cursor")).toBe(1);
   await browser.evaluate("probe.terminal.input('\\x1b[B')");
