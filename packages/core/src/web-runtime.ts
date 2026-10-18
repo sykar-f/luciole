@@ -33,6 +33,20 @@ import { WEB_SERVER_FILE } from "./web/server-build";
 const OPENTUI_TAG = `v${ABI_PACKAGES["@opentui/core"]}`;
 const OPENTUI_REPOSITORY = "https://github.com/anomalyco/opentui";
 const OPENTUI_PATCH = resolve(import.meta.dir, `../web/opentui-${OPENTUI_TAG}.patch`);
+const PIXEL_SCROLL_PATCH = resolve(
+  import.meta.dir,
+  `../web/opentui-${OPENTUI_TAG}-pixel-scroll.patch`,
+);
+
+/** Source cache identity includes both ordered OpenTUI patches. */
+export function openTuiCheckoutDirectory(cache = defaultCache()) {
+  const key = createHash("sha256")
+    .update(readFileSync(OPENTUI_PATCH))
+    .update(readFileSync(PIXEL_SCROLL_PATCH))
+    .digest("hex")
+    .slice(0, HASH_PREFIX);
+  return join(cache, "web", `opentui-${OPENTUI_TAG}-${key}`);
+}
 /** The Zig OpenTUI's build.zig accepts, exactly. */
 const ZIG_VERSION = "0.16.0";
 
@@ -99,9 +113,11 @@ export function prepareOpenTui(
 ) {
   checkZig(zig);
   prepareOpenTuiCheckout(checkout, OPENTUI_REPOSITORY, tag);
-  if (!succeeds(["git", "apply", "--reverse", "--check", patch], checkout)) {
-    run(["git", "apply", "--check", patch], checkout);
-    run(["git", "apply", patch], checkout);
+  for (const file of patch === OPENTUI_PATCH ? [patch, PIXEL_SCROLL_PATCH] : [patch]) {
+    if (!succeeds(["git", "apply", "--reverse", "--check", file], checkout)) {
+      run(["git", "apply", "--check", file], checkout);
+      run(["git", "apply", file], checkout);
+    }
   }
   run(["bun", "install", "--frozen-lockfile"], checkout);
   const native = join(checkout, "packages/native");
@@ -200,11 +216,7 @@ export async function prepareWebRuntime({
   const directory = await webRuntimeDirectory(cache);
   // A patch revision needs a clean source checkout; applying it over an older
   // patched tree can neither pass the reverse check nor apply the new patch.
-  const patchKey = createHash("sha256")
-    .update(readFileSync(OPENTUI_PATCH))
-    .digest("hex")
-    .slice(0, HASH_PREFIX);
-  const checkout = join(cache, "web", `opentui-${OPENTUI_TAG}-${patchKey}`);
+  const checkout = openTuiCheckoutDirectory(cache);
   return prepareWebRuntimeEntry({
     directory,
     checkout,

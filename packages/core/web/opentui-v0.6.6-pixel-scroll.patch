@@ -1,0 +1,604 @@
+diff --git a/packages/core/src/ScrollableViewport.ts b/packages/core/src/ScrollableViewport.ts
+new file mode 100644
+index 0000000..d93908e
+--- /dev/null
++++ b/packages/core/src/ScrollableViewport.ts
+@@ -0,0 +1,40 @@
++import type { Renderable } from "./Renderable.js"
++
++/** A content-only vertical scroll surface. Positions and deltas are in rows. */
++export interface ScrollableViewport {
++  readonly owner: Renderable
++  readonly position: number
++  readonly origin: number
++  readonly max: number
++  readonly rect: Readonly<{ x: number; y: number; width: number; height: number }>
++  set(position: number): void
++  /** Consume a precise delta without acceleration; return the unconsumed remainder. */
++  scroll(delta: number): number
++  /** Describe a paint pass, without changing logical state or scheduling work. */
++  project(origin: number): { renderable: Renderable; translateX: number; translateY: number }
++}
++
++export function getScrollableViewport(value: unknown): ScrollableViewport | undefined {
++  if (!value || typeof value !== "object") return undefined
++  const viewport = Reflect.get(value, "scrollableViewport")
++  if (!viewport || typeof viewport !== "object") return undefined
++  return ["set", "scroll", "project"].every((key) => typeof Reflect.get(viewport, key) === "function")
++    ? (viewport as ScrollableViewport)
++    : undefined
++}
++
++/** Only one member of an ancestor/descendant chain may carry a fraction. */
++export function settleScrollableChain(owner: Renderable): void {
++  const settle = (node: unknown) => {
++    const viewport = getScrollableViewport(node)
++    if (viewport && !Number.isInteger(viewport.position)) viewport.set(Math.round(viewport.position))
++  }
++  for (let parent = owner.parent; parent; parent = parent.parent) settle(parent)
++  const visit = (node: Renderable) => {
++    for (const child of node.getChildren()) {
++      settle(child)
++      visit(child)
++    }
++  }
++  visit(owner)
++}
+diff --git a/packages/core/src/index.ts b/packages/core/src/index.ts
+index 6f776f6..ffc034b 100644
+--- a/packages/core/src/index.ts
++++ b/packages/core/src/index.ts
+@@ -156,3 +156,5 @@ export type {
+ export * from "./console.js"
+ export { resolveBundledFilePath } from "./platform/runtime.js"
+ export * as Yoga from "./yoga.js"
++
++export * from "./ScrollableViewport.js"
+diff --git a/packages/core/src/native-abi.generated.ts b/packages/core/src/native-abi.generated.ts
+index 939aac7..7df4ab5 100644
+--- a/packages/core/src/native-abi.generated.ts
++++ b/packages/core/src/native-abi.generated.ts
+@@ -244,6 +244,8 @@ export const nativeSymbols = {
+   ot_session_pump: { args: ["ptr", "buffer", "u64", "u32", "buffer"], returns: "i32" },
+   ot_session_get_write_limit: { args: ["ptr", "buffer", "buffer"], returns: "i32" },
+   ot_session_write: { args: ["ptr", "buffer", "ptr", "u32"], returns: "i32" },
++  ot_session_set_frame_sync: { args: ["ptr", "buffer", "u32"], returns: "i32" },
++  ot_scene_copy_hits: { args: ["ptr", "buffer", "u32", "ptr", "u32"], returns: "i32" },
+   ot_session_read_output: { args: ["ptr", "buffer", "ptr", "u32", "buffer"], returns: "i32" },
+   ot_session_drain_output: { args: ["ptr", "buffer", "u32", "buffer", "ptr", "ptr"], returns: "i32" },
+   ot_session_drain_stdout: { args: ["ptr", "buffer", "u32", "buffer"], returns: "i32" },
+diff --git a/packages/core/src/renderables/ScrollBox.ts b/packages/core/src/renderables/ScrollBox.ts
+index d1d6684..af70144 100644
+--- a/packages/core/src/renderables/ScrollBox.ts
++++ b/packages/core/src/renderables/ScrollBox.ts
+@@ -1,3 +1,4 @@
++import { settleScrollableChain, type ScrollableViewport } from "../ScrollableViewport.js"
+ import { type KeyEvent } from "../lib/index.js"
+ import { LinearScrollAccel, MacOSScrollAccel, type ScrollAcceleration } from "../lib/scroll-acceleration.js"
+ import type { BaseRenderable, Renderable, RenderableOptions } from "../Renderable.js"
+@@ -92,6 +93,33 @@ function stripScrollBoxPadding<T extends object>(options: T): Omit<T, ScrollBoxP
+ 
+ export class ScrollBoxRenderable extends BoxRenderable {
+   static override readonly nativeIntegration = this.defineNativeIntegration(BoxRenderable.nativeIntegration)
++  public readonly scrollableViewport!: ScrollableViewport
++  private fractionalPosition = 0
++  private settingViewport = false
++
++  private reconcilePosition(): number {
++    this.fractionalPosition = Math.max(
++      0,
++      Math.min(Math.max(0, this.scrollHeight - this.viewport.height), this.scrollTop + (this.fractionalPosition % 1)),
++    )
++    return this.fractionalPosition
++  }
++
++  private setViewportPosition(position: number): void {
++    if (!Number.isFinite(position)) throw new RangeError("Viewport position must be finite")
++    const next = Math.max(0, Math.min(this.scrollableViewport.max, position))
++    if (!Number.isInteger(next)) settleScrollableChain(this)
++    this.fractionalPosition = next
++    this.settingViewport = true
++    try {
++      this.scrollTop = Math.floor(next)
++    } finally {
++      this.settingViewport = false
++    }
++    this.verticalScrollBar.slider.paintValue(next)
++    this.requestRender()
++  }
++
+   static idCounter = 0
+   private internalId = 0
+   public readonly wrapper: BoxRenderable
+@@ -353,6 +381,7 @@ export class ScrollBoxRenderable extends BoxRenderable {
+         orientation: "vertical",
+         onChange: (position) => {
+           if (this.isDestroyed) return
++          if (!this.settingViewport) this.reconcilePosition()
+           this.content.translateY = -position
+           this.updateStickyState()
+         },
+@@ -378,6 +407,42 @@ export class ScrollBoxRenderable extends BoxRenderable {
+       children.push(this.horizontalScrollBar)
+       this.wrapper.add(this.horizontalScrollBar)
+ 
++      const owner = this
++      ;(this as { scrollableViewport: ScrollableViewport }).scrollableViewport = {
++        owner,
++        get position() {
++          return owner.reconcilePosition()
++        },
++        get origin() {
++          return owner.scrollTop
++        },
++        get max() {
++          return Math.max(0, owner.scrollHeight - owner.viewport.height)
++        },
++        get rect() {
++          const view = owner.viewport
++          return { x: view.x, y: view.y, width: view.width, height: view.height }
++        },
++        set(position) {
++          owner.setViewportPosition(position)
++        },
++        scroll(delta) {
++          if (!Number.isFinite(delta)) throw new RangeError("Viewport delta must be finite")
++          const before = this.position
++          const next = Math.max(0, Math.min(this.max, before + delta))
++          if (next === before) return delta
++          settleScrollableChain(owner)
++          this.set(next)
++          return delta - (this.position - before)
++        },
++        project(origin) {
++          if (!Number.isInteger(origin) || origin < 0 || origin > Math.ceil(this.max)) {
++            throw new RangeError("Projection origin must be an integer in the viewport range")
++          }
++          return { renderable: owner.content, translateX: owner.content.translateX, translateY: -origin }
++        },
++      }
++
+       this.recalculateBarProps()
+ 
+       if (stickyStart && stickyScroll) {
+@@ -553,6 +618,19 @@ export class ScrollBoxRenderable extends BoxRenderable {
+       if (event.modifiers.shift)
+         dir = dir === "up" ? "left" : dir === "down" ? "right" : dir === "right" ? "down" : "up"
+ 
++      const precise = event.scroll as (NonNullable<MouseEvent["scroll"]> & { precise?: boolean }) | undefined
++      if (precise?.precise) {
++        if (event.defaultPrevented) return
++        dir = precise.direction
++        if (dir === "up" || dir === "down") {
++          const delta = (dir === "up" ? -1 : 1) * precise.delta
++          const remainder = this.scrollableViewport.scroll(delta)
++          precise.direction = remainder < 0 ? "up" : "down"
++          precise.delta = Math.abs(remainder)
++          if (remainder === 0) event.stopPropagation()
++        }
++        return
++      }
+       const baseDelta = event.scroll?.delta ?? 0
+       const now = Date.now()
+       const multiplier = this.scrollAccel.tick(now)
+diff --git a/packages/core/src/renderables/Slider.ts b/packages/core/src/renderables/Slider.ts
+index ff4ebe5..0aed61a 100644
+--- a/packages/core/src/renderables/Slider.ts
++++ b/packages/core/src/renderables/Slider.ts
+@@ -79,6 +79,11 @@ export class SliderRenderable extends Renderable {
+     }
+   }
+ 
++  /** Paint the thumb at a fractional logical position without publishing a value change. */
++  paintValue(value: number): void {
++    this.setNativeSceneSlider({ value: Math.max(this._min, Math.min(this._max, value)) })
++  }
++
+   private publishValue(value: number): void {
+     if (value === this._value) return
+     this._value = value
+diff --git a/packages/core/src/renderer.ts b/packages/core/src/renderer.ts
+index 91a46db..2feb4cc 100644
+--- a/packages/core/src/renderer.ts
++++ b/packages/core/src/renderer.ts
+@@ -902,6 +902,30 @@ export enum RendererControlState {
+ 
+ const CLICK_REPEAT_INTERVAL_MS = 500
+ 
++/** Immutable hit geometry captured after a particular paint pass is presented. */
++export interface RenderHitMap {
++  readonly width: number
++  readonly height: number
++  readonly frameId: number
++  readonly passId: number
++  hitTest(x: number, y: number): number
++  origin(id: number): Readonly<{ x: number; y: number }> | undefined
++}
++
++export interface RenderFrameSegment {
++  before?: Uint8Array
++  after?: Uint8Array
++  onHitMap?: (map: RenderHitMap) => void
++}
++
++export interface RenderFramePlan extends RenderFrameSegment {
++  deferHover?: boolean
++  projection?: RenderFrameSegment & { renderable: Renderable; translateX: number; translateY: number }
++}
++
++const SYNC_SET = new Uint8Array([0x1b, 0x5b, 0x3f, 0x32, 0x30, 0x32, 0x36, 0x68])
++const SYNC_RESET = new Uint8Array([0x1b, 0x5b, 0x3f, 0x32, 0x30, 0x32, 0x36, 0x6c])
++
+ export class CliRenderer extends EventEmitter implements RenderContext {
+   private static animationFrameId = 0
+   private lib: RenderLib
+@@ -977,6 +1001,131 @@ export class CliRenderer extends EventEmitter implements RenderContext {
+   private frameCount: number = 0
+   // Bumped once per loop() iteration; see RenderContext.frameId.
+   private _frameId: number = 0
++  private _renderPassId = 0
++  private _isProjectionPass = false
++  private framePlan: (() => RenderFramePlan | null) | null = null
++
++  public get renderPassId(): number {
++    return this._renderPassId
++  }
++  public get isProjectionPass(): boolean {
++    return this._isProjectionPass
++  }
++  private _projection: NonNullable<RenderFramePlan["projection"]> | null = null
++  /** The second pass's override, while it paints: painters derive their unprojected window from it. */
++  public get projection(): Readonly<{ renderable: Renderable; translateX: number; translateY: number }> | null {
++    return this._projection
++  }
++
++  /** A synchronous plan, evaluated after the ordinary scene has painted. Full-screen only. */
++  public setFramePlan(plan: (() => RenderFramePlan | null) | null): void {
++    if (plan && this._splitHeight > 0) throw new Error("Frame plans require a full-screen renderer")
++    this.framePlan = plan
++  }
++
++  /** The published hit grid, or the painted draft's before its commit, in one native copy. */
++  public captureHitMap(pending = false): RenderHitMap {
++    const width = this.width,
++      height = this.height
++    const cells = new Uint32Array(width * height)
++    const session = this.nativeSession
++    this.lib.sceneCopyHits(session.context, session.session, pending, cells)
++    for (let i = 0; i < cells.length; i++) {
++      const node = Renderable.renderablesByNumber.get(cells[i])
++      if (cells[i] && (!node || node.isDestroyed)) cells[i] = 0
++    }
++    const origins = new Map<number, Readonly<{ x: number; y: number }>>()
++    for (const id of cells) {
++      if (origins.has(id)) continue
++      const node = Renderable.renderablesByNumber.get(id)
++      if (node && !node.isDestroyed) origins.set(id, Object.freeze({ x: node.x, y: node.y }))
++    }
++    return Object.freeze({
++      width,
++      height,
++      frameId: this.frameId,
++      passId: this.renderPassId,
++      hitTest(x: number, y: number) {
++        if (!Number.isFinite(x) || !Number.isFinite(y) || x < 0 || y < 0 || x >= width || y >= height) return 0
++        return cells[Math.floor(y) * width + Math.floor(x)]
++      },
++      origin(id: number) {
++        return origins.get(id)
++      },
++    })
++  }
++
++  /** The ordinary hover/capture/selection machine with a captured hit source. */
++  public dispatchMouseEventFromHitMap(event: RawMouseEvent, map: RenderHitMap): boolean {
++    const id = map.hitTest(event.x, event.y - this.renderOffset)
++    const target = Renderable.renderablesByNumber.get(id)
++    const origin = map.origin(id)
++    const liveId = target && !target.isDestroyed ? id : 0
++    const input = { ...event, modifiers: { ...event.modifiers }, scroll: event.scroll && { ...event.scroll } }
++    if (liveId && origin && target) {
++      input.x += target.x - origin.x
++      input.y += target.y - origin.y
++    }
++    return this.processSingleMouseEvent(input, () => liveId)
++  }
++
++  private async renderPlannedFrame(
++    plan: RenderFramePlan,
++    deltaTime: number,
++  ): Promise<"rendered" | "retryable-skip" | "failed" | "blocked"> {
++    const session = this.nativeSession
++    const write = (bytes?: Uint8Array) => {
++      if (!bytes?.length) return
++      const commands = Array.from(bytes, (byte) => String.fromCharCode(byte)).join("")
++      if (/(?:\x1b\[|\x9b)\?(?:\d+;)*0*2026(?:;\d+)*[hl]/.test(commands)) {
++        throw new Error("Frame commands must not contain synchronized-output controls")
++      }
++      if (!session.write(bytes)) throw new Error("Frame commands met output backpressure")
++    }
++    this.lib.sessionSetFrameSync(session.context, session.session, 1)
++    try {
++      if (!session.write(SYNC_SET)) return "retryable-skip"
++      write(plan.before)
++      const main = this.captureHitMap(true)
++      let status = await this.presentNativeScene()
++      if (status !== "rendered") return status
++      plan.onHitMap?.(main)
++      write(plan.after)
++      const projection = plan.projection
++      if (!projection) return status
++      if (projection.renderable.isDestroyed) throw new Error("Projection target was destroyed")
++      const target = projection.renderable
++      const saved = { translateX: target.translateX, translateY: target.translateY }
++      this._isProjectionPass = true
++      this._projection = projection
++      this._renderPassId++
++      // Native paint state only: the wrapper keeps its translation and schedules nothing.
++      this.nativeScene.setPaint(target, { translateX: projection.translateX, translateY: projection.translateY })
++      try {
++        const painting = this.nativeScene.paint(deltaTime, () => ({
++          background: this.backgroundColor,
++          useMouse: this._useMouse,
++          excludedHitNum: this.capturedRenderable?.num ?? 0,
++        }))
++        if (painting) await painting
++        write(projection.before)
++        const projected = this.captureHitMap(true)
++        // The projection's presentation keeps the canonical grid for ordinary input.
++        this.lib.sessionSetFrameSync(session.context, session.session, 3)
++        status = await this.presentNativeScene()
++        if (status === "rendered") projection.onHitMap?.(projected)
++      } finally {
++        this.nativeScene.setPaint(target, saved)
++      }
++      write(projection.after)
++      return status
++    } finally {
++      this._isProjectionPass = false
++      this._projection = null
++      session.write(SYNC_RESET)
++      this.lib.sessionSetFrameSync(session.context, session.session, 0)
++    }
++  }
+   private lastFpsTime: number = 0
+   private currentFps: number = 0
+   private targetFrameTime: number = 1000 / this._targetFps
+@@ -1681,6 +1830,7 @@ export class CliRenderer extends EventEmitter implements RenderContext {
+   }
+ 
+   public requestRender() {
++    if (this._isProjectionPass) return
+     if (this._isDestroyed || this._controlState === RendererControlState.EXPLICIT_SUSPENDED) {
+       return
+     }
+@@ -3589,7 +3739,7 @@ export class CliRenderer extends EventEmitter implements RenderContext {
+     }
+   }
+ 
+-  private processSingleMouseEvent(mouseEvent: RawMouseEvent): boolean {
++  private processSingleMouseEvent(mouseEvent: RawMouseEvent, hitTest = (x: number, y: number) => this.hitTest(x, y)): boolean {
+     if (this._splitHeight > 0) {
+       if (mouseEvent.y < this.renderOffset) {
+         return false
+@@ -3617,7 +3767,7 @@ export class CliRenderer extends EventEmitter implements RenderContext {
+     }
+ 
+     if (mouseEvent.type === "scroll") {
+-      const maybeRenderableId = this.hitTest(mouseEvent.x, mouseEvent.y)
++      const maybeRenderableId = hitTest(mouseEvent.x, mouseEvent.y)
+       const maybeRenderable = Renderable.renderablesByNumber.get(maybeRenderableId)
+       const fallbackTarget =
+         this._currentFocusedRenderable &&
+@@ -3634,7 +3784,7 @@ export class CliRenderer extends EventEmitter implements RenderContext {
+       return true
+     }
+ 
+-    const maybeRenderableId = this.hitTest(mouseEvent.x, mouseEvent.y)
++    const maybeRenderableId = hitTest(mouseEvent.x, mouseEvent.y)
+     const sameElement = maybeRenderableId === this.lastOverRenderableNum
+     this.lastOverRenderableNum = maybeRenderableId
+     const maybeRenderable = Renderable.renderablesByNumber.get(maybeRenderableId)
+@@ -3831,7 +3981,8 @@ export class CliRenderer extends EventEmitter implements RenderContext {
+   }
+ 
+   public hitTest(x: number, y: number): number {
+-    return this.nativeScene.hitTest(x, y)
++    // Presented pointer events keep their cell fractions.
++    return this.nativeScene.hitTest(Math.floor(x), Math.floor(y))
+   }
+ 
+   private takeMemorySnapshot(): void {
+@@ -4798,6 +4949,7 @@ export class CliRenderer extends EventEmitter implements RenderContext {
+         return
+       // Bump before any work so all callers this iteration see the new id.
+       this._frameId++
++      this._renderPassId++
+ 
+       const now = this.normalizeClockTime(this.clock.now(), this.lastTime)
+       const elapsed = this.getElapsedMs(now, this.lastTime)
+@@ -4877,7 +5029,8 @@ export class CliRenderer extends EventEmitter implements RenderContext {
+ 
+       // If destroy() was requested during this frame, skip native work and scheduling.
+       if (this.canRender && !this.nativeSplitFlush) {
+-        const nativeStatus = await this.presentNativeScene()
++        const plan = this._splitHeight > 0 ? null : this.framePlan?.()
++        const nativeStatus = plan ? await this.renderPlannedFrame(plan, deltaTime) : await this.presentNativeScene()
+         if (!this.canRender || this.currentControlState === RendererControlState.EXPLICIT_SUSPENDED) return
+         if (nativeStatus === "rendered") this.frameCount++
+         if (this.getElapsedMs(now, this.lastFpsTime) >= 1000) {
+@@ -4889,7 +5042,7 @@ export class CliRenderer extends EventEmitter implements RenderContext {
+ 
+         if (nativeStatus === "rendered") {
+           // Check if hit grid changed and recheck hover state if needed
+-          if (this._useMouse) {
++          if (!plan?.deferHover && this._useMouse) {
+             this.recheckHoverState()
+           }
+           if (!this.canRender) return
+diff --git a/packages/core/src/zig.ts b/packages/core/src/zig.ts
+index d83570a..a0c2612 100644
+--- a/packages/core/src/zig.ts
++++ b/packages/core/src/zig.ts
+@@ -6112,6 +6112,19 @@ export class FFIRenderLib {
+     return output[0]
+   }
+ 
++  /** flags: 1 = the host owns the synchronized-output pair, 2 = keep the published hit grid. */
++  public sessionSetFrameSync(context: NativeContextHandle, session: SessionHandle, flags: number): void {
++    const handle = encodeContextHandle(context, session)
++    const pointer = this.nativeContextPointer(context, "ot_session_set_frame_sync")
++    nativeResult("ot_session_set_frame_sync", this.opentui.symbols.ot_session_set_frame_sync(pointer, handle, flags))
++  }
++
++  public sceneCopyHits(context: NativeContextHandle, session: SessionHandle, pending: boolean, out: Uint32Array): void {
++    const handle = encodeContextHandle(context, session)
++    const pointer = this.nativeContextPointer(context, "ot_scene_copy_hits")
++    nativeResult("ot_scene_copy_hits", this.opentui.symbols.ot_scene_copy_hits(pointer, handle, pending ? 1 : 0, out, out.length))
++  }
++
+   public sessionWrite(context: NativeContextHandle, session: SessionHandle, bytes: Uint8Array): void {
+     const handle = encodeContextHandle(context, session)
+     const input = sessionBytes(bytes, "Session write length")
+diff --git a/packages/native/include/opentui.h b/packages/native/include/opentui.h
+index 12cc13e..0ed9b2f 100644
+--- a/packages/native/include/opentui.h
++++ b/packages/native/include/opentui.h
+@@ -2730,6 +2730,15 @@ ot_status ot_session_write(
+     const uint8_t *bytes,
+     uint32_t byte_count);
+ 
++/* luciole pixel scroll. flags: 1 = full-screen frames omit their own synchronized-output
++ * pair (the host writes one pair around several frames and ordered ot_session_write
++ * segments); 2 = presentation keeps the published hit grid instead of this frame's.
++ * Split-footer frames are unaffected. */
++ot_status ot_session_set_frame_sync(ot_context *context, const ot_handle *session, uint32_t flags);
++/* luciole pixel scroll: copy the published (pending 0) or the painted draft's (pending 1)
++ * hit grid as public node numbers, row-major; capacity is exactly width * height. */
++ot_status ot_scene_copy_hits(ot_context *context, const ot_handle *session, uint32_t pending, uint32_t *out_nums, uint32_t capacity);
++
+ /* Copy at most capacity bytes in write order. bytes may be NULL only for zero
+  * capacity. A successful empty read returns a zero byte_count and request_id.
+  * Failure leaves both outputs unchanged. The next read requires completion of
+diff --git a/packages/native/src/context-abi.zig b/packages/native/src/context-abi.zig
+index 1ab48e3..e9e305b 100644
+--- a/packages/native/src/context-abi.zig
++++ b/packages/native/src/context-abi.zig
+@@ -745,6 +745,27 @@ pub fn ot_session_get_write_limit(
+     return c.OT_OK;
+ }
+ 
++pub fn ot_session_set_frame_sync(context: ?*ContextHandle, session_ptr: ?*const c.ot_handle, flags: u32) callconv(.c) c.ot_status {
++    const status = sessionContextStatus(context);
++    if (status != c.OT_OK) return status;
++    const owner = context.?;
++    const id = session_ptr orelse return sessionError(owner, error.InvalidOptions);
++    if (flags > 3) return sessionError(owner, error.InvalidOptions);
++    owner.core.sessionSetFrameSync(handleFromC(id.*), flags & 1 != 0, flags & 2 != 0) catch |err| return sessionError(owner, err);
++    return c.OT_OK;
++}
++
++pub fn ot_scene_copy_hits(context: ?*ContextHandle, session_ptr: ?*const c.ot_handle, pending: u32, out_ptr: ?[*]u32, capacity: u32) callconv(.c) c.ot_status {
++    const status = sessionContextStatus(context);
++    if (status != c.OT_OK) return status;
++    const owner = context.?;
++    const id = session_ptr orelse return sessionError(owner, error.InvalidOptions);
++    const out = out_ptr orelse return sessionError(owner, error.InvalidOptions);
++    if (pending > 1) return sessionError(owner, error.InvalidOptions);
++    owner.core.sceneCopyHits(handleFromC(id.*), pending == 1, out[0..capacity]) catch |err| return sessionError(owner, err);
++    return c.OT_OK;
++}
++
+ pub fn ot_session_write(
+     context: ?*ContextHandle,
+     session_ptr: ?*const c.ot_handle,
+diff --git a/packages/native/src/context.zig b/packages/native/src/context.zig
+index 062c22c..41f18bc 100644
+--- a/packages/native/src/context.zig
++++ b/packages/native/src/context.zig
+@@ -2906,6 +2906,41 @@ pub const Context = struct {
+         value.cancelSceneFrame();
+     }
+ 
++    pub fn sessionSetFrameSync(self: *Context, session_handle: Handle, external: bool, retain_hits: bool) !void {
++        try self.beginMutation();
++        defer self.mutating = false;
++        const value = try self.getSession(session_handle);
++        const attached = value.renderer orelse return error.RendererNotAttached;
++        attached.external_sync = external;
++        attached.retain_hits = retain_hits;
++    }
++
++    pub fn sceneCopyHits(self: *Context, session_handle: Handle, pending: bool, out: []u32) !void {
++        try self.beginMutation();
++        defer self.mutating = false;
++        const value = try self.getSession(session_handle);
++        const attached = value.renderer orelse return error.RendererNotAttached;
++        const owned = value.scene orelse return error.SceneNotAttached;
++        const cells = @as(usize, attached.hitGridWidth) * attached.hitGridHeight;
++        if (out.len != cells) return error.InvalidOptions;
++        const grid = if (pending) attached.nextHitGrid else attached.currentHitGrid;
++        // Runs of one token are common; resolve each run once.
++        var last_token: u32 = 0;
++        var last_num: u32 = 0;
++        for (grid[0..cells], out) |token, *num| {
++            if (token != last_token) {
++                last_token = token;
++                last_num = blk: {
++                    const handle = owned.tokens.get(token) orelse break :blk 0;
++                    const node = self.objects.get(handle, .native_renderable, native_renderable.NativeRenderable) catch break :blk 0;
++                    const state = node.scene_node orelse break :blk 0;
++                    break :blk if (state.owner == owned and state.token == token) state.num else 0;
++                };
++            }
++            num.* = last_num;
++        }
++    }
++
+     pub fn sceneHitTest(self: *Context, session_handle: Handle, x: i32, y: i32) !u32 {
+         try self.beginMutation();
+         defer self.mutating = false;
+diff --git a/packages/native/src/renderer.zig b/packages/native/src/renderer.zig
+index 69b7119..6bcb2d9 100644
+--- a/packages/native/src/renderer.zig
++++ b/packages/native/src/renderer.zig
+@@ -358,6 +358,10 @@ pub const CliRenderer = struct {
+     palette_epoch: u32,
+     last_rendered_palette_epoch: ?u32 = null,
+     force_full_repaint: bool = false,
++    // luciole pixel scroll: the host owns the synchronized-output pair of full-screen frames.
++    external_sync: bool = false,
++    // luciole pixel scroll: a projection's presentation keeps the canonical hit grid.
++    retain_hits: bool = false,
+     palette_index_cache: std.AutoHashMapUnmanaged(u64, u8) = .empty,
+     sixelCache: std.AutoHashMapUnmanaged(SixelCacheKey, SixelCacheEntry) = .empty,
+     sixelCacheBytes: usize = 0,
+@@ -1044,6 +1048,10 @@ pub const CliRenderer = struct {
+     }
+ 
+     fn commitPendingHitGrid(self: *CliRenderer) void {
++        if (self.retain_hits) {
++            @import("utils.zig").fillU32(self.nextHitGrid, 0);
++            return;
++        }
+         self.hitGridDirty = self.hitGridResizeInvalidated or !std.mem.eql(u32, self.currentHitGrid, self.nextHitGrid);
+         const previous = self.currentHitGrid;
+         self.currentHitGrid = self.nextHitGrid;
+@@ -2898,7 +2906,7 @@ pub const CliRenderer = struct {
+         // Lazy frame start is the core no-op suppression mechanism. If diffing,
+         // cursor state, and pointer state are unchanged, frame_started stays false
+         // and we emit nothing at all for this tick.
+-        var frame_started = sync_started;
++        var frame_started = sync_started or self.external_sync;
+         self.applyPendingSplitFooterTransition(writer, &frame_started);
+ 
+         if ((images_changed or should_force) and (self.hasCommittedProtocol(.kitty) or self.hasNextProtocol(.kitty))) {
+@@ -3309,7 +3317,7 @@ pub const CliRenderer = struct {
+         }
+ 
+         // Only close sync if we opened it. This keeps true no-op frames empty.
+-        if (frame_started) {
++        if (frame_started and !self.external_sync) {
+             writer.writeAll(ansi.ANSI.syncReset) catch {};
+         }
+ 
