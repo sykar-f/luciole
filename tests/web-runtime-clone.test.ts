@@ -386,22 +386,35 @@ test("two calls in one process reuse the runtime after waiting", async () => {
   });
 });
 
-for (const provenance of ["missing", "another tree"]) {
+test("a prepared runtime is reused without its checkout or external commands", async () => {
+  await fixture(async (_source, _checkout, directory) => {
+    const cache = join(directory, "cache");
+    const runtime = await webRuntimeDirectory(cache);
+    const checkout = openTuiCheckoutDirectory(cache);
+    writeRuntime(runtime, "prepared");
+    writeFileSync(join(runtime, "opentui-source-tree"), "a".repeat(40) + "\n");
+    const commands = spyOn(Bun, "spawnSync").mockImplementation(() => {
+      throw new Error("Prepared runtime must not invoke git, network or Zig");
+    });
+    try {
+      expect(await prepareWebRuntime({ cache, zig: "missing-zig" })).toBe(runtime);
+      expect(commands).not.toHaveBeenCalled();
+      expect(existsSync(checkout)).toBe(false);
+      expect(readFileSync(join(runtime, "runtime.js"), "utf8")).toBe("prepared");
+    } finally {
+      commands.mockRestore();
+    }
+  });
+});
+
+for (const provenance of ["missing", "malformed"]) {
   test(`rebuilds a runtime with ${provenance} source provenance`, async () => {
     await fixture(async (source, checkout, directory) => {
       const patches = patchStack(source, directory);
       const runtime = join(directory, "runtime");
-      if (provenance === "missing") writeRuntime(runtime, "untrusted");
-      else
-        await prepareWebRuntimeEntry({
-          directory: runtime,
-          checkout,
-          sourceTree: () =>
-            prepareOpenTuiCheckout(checkout, source, "fixture", patches.slice(0, 1)),
-          async build(temporary) {
-            writeRuntime(temporary, "old tree");
-          },
-        });
+      writeRuntime(runtime, "untrusted");
+      if (provenance === "malformed")
+        writeFileSync(join(runtime, "opentui-source-tree"), "another tree");
       let builds = 0;
       const prepare = () =>
         prepareWebRuntimeEntry({
