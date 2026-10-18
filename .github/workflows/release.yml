@@ -31,7 +31,7 @@ jobs:
         with:
           bun-version: 1.4.3
       # The npm that publish pins, installed the same way here so a dry run proves it.
-      - uses: actions/setup-node@v7.0.0
+      - uses: actions/setup-node@v7.1.0
         with:
           node-version: 24
       - name: Pin npm
@@ -103,7 +103,7 @@ jobs:
       # cache, which the runner's user can write: the system's /usr/local is root's, and a
       # global npm install there fails with EACCES. The verify job runs the same two steps,
       # so a dry run proves them.
-      - uses: actions/setup-node@v7.0.0
+      - uses: actions/setup-node@v7.1.0
         with:
           node-version: 24
       - name: Pin npm

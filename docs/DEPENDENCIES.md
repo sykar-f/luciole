@@ -10,17 +10,17 @@ des deux sondes d'origine (`probes/rsc`, `probes/rpc`) étaient à jour ; `bun o
 | Bun / @types/bun                             | 1.4.3    |
 | @opentui/core / @opentui/react               | 0.5.12   |
 | @opentui/keymap                              | 0.5.12   |
-| react / react-dom / react-server-dom-webpack | 19.3.0   |
+| react / react-dom / react-server-dom-webpack | 19.3.1   |
 | react-reconciler                             | 0.33.0   |
-| @tanstack/react-router                       | 1.170.38 |
+| @tanstack/react-router                       | 1.170.45 |
 | @tanstack/react-form (exemples)              | 1.33.5   |
 | @types/react / @types/react-dom              | 19.3.0   |
 | typescript                                   | 7.0.2    |
 | @typescript/typescript6                      | 6.0.2    |
 | oxlint                                       | 1.85.0   |
-| oxlint-tsgolint                              | 7.0.2002 |
+| oxlint-tsgolint                              | 7.0.2004 |
 | oxfmt                                        | 0.70.0   |
-| zod                                          | 4.6.5    |
+| zod                                          | 4.6.7    |
 | actions/checkout                             | v7.0.1   |
 | oven-sh/setup-bun                            | v2.2.0   |
 
@@ -28,12 +28,12 @@ Ajoutées au catalogue après ce contrôle, sans comparaison aux tags `latest` :
 
 | Dépendance                                     | Version                  | Utilisée par                            |
 | ---------------------------------------------- | ------------------------ | --------------------------------------- |
-| @sqlite.org/sqlite-wasm                        | 3.53.4-build1            | framework, runtime navigateur           |
+| @sqlite.org/sqlite-wasm                        | 3.53.4-build2            | framework, runtime navigateur           |
 | @xterm/xterm / @xterm/addon-fit                | 6.0.0 / 0.11.0           | framework, runtime navigateur ; desktop |
 | @xterm/addon-webgl                             | 0.19.0                   | desktop                                 |
-| electrobun                                     | 2.0.1                    | desktop                                 |
+| electrobun                                     | 2.0.2                    | desktop                                 |
 | marked                                         | 17.0.1                   | framework (`<Markdown>`), mdreader      |
-| sharp                                          | 0.35.4                   | files                                   |
+| sharp                                          | 0.35.5                   | files                                   |
 | tree-sitter-bash / -c / -cpp                   | 0.25.1 / 0.24.1 / 0.23.4 | framework (`@luciole-sh/core/grammars`) |
 | tree-sitter-css / -go / -html                  | 0.25.0 / 0.25.0 / 0.23.2 | framework (`@luciole-sh/core/grammars`) |
 | tree-sitter-java / -json / -php                | 0.23.5 / 0.24.8 / 0.24.2 | framework (`@luciole-sh/core/grammars`) |
@@ -77,7 +77,7 @@ Les réglages VS Code activent le serveur natif avec l’extension recommandée 
 conservent un SDK classique de repli ; voir [TOOLING.md](TOOLING.md).
 
 `react-reconciler` est épinglé à 0.33.0, dans la plage `^0.33.0` déclarée par
-OpenTUI 0.5.12 ; sa `peerDependency` `react ^19.2.0` accepte React 19.3.0. Un
+OpenTUI 0.5.12 ; sa `peerDependency` `react ^19.2.0` accepte React 19.3.1. Un
 override vers 0.34.0 a existé : il a été retiré, car ce reconciler appelle
 `suspendOnActiveViewTransition` à chaque commit de transition, méthode absente du host
 config d'OpenTUI, ce qui faisait planter les navigations TanStack en production.
@@ -95,7 +95,7 @@ bibliothèque de formulaires s'utilise telle quelle avec `Input`, `Textarea` et
 Router : une seule copie dans le lockfile. Un starter reçoit les dépendances de Notes et
 l'outillage du framework : ni TanStack Form, ni `marked` (mdreader), ni `sharp` (files).
 
-Zod 4.6.5 valide les données externes (variables d'environnement, `luciole.json`, JSON
+Zod 4.6.7 valide les données externes (variables d'environnement, `luciole.json`, JSON
 lu sur disque, requêtes reçues par le Server, enveloppes reçues par le Client). Le
 bundle Client n'embarque que `zod/mini`, l'API fonctionnelle tree-shakable de la même
 version : mesuré isolément sur un schéma d'enveloppe, `zod/mini` ajoute 28 Ko non

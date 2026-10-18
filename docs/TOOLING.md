@@ -1,7 +1,7 @@
 # TypeScript et Oxc
 
 Le projet utilise TypeScript 7.0.2 pour les contrôles, `@typescript/typescript6` 6.0.2
-pour l’API AST du build, `@types/bun` 1.4.3, Oxlint 1.85.0 (avec `oxlint-tsgolint` 7.0.2002
+pour l’API AST du build, `@types/bun` 1.4.3, Oxlint 1.85.0 (avec `oxlint-tsgolint` 7.0.2004
 pour le lint type-aware) et Oxfmt 0.70.0.
 Toutes ces versions sont fixées dans `package.json` et le lockfile.
 

@@ -2,7 +2,7 @@
 
 ## Décision
 
-La navigation Client est entièrement confiée à `@tanstack/react-router` 1.170.38,
+La navigation Client est entièrement confiée à `@tanstack/react-router` 1.170.45,
 sans TanStack Start, avec `createMemoryHistory`. Il n'existe plus de seconde
 machine d'état : `Application.path`, `pendingNavigation`, `generation`, `tree`,
 `navigate`, `cancelNavigation`, `ApplicationOptions.loadingRoutes`, `useNavigation()`,
