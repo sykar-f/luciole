@@ -59,6 +59,7 @@ export class PixelController {
   private generation = 0;
   private releasing = false;
   private disposed = false;
+  private deferredReports: string[] = [];
   private rediscoveryQueued = false;
   private normal: (Uint32Array | Uint16Array)[] = [];
   private settleTimer: ReturnType<typeof setTimeout> | undefined;
@@ -294,7 +295,23 @@ export class PixelController {
     return plan;
   }
 
+  private readonly flushReports = () => {
+    this.renderer.off("frame:plan:end", this.flushReports);
+    const reports = this.deferredReports;
+    this.deferredReports = [];
+    if (!this.disposed) for (const sequence of reports) this.receive(sequence);
+  };
+
   private receive(sequence: string) {
+    // A 0.6.6 projection can yield while native presentation completes. Keep
+    // input in ingress order until geometry is restored, before output can stall.
+    if (Reflect.get(this.renderer, "isFramePlanPass") === true) {
+      if (this.deferredReports.length === 0) {
+        this.renderer.once("frame:plan:end", this.flushReports);
+      }
+      this.deferredReports.push(sequence);
+      return;
+    }
     const capability = this.discovery.receive(sequence);
     if (capability) {
       this.history.presentations = this.discovery.presentations;
@@ -515,6 +532,8 @@ export class PixelController {
     if (this.disposed) return;
     this.disposed = true;
     this.stopSettle();
+    this.deferredReports = [];
+    this.renderer.off("frame:plan:end", this.flushReports);
     this.unsubscribe();
     this.renderer.keyInput.off("keypress", this.key);
     this.renderer.off("destroy", this.dispose);

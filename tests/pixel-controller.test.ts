@@ -734,6 +734,10 @@ function windowController(version: 1 | 2 = 2) {
     positions,
     cells,
     requests: () => requests,
+    projecting: (value: boolean) => {
+      Object.assign(renderer, { isFramePlanPass: value });
+      if (!value) renderer.emit("frame:plan:end");
+    },
     close: () => {
       controller.dispose();
       for (const owner of owners) Renderable.renderablesByNumber.delete(owner.num);
@@ -946,6 +950,47 @@ test("invalidation abandons a full v2 window and renegotiates without reusing ge
     const recovered = f.plan();
     expect(messages(recovered?.before)[0]).toMatchObject({ generation: 9 });
     expect(messages(recovered?.projection?.after)[0]).toMatchObject({ fraction: 0.75 });
+  } finally {
+    f.close();
+  }
+});
+
+test("private input waits only for planned paint, then resumes before sink delivery", () => {
+  const f = windowController();
+  try {
+    f.plan();
+    f.projecting(true);
+    f.send({
+      op: "wheel",
+      version: 1,
+      id: 1,
+      generation: 1,
+      phase: 0.75,
+      x: 4,
+      y: 3,
+      modifiers: 0,
+      dx: 0,
+      dy: 0.5,
+      source: "precise",
+    });
+    f.send({
+      op: "pointer",
+      version: 1,
+      id: 1,
+      generation: 1,
+      phase: 0.75,
+      x: 4,
+      y: 3,
+      modifiers: 0,
+      action: "down",
+      button: 0,
+      buttons: 1,
+    });
+    expect(f.positions[0]).toBe(0.75);
+    expect(f.observed).toEqual([]);
+    f.projecting(false);
+    expect(f.positions[0]).toBe(1.25);
+    expect(f.observed).toMatchObject([{ type: "scroll" }, { type: "down" }]);
   } finally {
     f.close();
   }

@@ -96,6 +96,7 @@ async function scene(selectable = false) {
       before: bytes("<begin>"),
       after: bytes("<register>"),
       onHitMap: (map) => {
+        expect(Reflect.get(r, "isFramePlanPass")).toBe(true);
         normal = map;
       },
       projection: {
@@ -105,6 +106,7 @@ async function scene(selectable = false) {
         before: bytes("<project>"),
         after: bytes("<commit>"),
         onHitMap: (map) => {
+          expect(Reflect.get(r, "isFramePlanPass")).toBe(true);
           expect(content.translateY).toBe(0);
           content.requestRender();
           r.requestRender();
@@ -141,6 +143,7 @@ test("ordered normal and projected segments use one envelope and distinct paint 
         positions.every((pos, i) => pos >= 0 && (i === 0 || pos > (positions[i - 1] ?? -1))),
       ).toBe(true);
     }
+    expect(Reflect.get(r, "isFramePlanPass")).toBe(false);
     expect(normal.frameId).toBe(projected.frameId);
     expect(normal.passId).not.toBe(projected.passId);
     expect(normal.hitTest(0.2, 0.8)).toBe(rows[0]?.num);

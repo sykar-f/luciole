@@ -494,7 +494,11 @@ La projection change la translation de peinture native, puis refait une
 frame dans la même enveloppe 2026. Les segments restent en attente jusqu'à
 la validation des callbacks et des commandes. Le passage projeté conserve
 la grille de hits canonique ; une grille distincte fournit les cibles de
-drop pendant une capture. Le manifeste ABI vient du générateur OpenTUI,
+drop pendant une capture. Les rapports privés arrivés pendant la peinture
+attendent la restauration de la géométrie canonique, dans leur ordre
+d'arrivée et avec leur génération d'origine. Ils repartent avant la livraison
+des octets au terminal : ni une sortie bloquée ni une fenêtre de générations
+saturée ne les retient. Le manifeste ABI vient du générateur OpenTUI,
 avec les politiques de pointeurs des deux nouvelles fonctions.
 
 Les hooks de cycle de vie et `onUpdate` peuvent tourner deux fois dans une
