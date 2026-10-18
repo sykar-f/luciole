@@ -1,5 +1,6 @@
 // Bundled by opentui-seams.test.ts against the patched TypeScript and WASM sources.
-import { expect, test } from "bun:test";
+import { expect, spyOn, test } from "bun:test";
+import { Writable } from "node:stream";
 import { createTestStdout } from "../node_modules/@opentui/core/testing/test-streams";
 import {
   CliRenderEvents,
@@ -7,6 +8,7 @@ import {
   TextRenderable,
   type CliRendererErrorEvent,
   MouseEvent,
+  NativeSession,
   type RawMouseEvent,
 } from "@opentui/core";
 import { createTestRenderer } from "@opentui/core/testing";
@@ -16,6 +18,70 @@ const bytes = (s: string) => new TextEncoder().encode(s);
 const start = "\x1b[?2026h",
   end = "\x1b[?2026l";
 const modifiers = { shift: false, alt: false, ctrl: false, meta: true };
+
+test("planned output keeps one envelope across partial sink writes and backpressure", async () => {
+  const chunks: Buffer[] = [];
+  let pressure = 0;
+  let drains = 0;
+  const sink: Writable = new Writable({
+    highWaterMark: 1,
+    write(chunk: Buffer, _encoding, done) {
+      chunks.push(Buffer.from(chunk));
+      if (sink.writableNeedDrain) pressure++;
+      setImmediate(done);
+    },
+  });
+  sink.on("drain", () => drains++);
+  const session = new NativeSession(sink, {
+    output: { chunkSize: 256, spanCapacity: 32, maxBytes: 8192n, controlCapacity: 128 },
+    outputBufferSize: 17,
+  });
+  function hasFrameOutput(value: NativeSession): value is NativeSession & {
+    beginFrameOutput(): void;
+    endFrameOutput(commit: boolean): Promise<void>;
+  } {
+    return ["beginFrameOutput", "endFrameOutput"].every(
+      (key) => typeof Reflect.get(value, key) === "function",
+    );
+  }
+  if (!hasFrameOutput(session)) throw new Error("Missing planned output");
+  try {
+    const limit = Number(session.maxAtomicWriteBytes);
+    expect(limit).toBeGreaterThan(0);
+    const parts = [start, "A".repeat(limit), "B".repeat(limit), end];
+    session.beginFrameOutput();
+    for (const part of parts) {
+      expect(session.write(bytes(part))).toBe(true);
+      await session.idle();
+    }
+    expect(chunks).toEqual([]);
+    const accept = session.write.bind(session);
+    let attempts = 0;
+    // Drive native admission pressure after the opening batch was accepted.
+    // Unlike Writable.write(false), this rejects a batch without consuming it.
+    const admission = spyOn(session, "write").mockImplementation((batch) =>
+      ++attempts === 2 ? false : accept(batch),
+    );
+    try {
+      await session.endFrameOutput(true);
+    } finally {
+      admission.mockRestore();
+    }
+    expect(attempts).toBeGreaterThan(3);
+    const wire = Buffer.concat(chunks).toString();
+    expect(wire).toBe(parts.join(""));
+    expect(wire.split(start)).toHaveLength(2);
+    expect(wire.split(end)).toHaveLength(2);
+    expect(chunks.length).toBeGreaterThan(3);
+    expect(chunks.every((chunk) => chunk.length <= 17)).toBe(true);
+    expect(pressure).toBe(chunks.length);
+    expect(drains).toBe(pressure);
+  } finally {
+    await session.close();
+    sink.destroy();
+  }
+});
+
 async function setup(width = 12, height = 4) {
   const chunks: string[] = [];
   const stdout = createTestStdout(width, height);

@@ -12,10 +12,10 @@ index 17f2d82..8ccad81 100644
    ot_session_read_output: { 0: context, 1: buffer, 2: empty, 4: buffer },
    ot_session_drain_output: {
 diff --git a/packages/core/src/NativeSession.ts b/packages/core/src/NativeSession.ts
-index 9048978..0627415 100644
+index 9048978..436b2e0 100644
 --- a/packages/core/src/NativeSession.ts
 +++ b/packages/core/src/NativeSession.ts
-@@ -504,6 +504,37 @@ export class NativeSession {
+@@ -504,6 +504,39 @@ export class NativeSession {
      return this.lib.sessionGetCapabilities(this.context, this.session)
    }
  
@@ -45,7 +45,9 @@ index 9048978..0627415 100644
 +    // use the checked atomic queue bound, within the same 2026 envelope.
 +    const limit = Math.min(length, Number(this.maxAtomicWriteBytes))
 +    for (let start = 0; start < length; start += limit) {
-+      if (!this.write(bytes.subarray(start, start + limit))) throw new Error("Frame output met backpressure")
++      // Admission pressure consumes no bytes. Drain it before admitting this
++      // same batch, so a partially published plan keeps its closing envelope.
++      while (!this.write(bytes.subarray(start, start + limit))) await this.idle()
 +      await this.idle()
 +    }
 +  }
@@ -53,7 +55,7 @@ index 9048978..0627415 100644
    /** Copies all bytes or returns false under queue pressure. Capacity-exceeding writes throw RangeError;
     * lifecycle errors take precedence while writing is unavailable. */
    write(bytes: Uint8Array): boolean {
-@@ -788,13 +819,20 @@ export class NativeSession {
+@@ -788,13 +821,20 @@ export class NativeSession {
      // Set the gate before calling user code so even an inline drain is not lost.
      this.blocked = true
      try {
