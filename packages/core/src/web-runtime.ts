@@ -219,12 +219,16 @@ export async function prepareWebRuntimeEntry({
     }
     removeAbandonedTemporaries(checkout);
     removeAbandonedTemporaries(directory);
+    // The runtime key includes the framework and ordered patches. Its recorded
+    // validated tree is sufficient provenance; reuse must not need the checkout.
+    const hasSource = (path: string) =>
+      sourceTree === undefined ||
+      /^[a-f0-9]{40}$/.test(readSourceTree(join(path, SOURCE_TREE_FILE)) ?? "");
+    if (existsSync(join(directory, "web-runtime.json")) && hasSource(directory)) return directory;
+    // A legacy entry has no source provenance and must be rebuilt once.
     const tree = sourceTree?.();
     const matchesSource = (path: string) =>
       tree === undefined || readSourceTree(join(path, SOURCE_TREE_FILE)) === tree;
-    // A legacy entry has no source provenance and must be rebuilt once.
-    if (existsSync(join(directory, "web-runtime.json")) && matchesSource(directory))
-      return directory;
     rmSync(directory, { recursive: true, force: true });
     const temporary = mkdtempSync(`${directory}.${process.pid}.tmp-`);
     try {

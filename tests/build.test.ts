@@ -286,6 +286,7 @@ test(
       await mkdir(join(runtime, TREE_SITTER_DIRECTORY), { recursive: true });
       for (const name of [...WEB_RUNTIME_FILES, "runtime.js.map", "web-runtime.json"])
         await Bun.write(join(runtime, name), name);
+      await Bun.write(join(runtime, "opentui-source-tree"), "a".repeat(40) + "\n");
       const cli = (...flags: string[]) =>
         execute([process.execPath, resolve("packages/core/src/cli.ts"), "build", ...flags], {
           cwd: dir,
@@ -391,6 +392,7 @@ test(
       await mkdir(join(runtime, TREE_SITTER_DIRECTORY), { recursive: true });
       for (const name of [...WEB_RUNTIME_FILES, "runtime.js.map", "web-runtime.json"])
         await Bun.write(join(runtime, name), name);
+      await Bun.write(join(runtime, "opentui-source-tree"), "a".repeat(40) + "\n");
       const cli = (...flags: string[]) =>
         execute([process.execPath, resolve("packages/core/src/cli.ts"), "build", ...flags], {
           cwd: dir,
