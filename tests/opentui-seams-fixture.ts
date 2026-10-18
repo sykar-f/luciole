@@ -27,6 +27,7 @@ async function setup(width = 12, height = 4) {
     width,
     height,
     stdout,
+    bufferedOutput: "stdout",
     useMouse: true,
   });
   const found = detectOpenTuiSeams(setup.renderer);
@@ -357,7 +358,7 @@ test("ScrollBox fractions survive keys, scrollTo, scrollbar moves and auto-scrol
     child.verticalScrollBar.scrollBy(1);
     expect(inner.position).toBe(3.375);
     child.focus();
-    await mockInput.pressArrow("up");
+    mockInput.pressArrow("up");
     expect(inner.position).toBe(2.375);
     // The normal selection auto-scroll uses integer scrollTop increments.
     child.startAutoScroll(child.x + child.width / 2, child.y + child.height - 1);
@@ -697,3 +698,45 @@ for (const route of ["ordinary", "snapshot"])
       await r.closed;
     }
   });
+
+test("a drag begun on the projected row keeps its source through paint and release", async () => {
+  const { r, rows, content, renderOnce, projected } = await scene();
+  try {
+    const events: { id: string; type: string; source?: string }[] = [];
+    for (const node of [content, ...rows])
+      node.onMouse = (event) =>
+        events.push({ id: node.id, type: event.type, source: event.source?.id });
+    r.dispatchMouseEventFromHitMap(input("down"), projected);
+    r.dispatchMouseEventFromHitMap(input("drag"), projected);
+    let afterPaint: RenderHitMap | undefined;
+    r.setFramePlan(() => ({
+      deferHover: true,
+      projection: {
+        renderable: content,
+        translateX: 0,
+        translateY: -1,
+        onHitMap(map) {
+          afterPaint = map;
+        },
+      },
+    }));
+    await renderOnce();
+    if (!afterPaint) throw new Error("Missing captured projection");
+    expect(afterPaint.hitTest(0, 0)).toBe(rows[1]?.num);
+    events.length = 0;
+    r.dispatchMouseEventFromHitMap(input("drag"), afterPaint);
+    expect(events).toContainEqual({ id: "row1", type: "drag", source: undefined });
+    expect(events).toContainEqual({ id: "content", type: "over", source: "row1" });
+    r.dispatchMouseEventFromHitMap(input("up"), afterPaint);
+    expect(events).toContainEqual({ id: "row1", type: "drag-end", source: undefined });
+    expect(events).toContainEqual({ id: "content", type: "drop", source: "row1" });
+    const frame = r.frameId;
+    events.length = 0;
+    r.dispatchMouseEventFromHitMap(input("down"), afterPaint);
+    expect(r.frameId).toBe(frame);
+    expect(events).toContainEqual({ id: "row1", type: "down", source: undefined });
+  } finally {
+    r.destroy();
+    await r.closed;
+  }
+});
