@@ -146,50 +146,75 @@ export async function run(
     app.buildError = message.data.message;
     app.notify();
   });
-  // Handlers first: from here on a signal must stop the tunnel, the renderer is optional.
+  // Handlers first: from here on a signal must stop the tunnel, even during setup.
   let renderer: CliRenderer | undefined;
-  // One end only: a hangup reaches the Client twice (from the kernel, and forwarded by a
-  // launcher in between), and a quit waits for its leave.
+  let creating: Promise<CliRenderer> | undefined;
+  // A hangup may reach the Client twice. Every exit waits for terminal restoration.
   let ending = false;
-  const end = (how: () => void) => () => {
+  const stop = async (code: number) => {
+    try {
+      const active = renderer ?? (await creating);
+      active?.destroy();
+      await active?.closed;
+    } catch (error) {
+      console.error(messageOf(error));
+      code = 1;
+    } finally {
+      connection.close();
+      process.exit(code);
+    }
+  };
+  const end = (how: () => Promise<void>) => () => {
     if (ending) return;
     ending = true;
-    how();
-  };
-  const stop = () => {
-    renderer?.destroy();
-    connection.close();
-    process.exit(0);
+    void how().catch((error: unknown) => {
+      console.error(messageOf(error));
+      return stop(1);
+    });
   };
   // A signal is not the user's choice (a rebuild, a closed terminal, a killed process):
   // the session stays on disk to be restored. Quitting (Ctrl+C, `app.quit`) deletes it.
-  const interrupted = end(() => {
+  const interrupted = end(async () => {
     session.flush(app.restoration.snapshot());
-    stop();
+    await stop(0);
   });
+  const crashed = (error: unknown) => {
+    if (ending) return;
+    ending = true;
+    console.error(error);
+    session.flush(app.restoration.snapshot());
+    void stop(1);
+  };
   // Voluntary: a Server the launcher manages stops once its last Client left it.
-  const quit = end(() => {
+  const quit = end(async () => {
     session.remove();
-    void (connection.managed?.leave() ?? Promise.resolve()).then(stop);
+    await connection.managed?.leave();
+    await stop(0);
   });
-  // SIGHUP: the terminal closed; the Client and its tunnel must not outlive it. A desktop
-  // window is the application itself: closing it hangs its PTY up, and the user quit.
   process.on("SIGTERM", interrupted);
   process.on("SIGINT", interrupted);
+  // Closing a desktop window is a voluntary quit; a terminal hangup keeps the session.
   process.on("SIGHUP", desktop ? quit : interrupted);
+  process.on("beforeExit", interrupted);
+  process.prependListener("uncaughtException", crashed);
+  process.prependListener("unhandledRejection", crashed);
   app.quit = quit;
-  renderer = await createCliRenderer({ exitOnCtrlC: false });
-  // OpenTUI restores the terminal on its own signals only: any other `process.exit`
-  // (the Client's own, a library's) would leave it raw, on the alternate screen.
-  process.on("exit", () => renderer?.destroy());
-  devtools?.attach(app, renderer);
-  const root = createRoot(renderer);
-  // RouterProvider's Transitioner performs the initial load.
-  root.render(<Shell app={app} />);
-  // Unless something already took the key: a focused <Terminal> sends Ctrl+C to its
-  // program. A tree that failed to mount prevents nothing, so Ctrl+C still quits.
-  if (app.options.quitOnCtrlC !== false)
-    renderer.keyInput.on("keypress", (key) => {
-      if (key.ctrl && key.name === "c" && !key.defaultPrevented) quit();
-    });
+  try {
+    // Luciole owns signals and Ctrl+C so it can save the session and close the tunnel
+    // before exit. OpenTUI's destroy remains asynchronous on every path.
+    creating = createCliRenderer({ exitOnCtrlC: false, exitSignals: [] });
+    renderer = await creating;
+    void renderer.closed.then(interrupted, crashed);
+    if (ending || renderer.isDestroyed) return;
+    devtools?.attach(app, renderer);
+    const root = createRoot(renderer);
+    root.render(<Shell app={app} />);
+    // A focused <Terminal> sends Ctrl+C to its program. Otherwise it quits this Client.
+    if (app.options.quitOnCtrlC !== false)
+      renderer.keyInput.on("keypress", (key) => {
+        if (key.ctrl && key.name === "c" && !key.defaultPrevented) quit();
+      });
+  } catch (error) {
+    crashed(error);
+  }
 }

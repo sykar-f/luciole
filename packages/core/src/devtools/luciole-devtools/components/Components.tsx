@@ -121,10 +121,20 @@ export function ComponentsPanel({ command }: { command: Command }) {
           ? [
               {
                 key: "o",
-                cmd: () =>
-                  setNotice(
-                    openInEditor(renderer, store.session.root(), selectedSource, selected?.file),
-                  ),
+                cmd: async () => {
+                  try {
+                    setNotice(
+                      await openInEditor(
+                        renderer,
+                        store.session.root(),
+                        selectedSource,
+                        selected?.file,
+                      ),
+                    );
+                  } catch (error) {
+                    setNotice(String(error));
+                  }
+                },
                 desc: "open in editor",
                 group: "panel",
               },

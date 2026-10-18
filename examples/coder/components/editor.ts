@@ -9,7 +9,11 @@ import { join } from "node:path";
 // Server's machine. Adapted from examples/forge/components/editor.ts.
 
 /** The part of OpenTUI's renderer that hands the terminal over and takes it back. */
-export type Terminal = { suspend(): void; resume(): void };
+export type Terminal = {
+  readonly isDestroyed: boolean;
+  suspend(): Promise<void>;
+  resume(): Promise<void>;
+};
 
 /** `$VISUAL`, then `$EDITOR`, then `vi`, as git does. Whitespace separates arguments. */
 export function editorCommand(env: Record<string, string | undefined> = process.env) {
@@ -26,8 +30,10 @@ export async function editText(terminal: Terminal, text: string): Promise<string
   const directory = await mkdtemp(join(tmpdir(), "coder-"));
   const path = join(directory, "PROMPT.md");
   await writeFile(path, text, { mode: 0o600 });
-  terminal.suspend();
+  let suspended = false;
   try {
+    await terminal.suspend();
+    suspended = true;
     const code = await new Promise<number>((resolve, reject) => {
       spawn(editor, [...args, path], { stdio: "inherit" })
         .once("error", reject)
@@ -35,7 +41,10 @@ export async function editText(terminal: Terminal, text: string): Promise<string
     });
     return code === 0 ? (await readFile(path, "utf8")).replace(/\n$/, "") : text;
   } finally {
-    terminal.resume();
-    await rm(directory, { recursive: true, force: true });
+    try {
+      if (suspended && !terminal.isDestroyed) await terminal.resume();
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
   }
 }

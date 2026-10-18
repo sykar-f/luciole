@@ -6,6 +6,7 @@
  * application; closing the tab keeps the session, quitting forgets it.
  */
 import { definedProperties } from "../../defined-properties";
+import { messageOf } from "../../guards";
 import { PassThrough } from "node:stream";
 import * as z from "zod/mini";
 import { Terminal as XTerm } from "@xterm/xterm";
@@ -389,21 +390,15 @@ export async function runInPage(
   app.restoration.persistTo(session);
   addEventListener("pagehide", () => session.flush(app.restoration.snapshot()));
 
-  // OpenTUI replaces the global requestAnimationFrame with its render loop's (renderer.ts),
-  // and xterm.js draws through it: after a focus change a request can wait there forever,
-  // the terminal no longer drawn. The page keeps the browser's.
-  const { requestAnimationFrame, cancelAnimationFrame } = globalThis;
   const size = { columns: terminal.cols, rows: terminal.rows };
   const renderer = await createCliRenderer({
     stdin,
     stdout: terminalOutput(size, (chunk, done) => terminal.write(chunk, done)),
     width: size.columns,
     height: size.rows,
-    useThread: false,
     exitOnCtrlC: false,
     exitSignals: [],
   });
-  Object.assign(globalThis, { requestAnimationFrame, cancelAnimationFrame });
   pixels = PixelController.attach(renderer, (commands) => terminal.write(commands), {
     pixelScroll,
   });
@@ -419,10 +414,18 @@ export async function runInPage(
   terminal.onResize(({ cols, rows }) => renderer.resize(cols, rows));
   new ResizeObserver(layout).observe(element);
   stage("terminal");
+  // Output failures close the renderer independently of a voluntary quit.
+  void renderer.closed.catch((error: unknown) => console.error(messageOf(error)));
   app.quit = () => {
+    if (renderer.isDestroyed) return;
     session.remove();
     renderer.destroy();
-    terminal.write("\r\n\x1b[2mSession ended. Reload the page to start again.\x1b[0m\r\n");
+    void renderer.closed.then(
+      () => {
+        terminal.write("\r\n\x1b[2mSession ended. Reload the page to start again.\x1b[0m\r\n");
+      },
+      () => {},
+    );
   };
   createRoot(renderer).render(<Shell app={app} />);
   requestAnimationFrame(() => stage("drawn"));

@@ -55,7 +55,7 @@ export function wire(app: Pick<Application, "onEvent">) {
 
 /** Destroys a test renderer inside `act()`, when the test got as far as rendering. */
 export async function destroy(ui: TestUI | undefined) {
-  if (ui) await act(async () => ui.renderer.destroy());
+  if (ui) await act(async () => ui.dispose());
 }
 
 /** Where `text` is drawn: its first cell, or undefined when the frame does not show it. */
