@@ -1,10 +1,17 @@
-# Choose an installed OpenTUI widget
+# Choose an installed OpenTUI widget (0.6.6)
 
 Before composing controls, read
 `node_modules/@luciole-sh/core/docs/reference/upstream-libraries.md` for luciole's boundaries.
 Start with `node_modules/@opentui/react/README.md` and `node_modules/@opentui/core/README.md`.
 Check each package's `package.json` exports, then its root declaration (`@opentui/react/src/index.d.ts`
 or `@opentui/core/index.d.ts`): a symbol mentioned in another declaration may be internal.
+
+For concepts and component recipes, use [OpenTUI’s release docs](https://opentui.com/docs/)
+and its [upstream skill](https://github.com/anomalyco/opentui/blob/main/packages/web/src/content/SKILL.md).
+Choose docs for the installed version; the repository skill follows `main` and may teach
+unreleased APIs. Delegate widget props, native drawing and resource APIs to those docs.
+Keep luciole’s Shell, restoration wrappers, shared keymap and Client/Server boundaries here:
+upstream standalone `createCliRenderer`/`createRoot` setup does not belong in an app screen.
 
 ## Match the task to a component
 
@@ -98,3 +105,51 @@ option. For route-controlled tabs, synchronize the typed ref with `setSelectedIn
 an effect; `<tab-select>` has no `selectedIndex` prop. The setter emits `onChange`, even
 for the same index: guard the callback against navigating to the route already active.
 The `luciole-app` routing reference shows that synchronization with typed matching.
+
+## Renderer ownership and terminal handoff
+
+Get the current renderer with `useRenderer()` from `@opentui/react`. Create syntax styles
+with `syntaxStyle(styles, renderer)` from `@luciole-sh/core/client`, or
+`SyntaxStyle.fromStyles(styles, renderer.nativeScene)` from `@opentui/core`. Share plain
+palette definitions across screens; create native styles per renderer, outside Server code.
+A module-global style can reach another renderer after an embed or test mounts. The creator
+owns `style.destroy()` after all consumers have released it; attaching it to a widget borrows
+it. Consult `node_modules/@opentui/core/syntax-style.d.ts` for the factory signatures.
+
+For an external editor that takes over the terminal, await `renderer.suspend()` before
+launching it and await `renderer.resume()` in `finally`. Handle rejection in the initiating
+async action. luciole owns its renderer’s shutdown; code that owns a separate renderer calls
+`destroy()` then awaits `closed` before reusing its streams or exiting gracefully. Destruction
+starts cleanup synchronously; `closed` can reject if output fails.
+
+## Layout updates and custom drawing
+
+- In 0.6.6, removing a React layout prop, or writing `null`/`undefined`, restores the omitted
+  option’s default. Clearing an edge spacing override lets its shorthand apply again;
+  `0` sets an explicit edge. Built-in intrinsic widths/heights restore their class size,
+  but other class defaults need not return (for example `flexShrink` resets to `1`).
+  Use `visible={false}` to hide: `visible={null}` or removing `visible` shows the node.
+- Read declared styles through the renderable’s getters added in 0.6.5, such as
+  `getWidth()`, `getHeight()`, `getPadding(edge)`, `getGap(gutter)` and `getFlexDirection()`.
+  These return Yoga values/enums; `width`, `height`, `x` and `y` are computed geometry
+  from the last layout. `getLayoutNode()` is removed. Inspect
+  `node_modules/@opentui/core/Renderable.d.ts` for signatures.
+- `renderBefore`, `renderSelf` and `renderAfter` on an unbuffered renderable receive a
+  recording buffer: issue drawing commands, rather than read cells through `buffers`,
+  `withBuffers`, `getRealCharBytes` or `getSpanLines` (they throw). Read/change cells in an
+  owned offscreen buffer, then compose it; use a post-process callback for whole-frame
+  effects. A buffered custom renderable can read its own buffer, but text/editor/image
+  hooks still receive recording buffers. See [custom renderables](https://opentui.com/docs/extend/custom-renderables/).
+- Round animated coordinates at the drawing boundary. Low-level drawing calls reject
+  fractional, non-finite or out-of-range coordinates with `RangeError`; unsigned sizes
+  and coordinates also reject negatives. Keep fractional animation state separate from
+  integer cell coordinates. See `node_modules/@opentui/core/buffer.d.ts`.
+
+## Editor text and offsets
+
+Since 0.6.1, editors preserve control characters and display C0/DEL in two cells (`^@`,
+`^?`) and C1 in four (`<80>`). Paste removes terminal escape sequences while preserving
+other controls. Cursor/selection offsets are display offsets, not JavaScript string lengths.
+Use the edit buffer’s `measureText(text)`, or `measureEditText(text, { widthMethod, tabWidth })`
+from `@opentui/core` with the editor’s settings. It counts display cells plus line breaks;
+inspect `node_modules/@opentui/core/edit-buffer.d.ts` before computing custom selections.

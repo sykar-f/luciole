@@ -18,6 +18,12 @@ results. Reuse the app's row/menu/toast primitives even for session-local items;
 layers if absent. Before finishing, exercise both menu entrances and readable content at
 60×20. Keep waits animated while pending, with content positions fixed.
 
+For native widgets, animation, custom painting or editor offsets, read `luciole-tui` and its
+`references/opentui.md` first. This release uses OpenTUI 0.6.6: create native styles for the
+current renderer, await terminal suspend/resume, and use renderer-owned frame scheduling.
+Exact APIs come from the installed declarations; [OpenTUI’s docs](https://opentui.com/docs/)
+explain the native concepts alongside luciole’s boundary guide below.
+
 ### Gotchas
 
 - There is no DOM. Lay out with `<box>` (flex props on the element: `flexDirection`, `gap`,

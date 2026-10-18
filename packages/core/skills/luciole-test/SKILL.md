@@ -70,6 +70,15 @@ run verify` builds the app but runs no test.
 - Read [references/restore.md](references/restore.md), beside this `SKILL.md`, when a test restarts
   the app or checks what comes back after a crash.
 
+## Native UI regressions
+
+For OpenTUI 0.6.6 changes, exercise the affected transition: remove a layout override and
+check the resulting geometry, toggle visibility with `false` then a nullish value, or mount
+two Clients to catch shared native styles and animation engines. Each Client needs its own
+renderer-owned resources. For editor cursor/selection tests, include control characters:
+display offsets differ from string lengths; use `measureEditText` with the editor’s settings.
+Read the `luciole-tui` skill’s `references/opentui.md` for ownership and drawing rules.
+
 ## What else proves an app
 
 - `bun run verify`: types, lint, format and the build, which refuses code on the wrong side of
