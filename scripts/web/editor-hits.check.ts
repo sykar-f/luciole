@@ -11,6 +11,7 @@ import { Browser } from "./cdp";
 const TIMEOUT_MS = 240_000;
 const HASH_LENGTH = 16;
 const LAST_ROW = 4;
+const FIRST_OFFSET = 3;
 test(
   "web last-row editor presses use screen and document coordinates",
   async () => {
@@ -84,7 +85,7 @@ test(
           );
           await browser.clickAt(`editorHits.point(${top}, ${scroll})`);
           await browser.waitFor(
-            `editorHits.selection().block===${block} && editorHits.selection().offset===${3 + scroll / 2}`,
+            `editorHits.selection().block===${block} && editorHits.selection().offset===${FIRST_OFFSET + scroll / 2}`,
             "the last-row press at the document position",
           );
         }

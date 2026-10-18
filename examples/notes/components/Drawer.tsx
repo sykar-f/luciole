@@ -38,6 +38,7 @@ export function Drawer({
     if (sliding === null || renderer.isDestroyed) return;
     // A plain value is tweened, then rounded: a column is the smallest step drawn.
     const tween = { width: sliding };
+    const engine = getTimelineEngine(renderer);
     const timeline = createTimeline({ autoplay: false }, renderer).add(tween, {
       width: open ? width : railWidth,
       duration: SLIDE_MS,
@@ -48,7 +49,7 @@ export function Drawer({
     timeline.play();
     return () => {
       timeline.pause();
-      getTimelineEngine(renderer).unregister(timeline);
+      engine.unregister(timeline);
     };
   });
   useEffect(() => slide(), [open]);

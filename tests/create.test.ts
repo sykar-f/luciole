@@ -131,7 +131,7 @@ test(
     for (const name of ["@opentui/core", "@opentui/react", "@opentui/keymap"])
       expect(manifest.dependencies[name]).toBe("0.6.6");
     const drawer = await Bun.file(join(starter, "components/Drawer.tsx")).text();
-    expect(drawer).toContain("getTimelineEngine(renderer)");
+    expect(drawer).toContain("const engine = getTimelineEngine(renderer)");
     expect(drawer).toContain("createTimeline({ autoplay: false }, renderer)");
     for (const dependencies of [manifest.dependencies, manifest.devDependencies])
       expect(unresolved(dependencies)).toEqual([]);
