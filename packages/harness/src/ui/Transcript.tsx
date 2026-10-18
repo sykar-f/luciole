@@ -4,7 +4,7 @@ import type { ScrollBoxRenderable } from "@opentui/core";
 import { Markdown } from "@luciole-sh/core/client";
 import { Line } from "./Line";
 import type { FilePatch, Item, ItemStatus } from "../model";
-import { languageOf, muted, syntax } from "./syntax";
+import { languageOf, useSyntax } from "./syntax";
 import { color } from "./theme";
 
 // Folded, a running command still shows the end of its output.
@@ -134,6 +134,7 @@ const ItemView = memo(function ItemView({
   onLink,
   cwd,
 }: ItemProps) {
+  const { syntax, muted } = useSyntax();
   const toggle = () => onToggle(item.id);
   switch (item.kind) {
     case "user":
@@ -416,6 +417,7 @@ function FileView({
 
 /** One file's unified patch; split into two columns on wide terminals. */
 export function Patch({ patch, path, wide }: { patch: string; path: string; wide: boolean }) {
+  const { syntax } = useSyntax();
   return (
     <box paddingLeft={2} flexShrink={0}>
       <diff

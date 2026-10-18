@@ -4,7 +4,7 @@ import type { ScrollBoxRenderable } from "@opentui/core";
 import type { Assistant, Conversation } from "./conversations";
 import { Line } from "./frames";
 import type { Setup } from "./model";
-import { syntax } from "./syntax";
+import { useSyntax } from "./syntax";
 import { color, perMillion, seconds, tokens, usd } from "./theme";
 
 const SPINNER = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏";
@@ -59,6 +59,7 @@ export function Transcript({
 }
 
 function Reply({ message, fallbackModel }: { message: Assistant; fallbackModel: string }) {
+  const syntax = useSyntax();
   const streaming = message.status === "streaming";
   const spinner = useSpinner(streaming);
   const model = message.model ?? fallbackModel;

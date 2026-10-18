@@ -123,7 +123,7 @@ export type { OpenApplicationOptions, PublisherCheck } from "./app-bundle";
 // Markdown that holds still while it streams (a model's reply, a log being written).
 export { Markdown } from "./markdown/Markdown";
 export type { MarkdownProps } from "./markdown/Markdown";
-export { markdownStyle, type MarkdownPalette } from "./markdown/style";
+export { syntaxStyle, markdownStyle, type MarkdownPalette } from "./markdown/style";
 // Local programs on a PTY, for multiplexers (the `process` mode of docs/EMBEDDING.md).
 export { Terminal, TerminalView } from "./vt/terminal";
 export type { TerminalProps, TerminalViewProps } from "./vt/terminal";

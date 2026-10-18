@@ -7,7 +7,7 @@ import { thumbnail } from "../actions/files";
 import { Line } from "./frames";
 import type { Entry, ImageTarget, Preview, Thumbnail } from "./model";
 import { next, PROTOCOLS, prefsStore, usePrefs } from "./prefs";
-import { syntax } from "./syntax";
+import { useSyntax } from "./syntax";
 import { color } from "./theme";
 
 // Shift+J/K scroll the pane by a few lines from the list; zoomed, the plain keys do.
@@ -30,6 +30,7 @@ export function PreviewPane({
   zoomed: boolean;
   active: boolean;
 }) {
+  const syntax = useSyntax();
   const scroll = useRef<ScrollBoxRenderable>(null);
   const scrollable = preview.kind !== "image" && preview.kind !== "empty";
   const by = (rows: number) => scroll.current?.scrollBy(rows);

@@ -2,9 +2,11 @@
  * What the editor draws, cell by cell: OpenTUI renders it, the test reads characters and
  * colors back. The heading bands are the ones luciole's <Markdown> draws.
  */
-import { afterEach, expect, test } from "bun:test";
-import { act, useState } from "react";
-import { MouseEvent, RGBA, SyntaxStyle } from "@opentui/core";
+import { afterEach, beforeEach, expect, test } from "bun:test";
+import { act, useState, type ComponentProps } from "react";
+import { MouseEvent, RGBA, SyntaxStyle, type CliRenderer } from "@opentui/core";
+import { useRenderer } from "@opentui/react";
+import { createTestRenderer } from "@opentui/core/testing";
 import { testRender } from "@opentui/react/test-utils";
 import { MarkdownEditor, MarkdownEditorRenderable, parseMarkdown } from "../src/index.ts";
 import { layoutDocument } from "../src/view/layout.ts";
@@ -14,26 +16,45 @@ const BAND = RGBA.fromHex("#3a3020");
 const QUIET = RGBA.fromHex("#21262d");
 const PANEL = RGBA.fromHex("#161b22");
 const TERMINAL = RGBA.fromHex("#0d1117");
-const style = SyntaxStyle.fromStyles({
-  default: { fg: RGBA.fromHex("#e6edf3") },
-  conceal: { fg: RGBA.fromHex("#4a5561") },
-  "markup.heading": { fg: RGBA.fromHex("#e8b84a"), bold: true },
-  "markup.heading.1": { fg: RGBA.fromHex("#fbe7b5"), bg: BAND, bold: true },
-  "markup.heading.2": { fg: RGBA.fromHex("#fbe7b5"), bg: BAND, bold: true },
-  "markup.heading.3": { fg: RGBA.fromHex("#e8b84a"), bg: QUIET, bold: true },
-  "markup.strong": { bold: true },
-  "markup.raw": { fg: RGBA.fromHex("#a5d6ff") },
-  "markup.raw.block": { bg: PANEL },
-  "markup.list": { fg: RGBA.fromHex("#e8b84a") },
-  "markup.list.unchecked": { fg: RGBA.fromHex("#8b98a5") },
-  keyword: { fg: RGBA.fromHex("#ff7b72") },
+const styles = new WeakMap<CliRenderer, SyntaxStyle>();
+function styleFor(renderer: CliRenderer) {
+  const known = styles.get(renderer);
+  if (known) return known;
+  const style = SyntaxStyle.fromStyles({
+    default: { fg: RGBA.fromHex("#e6edf3") },
+    conceal: { fg: RGBA.fromHex("#4a5561") },
+    "markup.heading": { fg: RGBA.fromHex("#e8b84a"), bold: true },
+    "markup.heading.1": { fg: RGBA.fromHex("#fbe7b5"), bg: BAND, bold: true },
+    "markup.heading.2": { fg: RGBA.fromHex("#fbe7b5"), bg: BAND, bold: true },
+    "markup.heading.3": { fg: RGBA.fromHex("#e8b84a"), bg: QUIET, bold: true },
+    "markup.strong": { bold: true },
+    "markup.raw": { fg: RGBA.fromHex("#a5d6ff") },
+    "markup.raw.block": { bg: PANEL },
+    "markup.list": { fg: RGBA.fromHex("#e8b84a") },
+    "markup.list.unchecked": { fg: RGBA.fromHex("#8b98a5") },
+    keyword: { fg: RGBA.fromHex("#ff7b72") },
+  });
+  styles.set(renderer, style);
+  return style;
+}
+function StyledEditor(props: Omit<ComponentProps<typeof MarkdownEditor>, "syntaxStyle">) {
+  const style = styleFor(useRenderer());
+  return <MarkdownEditor {...props} syntaxStyle={style} />;
+}
+let layoutUI: Awaited<ReturnType<typeof testRender>>;
+let style: SyntaxStyle;
+beforeEach(async () => {
+  layoutUI = await createTestRenderer({});
+  style = styleFor(layoutUI.renderer);
 });
+
 const WIDTH = 60;
 // The editor keeps its last column for the scrollbar: the page is one narrower than it.
 const BAR = 1;
 
 let ui: Awaited<ReturnType<typeof testRender>> | undefined;
 afterEach(() => {
+  layoutUI.renderer.destroy();
   ui?.renderer.destroy();
   ui = undefined;
 });
@@ -42,13 +63,12 @@ function Harness({ initial, log = [] }: { initial: string; log?: string[] }) {
   const [value, setValue] = useState(initial);
   return (
     <box width={WIDTH + BAR} height={30}>
-      <MarkdownEditor
+      <StyledEditor
         value={value}
         onChange={(markdown) => {
           log.push(markdown);
           setValue(markdown);
         }}
-        syntaxStyle={style}
         terminalBackground={TERMINAL}
         focused
         flexGrow={1}
@@ -255,9 +275,8 @@ test("typing Markdown turns it into what it means on screen, and reports Markdow
 test("the page is centered at the reading width; bands and panels reach into its margin", async () => {
   ui = await testRender(
     <box width={WIDTH} height={10}>
-      <MarkdownEditor
+      <StyledEditor
         value={"## Title\n\nwords words words words words words\n\n```\ncode\n```"}
-        syntaxStyle={style}
         terminalBackground={TERMINAL}
         readingWidth={20}
         flexGrow={1}
@@ -616,9 +635,8 @@ test("with a reading width, the bar stands in the margin and the text keeps its 
   const value = paragraphs(60);
   ui = await testRender(
     <box width={WIDTH} height={HEIGHT}>
-      <MarkdownEditor
+      <StyledEditor
         value={value}
-        syntaxStyle={style}
         terminalBackground={TERMINAL}
         readingWidth={40}
         focused
@@ -640,9 +658,8 @@ test("with a reading width, the bar stands in the margin and the text keeps its 
   ui.renderer.destroy();
   ui = await testRender(
     <box width={WIDTH} height={HEIGHT}>
-      <MarkdownEditor
+      <StyledEditor
         value={value}
-        syntaxStyle={style}
         terminalBackground={TERMINAL}
         readingWidth={40}
         scrollbar={false}
@@ -660,12 +677,11 @@ test("with a reading width, the bar stands in the margin and the text keeps its 
 test("the optional viewport keeps native rows and projects without logical mutation", async () => {
   let editor: MarkdownEditorRenderable | undefined;
   ui = await testRender(
-    <MarkdownEditor
+    <StyledEditor
       ref={(node) => {
         editor = node ?? undefined;
       }}
       value={Array.from({ length: 40 }, (_, i) => `Paragraph ${i}`).join("\n\n")}
-      syntaxStyle={style}
       width={31}
       height={10}
     />,
@@ -702,12 +718,11 @@ test("the optional viewport keeps native rows and projects without logical mutat
 test("presented input origins nest and clear after a throwing dispatch", async () => {
   let editor: MarkdownEditorRenderable | undefined;
   ui = await testRender(
-    <MarkdownEditor
+    <StyledEditor
       ref={(node) => {
         editor = node ?? undefined;
       }}
       value={paragraphs(40)}
-      syntaxStyle={style}
       width={31}
       height={10}
     />,

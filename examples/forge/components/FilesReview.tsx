@@ -12,7 +12,7 @@ import { Line, SkeletonRows } from "./frames";
 import type { Comment, FileDiff, FileSource, FileSummary, PullDetail, Side } from "./model";
 import { Pulse } from "./Pulse";
 import { useReviewSession } from "./review-session";
-import { syntax } from "./syntax";
+import { useSyntax } from "./syntax";
 import { color } from "./theme";
 
 // Page Up/Down move the cursor this many rows; the file's latest comments stay listed.
@@ -253,6 +253,7 @@ function DiffView({
   onAnchor: (anchor: { side: Side; line: number } | null) => void;
   active: boolean;
 }) {
+  const syntax = useSyntax();
   const diff = use(file.diff);
   const session = useReviewSession();
   const view = useRef<DiffRenderable>(null);

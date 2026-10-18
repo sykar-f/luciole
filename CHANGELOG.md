@@ -13,6 +13,17 @@ and marked **Breaking**.
 
 ## [Unreleased]
 
+### Added
+
+- `syntaxStyle(styles, renderer)` in `@luciole-sh/core/client` creates a syntax
+  style for one renderer.
+
+### Changed
+
+- **Breaking**: `markdownStyle(palette, renderer)` now requires a renderer.
+  In Client components, pass the renderer returned by `useRenderer()` from
+  `@opentui/react`. Syntax styles in the examples and harness are cached per renderer.
+
 ## [0.4.1] - 2026-10-16
 
 ### Added

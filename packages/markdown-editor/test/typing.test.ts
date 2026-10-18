@@ -1,3 +1,4 @@
+import { createTestRenderer } from "@opentui/core/testing";
 /**
  * Markdown typed key by key, through the path a terminal's keys take: bytes parsed by
  * OpenTUI, read as intents, carried out on the controller. Every scenario runs on three
@@ -8,7 +9,7 @@
  *   arrive as their base key, `8` with Shift for `*`);
  * - mac-alt: a French Mac, where `[ ] { } | ~ \` are typed with Option (Alt).
  */
-import { describe, expect, test } from "bun:test";
+import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { parseKeypress, RGBA, SyntaxStyle } from "@opentui/core";
 import { EditorController } from "../src/editing/controller.ts";
 import { intentOf, perform } from "../src/view/keys.ts";
@@ -79,13 +80,19 @@ function run(script: string, keyboard: Keyboard, initial = "") {
 }
 
 const band = { bg: RGBA.fromHex("#3a3020") };
-const theme = new Theme(
-  SyntaxStyle.fromStyles({
-    "markup.heading.1": band,
-    "markup.heading.2": band,
-    "markup.heading.3": band,
-  }),
-);
+let renderer: Awaited<ReturnType<typeof createTestRenderer>>["renderer"];
+let theme: Theme;
+beforeEach(async () => {
+  ({ renderer } = await createTestRenderer({ width: 60, height: 30 }));
+  theme = new Theme(
+    SyntaxStyle.fromStyles({
+      "markup.heading.1": band,
+      "markup.heading.2": band,
+      "markup.heading.3": band,
+    }),
+  );
+});
+afterEach(() => renderer.destroy());
 /** What the screen shows, line by line: markers and text, no trailing spaces. */
 function screen(editor: EditorController) {
   const layout = layoutDocument(editor.state.doc, 60, theme);

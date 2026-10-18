@@ -1,8 +1,9 @@
+import { createTestRenderer } from "@opentui/core/testing";
 /**
  * The layers under the view: Markdown read and written back, the layout and the cursor
  * mapped through it, the controller, the keys.
  */
-import { expect, test } from "bun:test";
+import { afterEach, beforeEach, expect, test } from "bun:test";
 import { SyntaxStyle } from "@opentui/core";
 import { EditorController } from "../src/editing/controller.ts";
 import { parseMarkdown } from "../src/markdown/parse.ts";
@@ -12,7 +13,13 @@ import { moveVertical } from "../src/view/motion.ts";
 import { intentOf } from "../src/view/keys.ts";
 import { Theme } from "../src/view/theme.ts";
 
-const theme = new Theme(SyntaxStyle.fromStyles({}));
+let renderer: Awaited<ReturnType<typeof createTestRenderer>>["renderer"];
+let theme: Theme;
+beforeEach(async () => {
+  ({ renderer } = await createTestRenderer({ width: 60, height: 30 }));
+  theme = new Theme(SyntaxStyle.fromStyles({}));
+});
+afterEach(() => renderer.destroy());
 
 test("an untouched document is written back exactly as it was read", () => {
   const markdown =

@@ -4,7 +4,7 @@ import { useTerminalDimensions } from "@opentui/react";
 import { Input, useBindings } from "@luciole-sh/core/client";
 import { Line } from "./Line";
 import type { Decision, Request, Response } from "../model";
-import { syntax } from "./syntax";
+import { useSyntax } from "./syntax";
 import { color } from "./theme";
 import { Patch } from "./Transcript";
 
@@ -119,6 +119,7 @@ function ApprovalDialog({
   onRespond,
   onCancel,
 }: DialogProps & { request: Request & { kind: "approval" } }) {
+  const { syntax } = useSyntax();
   useBindings(
     () => ({
       bindings: [
@@ -298,6 +299,7 @@ function PlanDialog({
   onRespond,
   onCancel,
 }: DialogProps & { request: Request & { kind: "plan_review" } }) {
+  const { syntax } = useSyntax();
   const [feedback, setFeedback] = useState<string | null>(null);
   const writing = feedback !== null;
   useBindings(

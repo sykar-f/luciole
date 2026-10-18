@@ -16,7 +16,7 @@ import { useEditing, useEditingWhile } from "./editing";
 import { Line } from "./frames";
 import type { Comment, Identity, MergeReadiness, PullDetail, Review } from "./model";
 import { describe, useOperation, type OperationState } from "./operations";
-import { syntax } from "./syntax";
+import { useSyntax } from "./syntax";
 import { ago, checkColor, checkGlyph, color } from "./theme";
 
 type Mode = "read" | "description" | "comment";
@@ -45,6 +45,7 @@ export function Conversation({
   readiness,
   now,
 }: Props) {
+  const syntax = useSyntax();
   const [mode, setMode] = useState<Mode>("read");
   const { editing } = useEditing();
   const timeline = useRef<ScrollBoxRenderable>(null);

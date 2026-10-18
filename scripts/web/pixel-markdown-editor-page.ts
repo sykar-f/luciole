@@ -1,14 +1,9 @@
 /* eslint-disable no-magic-numbers -- Fixed browser fixture geometry and color bands. */
 import "../../packages/core/src/web/setup";
+import { syntaxStyle } from "../../packages/core/src/markdown/style";
 import type {} from "../../packages/core/src/web/opentui/ffi";
 import { PassThrough } from "node:stream";
-import {
-  createCliRenderer,
-  ScrollBoxRenderable,
-  TextRenderable,
-  SyntaxStyle,
-  RGBA,
-} from "@opentui/core";
+import { createCliRenderer, ScrollBoxRenderable, TextRenderable, RGBA } from "@opentui/core";
 import { Terminal } from "@xterm/xterm";
 import { WebglAddon } from "../../packages/core/src/web/xterm-webgl/addon/WebglAddon";
 import { PixelScrollAddon } from "../../packages/core/src/web/pixel-scroll/host";
@@ -124,7 +119,7 @@ const editor = new MarkdownEditorRenderable(r, {
   value: Array.from({ length: 40 }, (_, i) => `ROW ${String(i).padStart(3, "0")} selectable`).join(
     "\n\n",
   ),
-  syntaxStyle: SyntaxStyle.fromStyles({ default: { fg: RGBA.fromHex("#e6edf3") } }),
+  syntaxStyle: syntaxStyle({ default: { fg: RGBA.fromHex("#e6edf3") } }, r),
   onCopy: (text) => {
     copied = text;
     void navigator.clipboard.writeText(text);
