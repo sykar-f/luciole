@@ -56,9 +56,16 @@ const LOCK_POLL_MS = 25;
 export const webRuntimeDirectory = async (cache = defaultCache()) =>
   join(cache, "web", `${ABI_KEY}-${(await frameworkHash()).slice(0, HASH_PREFIX)}`);
 
-function run(command: readonly string[], cwd: string) {
-  const result = Bun.spawnSync([...command], { cwd, stdout: "inherit", stderr: "inherit" });
-  if (result.exitCode !== 0) throw new Error(`${command.join(" ")} failed (${result.exitCode})`);
+function run(command: readonly string[], cwd: string, quiet = false) {
+  const result = Bun.spawnSync([...command], {
+    cwd,
+    stdout: quiet ? "pipe" : "inherit",
+    stderr: quiet ? "pipe" : "inherit",
+  });
+  if (result.exitCode !== 0) {
+    if (quiet && result.stderr?.length) console.error(result.stderr.toString().trim());
+    throw new Error(`${command.join(" ")} failed (${result.exitCode})`);
+  }
 }
 function checkZig(zig: string) {
   const version = Bun.spawnSync([zig, "version"], { stdout: "pipe", stderr: "ignore" });
@@ -112,7 +119,11 @@ export function prepareOpenTuiCheckout(
   rmSync(checkout, { recursive: true, force: true });
   const temporary = mkdtempSync(`${checkout}.${process.pid}.tmp-`);
   try {
-    run(["git", "clone", "--quiet", "--depth", "1", "--branch", tag, repository, temporary], ".");
+    run(
+      ["git", "clone", "--quiet", "--depth", "1", "--branch", tag, repository, temporary],
+      ".",
+      true,
+    );
     for (const patch of patches) run(["git", "apply", patch], temporary);
     const tree = patchedSourceTree(temporary, tag, patches);
     if (!tree) throw new Error("Prepared OpenTUI sources do not match the patch stack");
