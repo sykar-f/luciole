@@ -43,7 +43,7 @@ Recheck the installed signatures when upgrading.
 OpenTUI resources such as syntax styles belong to one renderer: pass
 `renderer.nativeScene` to their factories, or use luciole’s `syntaxStyle(styles, renderer)`.
 Await `renderer.suspend()` and `renderer.resume()` around external editors; after
-`renderer.destroy()`, await `renderer.closed` before reusing the terminal. Schedule
+`renderer.destroy()`, await `renderer.closed` before reusing its streams. Schedule
 animation with `renderer.requestAnimationFrame()` and `createTimeline(options, renderer)`.
 
 ## OpenTUI: native controls and luciole controls

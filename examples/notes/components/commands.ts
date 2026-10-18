@@ -42,7 +42,8 @@ export function useCommands() {
         return;
       }
     }
-    const copied = renderer.isOsc52Supported() && renderer.copyToClipboardOSC52(text);
+    const copied =
+      !renderer.isDestroyed && renderer.isOsc52Supported() && renderer.copyToClipboardOSC52(text);
     ui.toast({ text: copied ? "Copied as Markdown" : "The clipboard is not available here" });
   };
   const commands = {

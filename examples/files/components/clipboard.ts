@@ -14,5 +14,7 @@ export async function copy(renderer: CliRenderer, text: string) {
   } catch (error: unknown) {
     if (error instanceof CapabilityDenied) return false;
   }
-  return renderer.isOsc52Supported() && renderer.copyToClipboardOSC52(text);
+  return (
+    !renderer.isDestroyed && renderer.isOsc52Supported() && renderer.copyToClipboardOSC52(text)
+  );
 }

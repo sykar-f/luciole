@@ -45,7 +45,6 @@ import { createRoot, useRenderer } from "@opentui/react";
 import { useState } from "react";
 import { MarkdownEditor } from "@luciole-sh/markdown-editor";
 
-// The renderer owns this SyntaxStyle; create and cache one style per renderer.
 // The editor reads its colors from a SyntaxStyle. These groups are enough for headings on a
 // band, bold and italic, inline code, a code panel, links and list markers.
 const color = (hex: string) => RGBA.fromHex(hex);
@@ -133,6 +132,9 @@ _The program above, in a 72×13 terminal. The frame is captured from a real PTY 
 [`website/scripts/capture.py`](https://github.com/sykar-f/luciole/blob/v0.4.1/website/scripts/capture.py)
 (`python3 website/scripts/capture.py markdown-editor`), and the program is
 [`example/index.tsx`](https://github.com/sykar-f/luciole/blob/v0.4.1/packages/markdown-editor/example/index.tsx)._
+
+Create styles with `SyntaxStyle.fromStyles(styles, renderer.nativeScene)` and cache them
+per renderer. They stop working when their renderer is destroyed.
 
 The editor reads its colours from a `SyntaxStyle`, with the group names of Markdown highlighting
 (`markup.heading.1`, `markup.strong`, `markup.raw.block` and so on). Without `syntaxStyle`, the text is plain and
