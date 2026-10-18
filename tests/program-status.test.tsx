@@ -1,6 +1,6 @@
 /** @jsxImportSource @opentui/react */
 import { expect, test } from "bun:test";
-import { act, type ReactNode } from "react";
+import { act, useEffect, useState, type ReactNode } from "react";
 import type { ProgramStatus as Report } from "@opentui/core";
 import { createRoot } from "@opentui/react";
 import { createTestRenderer } from "@opentui/core/testing";
@@ -13,14 +13,35 @@ function Reporter({ status }: { status: ProgramStatus }) {
 }
 
 async function mount(node: ReactNode, reports: Report[]) {
-  const ui = await createTestRenderer({ width: 20, height: 3 });
+  const previous = globalThis.IS_REACT_ACT_ENVIRONMENT;
+  globalThis.IS_REACT_ACT_ENVIRONMENT = true;
+  const ui = await createTestRenderer({
+    width: 20,
+    height: 3,
+    onDestroy() {
+      act(() => root.unmount());
+      globalThis.IS_REACT_ACT_ENVIRONMENT = previous;
+    },
+  });
   ui.renderer.setProgramStatus = (status) => {
     reports.push(status);
     return true;
   };
   const root = createRoot(ui.renderer);
-  await act(async () => root.render(node));
-  return { ...ui, rerender: (next: ReactNode) => root.render(next) };
+  let rerender: (next: ReactNode) => void = () => {
+    throw new Error("Reporter not mounted");
+  };
+  function Tree() {
+    const [current, setCurrent] = useState<ReactNode>(node);
+    useEffect(() => {
+      rerender = (next) => setCurrent(next);
+    }, []);
+    return current;
+  }
+  // OpenTUI's root.render creates a new container on every call. Update the mounted
+  // tree through React state so replacement really runs the old hooks' cleanup.
+  await act(async () => root.render(<Tree />));
+  return { ...ui, rerender: (next: ReactNode) => rerender(next) };
 }
 
 test("state changes replace metadata, explicit clear only carries its address", async () => {

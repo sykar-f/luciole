@@ -225,11 +225,11 @@ See the [status-line API and reconnecting live example](/docs/concepts/loading-a
 
 ### Report work to the terminal
 
-| Export | Contract |
-| --- | --- |
-| `useProgramStatus({ app, title }, status)` | Reports committed state changes through OpenTUI's OSC 7501 API. Equal values do not send again. Requires an OpenTUI renderer. |
-| `ProgramStatusIdentity` | Required strings `app` (stable program identifier) and `title` (short record label). Sent on every report except `clear`. |
-| `ProgramStatus` | `state`: `idle`, `working`, `blocked`, `done`, `error`, or `clear`; optional `id`. `blocked` requires `kind` (`permission`, `question`, `auth`) and `message`. Other states except `clear` accept `message`; `working` and `blocked` accept integer `progress` from 0 to 100. |
+| Export                                     | Contract                                                                                                                                                                                                                                                                      |
+| ------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `useProgramStatus({ app, title }, status)` | Reports committed state changes through OpenTUI's OSC 7501 API. Equal values do not send again. Requires an OpenTUI renderer.                                                                                                                                                 |
+| `ProgramStatusIdentity`                    | Required strings `app` (stable program identifier) and `title` (short record label). Sent on every report except `clear`.                                                                                                                                                     |
+| `ProgramStatus`                            | `state`: `idle`, `working`, `blocked`, `done`, `error`, or `clear`; optional `id`. `blocked` requires `kind` (`permission`, `question`, `auth`) and `message`. Other states except `clear` accept `message`; `working` and `blocked` accept integer `progress` from 0 to 100. |
 
 ```tsx
 import { useProgramStatus } from "@luciole-sh/core/client";
@@ -252,7 +252,7 @@ Agent reports its pi turn's running and completion states (it has no permission 
 
 <Excerpt
   path="examples/coder/components/SessionScreen.tsx"
-  find='useProgramStatus({ app:'
+  find="useProgramStatus({ app:"
   count={1}
   caption="Coder reports the current harness state."
 />
