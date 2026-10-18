@@ -2,7 +2,7 @@
 // cannot carry ambient module declarations, so a reference brings them to consumers too.
 // oxlint-disable-next-line typescript/triple-slash-reference -- the ambient Flight declarations above.
 /// <reference path="../../types.d.ts" />
-// Versioned adapter: React Flight 19.3.0 browser codec, Bun 1.4.2.
+// Versioned adapter: React Flight 19.3.1 browser codec, Bun 1.4.2.
 // Bundled modules are synchronous and installed with the application; no code download.
 export type ModuleResolver = (id: string) => Record<string, unknown>;
 declare global {
