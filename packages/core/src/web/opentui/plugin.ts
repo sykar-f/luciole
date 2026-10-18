@@ -43,11 +43,18 @@ export const opentuiWasm: BunPlugin = {
       };
     });
 
-    // 0.6.6: no retained-pointer helper and no line-info pointer read in zig.ts; only the
-    // library file check is left.
+    // Scene measurement callbacks write their dimensions through a native pointer.
+    // That view must alias WASM memory; a copied ArrayBuffer loses the result.
     build.onLoad({ filter: /packages\/core\/src\/zig\.ts$/ }, async (args) => {
       let text = await Bun.file(args.path).text();
       text = replace(args.path, text, "if (!existsSync(targetLibPath)) {", "if (false) {");
+      text = replace(
+        args.path,
+        text,
+        "new Float32Array(toArrayBuffer(output, 0, 8)).set(dimensions)",
+        "typedView(Float32Array, output, 8).set(dimensions)",
+      );
+      text = `import { typedView } from ${JSON.stringify(FFI)}\n${text}`;
       return { loader: "ts", contents: text };
     });
 

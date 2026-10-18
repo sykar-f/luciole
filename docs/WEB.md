@@ -486,7 +486,10 @@ Le runtime épingle OpenTUI 0.6.6 et utilise uniquement
 accepte désormais cette cible 32 bits : ses records gardent leurs champs de
 largeur fixe, les adresses sont étendues à 64 bits, les tailles des commandes
 sont calculées en `u64` et le compteur de contextes est sans atomiques en mode
-monothread. Les vérifications de layout restent actives. Yoga, compilé sans
+monothread. Les vérifications de layout restent actives. Le callback de mesure JS écrit
+ses dimensions dans une vue vivante de la mémoire WASM, comme les vues de
+cellules : une copie perdrait les largeurs des gouttières de code et de diff.
+Yoga, compilé sans
 exceptions C++, interrompt le module sur un `bad_alloc` au lieu de retourner
 `OT_YOGA_OUT_OF_MEMORY`. Le contrôle à la demande
 `bun test scripts/web/opentui-066-wasm.check.ts` (Zig 0.16.0, réseau, Chrome)

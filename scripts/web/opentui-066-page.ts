@@ -95,8 +95,11 @@ async function check() {
     const before = read();
     const bytesBefore = before.memory.byteLength;
     growMemory();
+    measured.setMeasureProvider(() => ({ width: 9, height: 1 }));
     text.content = "grown";
     const cellsAfterGrowth = await frame("grown", [255, 255, 255, 255]);
+    if (measured.width !== 9 || measured.height !== 1)
+      throw new Error("Native measurement writes were lost after memory growth");
     const bytesAfter = read().memory.byteLength;
     const detached = before.view.byteLength === 0;
     if (bytesAfter <= bytesBefore || !detached)
@@ -104,6 +107,7 @@ async function check() {
     return {
       boxCells,
       changedText,
+      measuredAfterGrowth: { width: measured.width, height: measured.height },
       memoryGrowth: { bytesBefore, bytesAfter, detached, cellsAfterGrowth },
       ok: true,
     };
