@@ -223,6 +223,63 @@ See the [status-line API and reconnecting live example](/docs/concepts/loading-a
   caption="The chat's layout shows the connection, binds two keys, and lists them in its footer."
 />
 
+### Report work to the terminal
+
+| Export | Contract |
+| --- | --- |
+| `useProgramStatus({ app, title }, status)` | Reports committed state changes through OpenTUI's OSC 7501 API. Equal values do not send again. Requires an OpenTUI renderer. |
+| `ProgramStatusIdentity` | Required strings `app` (stable program identifier) and `title` (short record label). Sent on every report except `clear`. |
+| `ProgramStatus` | `state`: `idle`, `working`, `blocked`, `done`, `error`, or `clear`; optional `id`. `blocked` requires `kind` (`permission`, `question`, `auth`) and `message`. Other states except `clear` accept `message`; `working` and `blocked` accept integer `progress` from 0 to 100. |
+
+```tsx
+import { useProgramStatus } from "@luciole-sh/core/client";
+
+// Fragment: permission is the pending request; running and error are app state.
+useProgramStatus(
+  { app: "my-agent", title: "Agent" },
+  permission
+    ? { state: "blocked", kind: "permission", message: "Allow bash?" }
+    : running
+      ? { state: "working" }
+      : error
+        ? { state: "error", message: "Turn failed" }
+        : { state: "done" },
+);
+```
+
+Coder maps the harness's permission requests, running turns and results to these states;
+Agent reports its pi turn's running and completion states (it has no permission dialog).
+
+<Excerpt
+  path="examples/coder/components/SessionScreen.tsx"
+  find='useProgramStatus({ app:'
+  count={1}
+  caption="Coder reports the current harness state."
+/>
+
+Each report replaces its entire record. `app` must be at most 32 ASCII letters, digits,
+`_`, `.`, `+` or `-`; `title` at most 192 UTF-8 bytes, `message` at most 2048 bytes.
+Titles and messages must contain no control characters. Invalid reports throw under
+[OpenTUI's validation rules](https://opentui.com/docs/application-apis/program-status/).
+The hook sends without waiting for `capabilities.program_status`: unsupported terminals
+ignore the report. It does not retry when OpenTUI cannot queue a report.
+
+Omit `id` for the root record, or give tasks separate IDs such as `build/tests`.
+Use `{ state: "clear", id: "build/tests" }` to remove a record and its descendants;
+`clear` sends only the address. IDs have at most eight slash-separated segments of
+1–32 ASCII letters, digits, `_`, `.`, `+` or `-`, at most 128 bytes total.
+
+Unmounting clears `working` and `blocked` reports; standalone `done` and `error` records
+stay for the user. Report a result before exiting: the terminal drops active work on
+process exit but retains results. OpenTUI does not clear records on renderer destruction.
+
+Each `<Embed>` pane gets a separate `pane-…` record subtree, regardless of keyboard focus;
+explicit IDs are relative to that subtree and share its protocol length limits. Closing
+the pane clears its entire subtree, including completed tasks. A terminal pane running a
+separate process reports to that pane's terminal. No tmux or GNU Screen passthrough is
+added. In the web runtime the hook sends no reports and requests no browser notification
+permission.
+
 ### Restore fields and bind keys
 
 Name a field to keep its text for the current history entry: the text comes back after going

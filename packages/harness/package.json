@@ -26,6 +26,7 @@
     "./ui/Pulse": "./src/ui/Pulse.tsx",
     "./ui/StatusLine": "./src/ui/StatusLine.tsx",
     "./ui/Transcript": "./src/ui/Transcript.tsx",
+    "./ui/program-status": "./src/ui/program-status.ts",
     "./ui/store": "./src/ui/store.ts",
     "./ui/syntax": "./src/ui/syntax.ts",
     "./ui/theme": "./src/ui/theme.ts"

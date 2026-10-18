@@ -7,6 +7,7 @@ import {
   useBindings,
   useConnection,
   useLive,
+  useProgramStatus,
   useRestoredFields,
 } from "@luciole-sh/core/client";
 import { abort, feed, newSession, sendPrompt } from "../actions/agent";
@@ -36,6 +37,14 @@ const stateLabel: Record<AgentState, { text: string; fg: string }> = {
   stopped: { text: "stopped", fg: color.danger },
 };
 
+const MAX_STATUS_CHARACTERS = 500;
+const statusLine = (text: string) =>
+  // Control characters are forbidden by OSC 7501, even inside base64 text.
+  // eslint-disable-next-line no-control-regex
+  Array.from(text.replace(/[\x00-\x1f\x7f-\x9f]/g, " "))
+    .slice(0, MAX_STATUS_CHARACTERS)
+    .join("");
+
 const tokens = (n: number) => (n >= THOUSAND ? `${(n / THOUSAND).toFixed(1)}k` : String(n));
 const failure = (error: unknown) =>
   error instanceof TransportError
@@ -53,6 +62,16 @@ export function AgentScreen({ initial }: { initial: Snapshot }) {
   const [attempt, setAttempt] = useState(0);
   const live = useLive(feed, [attempt], { limit: 1 });
   const snap = live.items.at(-1) ?? initial;
+  useProgramStatus(
+    { app: "luciole-agent", title: "Agent" },
+    snap.error
+      ? { state: "error", message: statusLine(snap.error) }
+      : snap.state === "running" || snap.state === "aborting" || snap.state === "starting"
+        ? { state: "working" }
+        : snap.state === "stopped"
+          ? { state: "error", message: "Agent stopped" }
+          : { state: snap.blocks.length ? "done" : "idle" },
+  );
   const { refresh } = useConnection();
   const fields = useRestoredFields("agent");
   const [prompt, setPrompt] = useState("");

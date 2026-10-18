@@ -27,6 +27,7 @@ import { RouterProvider } from "@tanstack/react-router";
 import type { Application } from "./client";
 import { messageOf } from "./guards";
 import { Runtime } from "./runtime-context";
+import { ProgramStatusScope } from "./program-status";
 
 /** Decides, key by key, whether a pane hears it. Read outside React, on every key. */
 export type KeyGate = (event: KeyEvent) => boolean;
@@ -81,7 +82,9 @@ export function ApplicationView({ app, gate }: { app: Application; gate: KeyGate
   return (
     <KeymapProvider keymap={keymap}>
       <Runtime.Provider value={app}>
-        <RouterProvider router={app.router} />
+        <ProgramStatusScope>
+          <RouterProvider router={app.router} />
+        </ProgramStatusScope>
       </Runtime.Provider>
     </KeymapProvider>
   );
