@@ -1,13 +1,14 @@
 /** @jsxImportSource @opentui/react */
 import { test, expect } from "bun:test";
 import { act, useState, useSyncExternalStore, type ReactNode } from "react";
+import { createTestRenderer } from "@opentui/core/testing";
 import { KeyEvent } from "@opentui/core";
 import { useRenderer } from "@opentui/react";
 import { testRender } from "@opentui/react/test-utils";
 import { createDefaultOpenTuiKeymap } from "@opentui/keymap/opentui";
 import { KeymapProvider, useBindings } from "@opentui/keymap/react";
 import { Terminal } from "../packages/core/src/client";
-import { legacyKey, queryResponder } from "../packages/core/src/vt/gaps";
+import { legacyKey, VtTerminalRenderable } from "../packages/core/src/vt/gaps";
 import { WAIT_MS, destroy, execute, until, type TestUI } from "./helpers";
 
 const key = (name: string, mods: Partial<{ ctrl: boolean; meta: boolean; shift: boolean }> = {}) =>
@@ -33,13 +34,30 @@ test("legacy keys the native encoder skips get xterm's sequences", () => {
   expect(legacyKey(key("a"))).toBe("");
 });
 
-test("device attributes and color queries are answered, even split across reads", () => {
-  const respond = queryResponder({ fg: [255, 255, 255], bg: [0, 0, 0] });
-  const bytes = (s: string) => new TextEncoder().encode(s);
-  expect(respond(bytes("hello\x1b["))).toBe("");
-  expect(respond(bytes("c"))).toBe("\x1b[?62;22c");
-  expect(respond(bytes("\x1b[>c"))).toBe("\x1b[>1;10;0c");
-  expect(respond(bytes("\x1b]11;?\x07"))).toBe("\x1b]11;rgb:0000/0000/0000\x07");
+test("native Alt keys and split device/color queries reach the child once", async () => {
+  const setup = await createTestRenderer({ width: 20, height: 5 });
+  const output: string[] = [];
+  try {
+    const terminal = new VtTerminalRenderable(setup.renderer, {
+      width: 20,
+      height: 5,
+      onData: (bytes) => output.push(new TextDecoder().decode(bytes)),
+    });
+    setup.renderer.root.add(terminal);
+    await setup.renderOnce();
+    terminal.handleKeyPress(key("b", { meta: true }));
+    expect(output.join("")).toBe("\x1bb");
+    output.length = 0;
+    terminal.write("hello\x1b[");
+    terminal.write("c\x1b[>c\x1b]11;?\x07");
+    await setup.renderOnce();
+    const answers = output.join("");
+    expect(answers.match(/\x1b\[\?[^c]*c/g)).toHaveLength(1);
+    expect(answers.match(/\x1b\[>[^c]*c/g)).toHaveLength(1);
+    expect(answers.match(/\x1b\]11;rgb:[^\x07\x1b]*/g)).toHaveLength(1);
+  } finally {
+    await setup.dispose();
+  }
 });
 
 /** The keymap a Shell provides, and application bindings that must not steal keys. */
