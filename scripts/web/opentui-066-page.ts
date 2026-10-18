@@ -30,9 +30,22 @@ async function check() {
       borderStyle: "single",
       borderColor: "#ff0000",
     });
+    const measured = new BoxRenderable(renderer, {
+      id: "measured",
+      position: "absolute",
+      top: 3,
+      left: 0,
+      width: "auto",
+      height: "auto",
+    });
+    measured.setMeasureProvider(() => ({ width: 7, height: 1 }));
+    renderer.root.add(measured);
     const text = new TextRenderable(renderer, { id: "text", content: "hello" });
     box.add(text);
     renderer.root.add(box);
+    await renderOnce();
+    if (measured.width !== 7 || measured.height !== 1)
+      throw new Error(`Native measurement writes were lost: ${measured.width}x${measured.height}`);
     const read = () => {
       const buffer = renderer.currentRenderBuffer;
       if (!hasScopedBuffers(buffer)) throw new Error("0.6.6 scoped buffer access is missing");
