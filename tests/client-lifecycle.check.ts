@@ -25,6 +25,7 @@ export default function Layout() {
       switch (process.env.CLOSURE_TEST_MODE) {
         case "quit": app.quit(); break;
         case "destroy": renderer.destroy(); break;
+        case "exit": process.exit(3);
         case "throw": setImmediate(() => {throw new Error("closure test crash")}); break;
         case "reject": void Promise.reject(new Error("closure test rejection")); break;
         case "output-error": process.stdout.emit("error", new Error("closure test output failure")); break;
@@ -49,6 +50,7 @@ export default function Layout() {
       "desktop-hup",
       "quit",
       "destroy",
+      "exit",
       "throw",
       "reject",
       "output-error",
@@ -69,11 +71,24 @@ export default function Layout() {
       else if (mode === "desktop-hup") terminal.signal("SIGHUP");
       else if (mode === "SIGINT" || mode === "SIGTERM" || mode === "SIGHUP") terminal.signal(mode);
       else terminal.signal("SIGUSR1");
+      if (mode === "throw" || mode === "reject") {
+        await terminal.until(
+          () =>
+            terminal
+              .output()
+              .includes(mode === "throw" ? "closure test crash" : "closure test rejection"),
+          "the non-fatal OpenTUI error",
+        );
+        expect(terminal.running).toBe(true);
+        terminal.signal("SIGTERM");
+      }
       expect(await terminal.exited(), mode).toBe(
-        ["throw", "reject", "output-error"].includes(mode) ? 1 : 0,
+        mode === "exit" ? 3 : mode === "output-error" ? 1 : 0,
       );
       terminal.assertRestored();
-      expect(terminal.output(), mode).toContain("\x1b[?1049l");
+      // A failed sink cannot carry ANSI resets, but raw mode still restores above.
+      if (mode !== "output-error")
+        expect(terminal.output().split("\x1b[?1049l"), mode).toHaveLength(2);
     }
   },
   TIMEOUT_MS,

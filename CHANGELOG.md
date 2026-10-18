@@ -32,7 +32,9 @@ and marked **Breaking**.
 - **Breaking**: await `renderer.suspend()` and `renderer.resume()` around an
   external editor. After `renderer.destroy()`, await `renderer.closed` and handle
   its rejection before reusing streams or exiting. Luciole now does this on
-  quit, signals and crashes. Check `renderer.isDestroyed` before late native calls.
+  quit, signals and fatal setup failures. Explicit app `process.exit()` uses
+  OpenTUI’s synchronous emergency restore to real stdout. Uncaught errors keep
+  OpenTUI’s non-fatal behavior. Check `renderer.isDestroyed` before late native calls.
 - **Breaking**: custom renderables draw through `renderSelf` or paint hooks and
   report intrinsic size with `setMeasureProvider()`. Unbuffered hooks record
   draws; use `buffered: true` for cell reads or move frame reads to a post-process

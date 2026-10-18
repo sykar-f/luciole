@@ -69,7 +69,7 @@ aussi du code du framework. `luciole build --web` le prépare s'il manque. En lo
 | `src/web/build.ts`                  | Bundle de la page : variantes, OpenTUI depuis ses sources, shims Node, clé d'ABI                     |
 | `src/web/platform/`                 | Variantes : `run`, `app-bundle`, `host-direct`, `vt/terminal`, `flight/server`                       |
 | `src/web/opentui/`, `src/web/node/` | Backend FFI WASM d'OpenTUI, Worker tree-sitter ; built-ins Node d'une page                           |
-| `web/opentui-v0.6.6.patch`          | Le patch OpenTUI : wasm32-wasi, transactions de frame, projections et hit maps                       |
+| `web/opentui-v0.6.6.patch`          | Le patch OpenTUI : scène native et ABI C pour wasm32-wasi                                            |
 | `scripts/web/`                      | Driver CDP et parcours navigateur (`test:web`, `test:web:local`, `test:web:forge`, `test:web:coder`) |
 
 ## Mode d'emploi (tout dans le navigateur)
@@ -468,6 +468,18 @@ Chrome headless (CDP), tape, et lit l'écran par le buffer de l'émulateur plut�
 des captures.
 
 ## 6. Risques
+
+Le Client natif attend `renderer.closed` après `destroy()` sur ses chemins de
+sortie (signaux, Ctrl+C, quit, erreur fatale de démarrage). Un `process.exit()`
+explicite de l’app passe par le hook natif synchrone d’OpenTUI 0.6.6 ; luciole
+n’installe plus de hook `exit` qui détruit le renderer. Le drainage synchrone
+ne fonctionne que vers le vrai fd stdout : une écriture en vol vers une sortie
+empruntée ne peut pas être rejouée. Une erreur de sortie restaure le mode du
+terminal et fait sortir le Client avec le code 1, mais la sortie défaillante
+ne peut pas recevoir les séquences ANSI de reset. Le runtime web attend la
+fermeture du renderer avant d’écrire son message de fin dans xterm ; il ne
+termine pas le processus hôte et ne prend jamais son terminal. Les exceptions
+et rejets non rattrapés conservent le comportement non fatal d’OpenTUI.
 
 Le runtime épingle OpenTUI 0.6.6 et utilise uniquement
 `web/opentui-v0.6.6.patch` pour sa cible wasm32-wasi. L'ABI C

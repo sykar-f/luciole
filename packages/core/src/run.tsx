@@ -178,7 +178,7 @@ export async function run(
     session.flush(app.restoration.snapshot());
     await stop(0);
   });
-  const crashed = (error: unknown) => {
+  const failed = (error: unknown) => {
     if (ending) return;
     ending = true;
     console.error(error);
@@ -196,15 +196,16 @@ export async function run(
   // Closing a desktop window is a voluntary quit; a terminal hangup keeps the session.
   process.on("SIGHUP", desktop ? quit : interrupted);
   process.on("beforeExit", interrupted);
-  process.prependListener("uncaughtException", crashed);
-  process.prependListener("unhandledRejection", crashed);
   app.quit = quit;
   try {
     // Luciole owns signals and Ctrl+C so it can save the session and close the tunnel
     // before exit. OpenTUI's destroy remains asynchronous on every path.
+    // Explicit app process.exit() uses OpenTUI's synchronous native exit hook on
+    // the real stdout fd. A second exit reset would pop terminal modes twice.
+    // Uncaught errors keep OpenTUI's existing non-fatal console behavior.
     creating = createCliRenderer({ exitOnCtrlC: false, exitSignals: [] });
     renderer = await creating;
-    void renderer.closed.then(interrupted, crashed);
+    void renderer.closed.then(interrupted, failed);
     if (ending || renderer.isDestroyed) return;
     devtools?.attach(app, renderer);
     const root = createRoot(renderer);
@@ -215,6 +216,6 @@ export async function run(
         if (key.ctrl && key.name === "c" && !key.defaultPrevented) quit();
       });
   } catch (error) {
-    crashed(error);
+    failed(error);
   }
 }
