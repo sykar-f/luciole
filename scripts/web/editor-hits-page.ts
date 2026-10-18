@@ -49,11 +49,11 @@ Reflect.set(globalThis, "editorHits", {
       { length: terminal.rows },
       (_, y) => terminal.buffer.active.getLine(y)?.translateToString(true) ?? "",
     ),
-  point(top: number) {
+  point(top: number, scroll: number) {
     const box = document.querySelector(".xterm-screen")?.getBoundingClientRect();
     if (!box) throw new Error("Missing xterm screen");
     return {
-      x: box.left + (5.5 * box.width) / terminal.cols,
+      x: box.left + ((5.5 + scroll / 2) * box.width) / terminal.cols,
       y: box.top + ((top + 4.5) * box.height) / terminal.rows,
     };
   },

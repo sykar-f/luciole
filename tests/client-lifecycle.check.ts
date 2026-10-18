@@ -17,7 +17,7 @@ test(
 import {useEffect} from "react";
 import {useRenderer} from "@opentui/react";
 import {useApplication} from "@luciole-sh/core/client";
-export default function Layout({children}) {
+export default function Layout() {
   const renderer = useRenderer();
   const app = useApplication();
   useEffect(() => {
@@ -33,7 +33,7 @@ export default function Layout({children}) {
     process.on("SIGUSR1", close);
     return () => process.off("SIGUSR1", close);
   }, [renderer, app]);
-  return <box flexDirection="column"><text>Closure test ready</text>{children}</box>;
+  return <box flexDirection="column" flexGrow={1}><text height={1} flexShrink={0}>Closure test ready</text></box>;
 }
 `,
     );

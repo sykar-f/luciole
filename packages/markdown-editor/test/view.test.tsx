@@ -795,8 +795,8 @@ for (const top of [0, 4]) {
     await ui.renderOnce();
     expect(ui.captureCharFrame().split("\n")[top + 4]?.slice(2, 8)).toBe("line 3");
     await act(async () => {
-      await ui?.mockMouse.click(5, top + 4);
+      await ui?.mockMouse.click(6, top + 4);
     });
-    expect(editor.controller.state.selection.head).toEqual({ block: 3, offset: 3 });
+    expect(editor.controller.state.selection.head).toEqual({ block: 3, offset: 4 });
   });
 }

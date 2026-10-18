@@ -82,9 +82,9 @@ test(
             `editorHits.lines()[${top + LAST_ROW}]?.slice(2,8)==='line ${block}'`,
             "the last visible document row",
           );
-          await browser.clickAt(`editorHits.point(${top})`);
+          await browser.clickAt(`editorHits.point(${top}, ${scroll})`);
           await browser.waitFor(
-            `editorHits.selection().block===${block} && editorHits.selection().offset===3`,
+            `editorHits.selection().block===${block} && editorHits.selection().offset===${3 + scroll / 2}`,
             "the last-row press at the document position",
           );
         }
