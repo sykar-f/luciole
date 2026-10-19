@@ -253,6 +253,10 @@ try {
   await browser.evaluate(
     "probe.selectable(true); {const r=probe.state().left.rect;probe.pointer('mousedown',r.x+.5,r.y+1.9,1);probe.pointer('mousemove',r.x+6.5,r.y+2.9,1);probe.pointer('mouseup',r.x+6.5,r.y+2.9)}",
   );
+  await wait(
+    "probe.state().selection === 'ROW 002 selectable\\nROW 003'",
+    "application selection before copy",
+  );
   await browser.evaluate("probe.terminal.input('\\x03')");
   await wait("!!probe.state().copied", "application selection copy");
   expect(await browser.evaluate("probe.state().copied")).toEqual("ROW 002 selectable\nROW 003");
