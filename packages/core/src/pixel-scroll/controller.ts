@@ -43,7 +43,7 @@ function belongsTo(node: Renderable | undefined, owner: Renderable): boolean {
   return false;
 }
 
-/** App-side negotiated pixel controller. Only runInPage attaches it; native is unchanged. */
+/** App-side negotiated pixel controller. Attached by web and desktop hosts; plain native terminals keep row scroll. */
 export class PixelController {
   private readonly discovery = new PixelDiscovery();
   private readonly history = new PixelHistory();

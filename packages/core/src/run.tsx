@@ -16,6 +16,8 @@ import { connect, serverUrl } from "./connect";
 import { messageOf } from "./guards";
 import { openSession, SessionId } from "./session";
 import { networkFromEnv } from "./transport";
+import { attachPixelScroll } from "./pixel-scroll/attach";
+import { detectOpenTuiControlWriter, detectOpenTuiMouseObserver } from "./opentui-seams";
 
 // The Client's own environment; the Server's URL comes from `serverUrl` (src/connect.ts)
 // and network conditions from `networkFromEnv`.
@@ -76,6 +78,7 @@ export async function run(
   {
     name = "luciole",
     sessionKey,
+    pixelScroll = true,
   }: {
     name?: string;
     /**
@@ -83,7 +86,7 @@ export async function run(
      * gives one per app and target, since its local socket changes on every launch.
      */
     sessionKey?: string;
-    /** Web runtime only: `false` keeps row scrolling. Native terminals ignore it. */
+    /** Web and desktop hosts: `false` keeps row scrolling. Plain terminals ignore it. */
     pixelScroll?: boolean;
   } = {},
 ) {
@@ -247,6 +250,19 @@ export async function run(
     renderer = await creating;
     void renderer.closed.then(interrupted, failed);
     if (ending || renderer.isDestroyed) return;
+    if (desktop && pixelScroll) {
+      const writer = detectOpenTuiControlWriter(renderer);
+      const observer = detectOpenTuiMouseObserver(renderer);
+      if (writer.available && observer.available)
+        attachPixelScroll(renderer, {
+          write: (commands) => {
+            // The shared controller does not await writes. Observe failures here,
+            // including a rejected final release while the renderer is closing.
+            void writer.renderer.writeControl(Buffer.from(commands)).catch(failed);
+          },
+          observeOrdinary: (receive) => observer.renderer.observeMouseInput(receive),
+        });
+    }
     devtools?.attach(app, renderer);
     const root = createRoot(renderer);
     root.render(<Shell app={app} />);
