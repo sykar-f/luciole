@@ -45,7 +45,7 @@ export type OpenTuiSeamDetection =
   | { available: true; renderer: CliRenderer & OpenTuiSeams }
   | { available: false; missing: readonly (typeof METHODS)[number][] };
 
-function hasMethod(renderer: unknown, name: (typeof METHODS)[number]): boolean {
+function hasMethod(renderer: unknown, name: string): boolean {
   if (typeof renderer !== "object" || renderer === null) return false;
   const method: unknown = Reflect.get(renderer, name);
   return typeof method === "function";
@@ -115,19 +115,23 @@ export interface OpenTuiControlWriter {
   writeControl(bytes: Uint8Array): Promise<void>;
 }
 
+function hasMouseObserver(renderer: unknown): renderer is CliRenderer & OpenTuiMouseObserver {
+  return hasMethod(renderer, "observeMouseInput");
+}
+
+function hasControlWriter(renderer: unknown): renderer is CliRenderer & OpenTuiControlWriter {
+  return hasMethod(renderer, "writeControl");
+}
+
 /** These independent capabilities keep existing frame-plan fallback decisions stable. */
 export function detectOpenTuiMouseObserver(
   renderer: unknown,
 ):
   | { available: true; renderer: CliRenderer & OpenTuiMouseObserver }
   | { available: false; missing: readonly ["observeMouseInput"] } {
-  if (
-    typeof renderer === "object" &&
-    renderer !== null &&
-    typeof Reflect.get(renderer, "observeMouseInput") === "function"
-  )
-    return { available: true, renderer: renderer as CliRenderer & OpenTuiMouseObserver };
-  return { available: false, missing: ["observeMouseInput"] };
+  return hasMouseObserver(renderer)
+    ? { available: true, renderer }
+    : { available: false, missing: ["observeMouseInput"] };
 }
 
 export function detectOpenTuiControlWriter(
@@ -135,11 +139,7 @@ export function detectOpenTuiControlWriter(
 ):
   | { available: true; renderer: CliRenderer & OpenTuiControlWriter }
   | { available: false; missing: readonly ["writeControl"] } {
-  if (
-    typeof renderer === "object" &&
-    renderer !== null &&
-    typeof Reflect.get(renderer, "writeControl") === "function"
-  )
-    return { available: true, renderer: renderer as CliRenderer & OpenTuiControlWriter };
-  return { available: false, missing: ["writeControl"] };
+  return hasControlWriter(renderer)
+    ? { available: true, renderer }
+    : { available: false, missing: ["writeControl"] };
 }

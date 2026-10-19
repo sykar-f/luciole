@@ -142,12 +142,11 @@ test("input observer and control writer detections are independent and reject mi
   const writer = { async writeControl() {} };
   const observed = detectOpenTuiMouseObserver(observer);
   expect(observed.available).toBe(true);
-  if (observed.available)
-    expect(observed.renderer.observeMouseInput).toBe(observer.observeMouseInput);
+  expect(observed.available && Object.is(observed.renderer, observer)).toBe(true);
   expect(detectOpenTuiControlWriter(observer).available).toBe(false);
   const written = detectOpenTuiControlWriter(writer);
   expect(written.available).toBe(true);
-  if (written.available) expect(written.renderer.writeControl).toBe(writer.writeControl);
+  expect(written.available && Object.is(written.renderer, writer)).toBe(true);
   expect(detectOpenTuiMouseObserver(writer).available).toBe(false);
 });
 
