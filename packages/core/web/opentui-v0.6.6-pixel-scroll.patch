@@ -12,7 +12,7 @@ index 17f2d82..8ccad81 100644
    ot_session_read_output: { 0: context, 1: buffer, 2: empty, 4: buffer },
    ot_session_drain_output: {
 diff --git a/packages/core/src/NativeSession.ts b/packages/core/src/NativeSession.ts
-index 9048978..7f1a005 100644
+index 9048978..271860b 100644
 --- a/packages/core/src/NativeSession.ts
 +++ b/packages/core/src/NativeSession.ts
 @@ -504,6 +504,88 @@ export class NativeSession {
@@ -81,7 +81,7 @@ index 9048978..7f1a005 100644
 +   * Lifecycle and sink failures still reject the returned promise.
 +   */
 +  async writeControl(bytes: Uint8Array): Promise<void> {
-+    const owned = bytes.slice()
++    const owned = new Uint8Array(bytes)
 +    const release = await this.acquireOutput()
 +    try {
 +      this.checkOpen()
@@ -714,7 +714,7 @@ index 91a46db..bf8b85f 100644
        }
 diff --git a/packages/core/src/tests/pixel-seams.test.ts b/packages/core/src/tests/pixel-seams.test.ts
 new file mode 100644
-index 0000000..4a4821b
+index 0000000..71e95ea
 --- /dev/null
 +++ b/packages/core/src/tests/pixel-seams.test.ts
 @@ -0,0 +1,118 @@
@@ -765,7 +765,7 @@ index 0000000..4a4821b
 +    attempts = 0
 +    const frame = session.endFrameOutput(true)
 +    await firstChunk
-+    const command = bytes("CONTROL".repeat(limit))
++    const command = Buffer.from("CONTROL".repeat(limit))
 +    const expected = new TextDecoder().decode(command)
 +    const control = session.writeControl(command)
 +    command.fill(0)
