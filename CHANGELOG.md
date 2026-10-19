@@ -15,9 +15,11 @@ and marked **Breaking**.
 
 ### Changed
 
-- **Breaking:** Pixel scrolling is now off by default on the web and desktop. Enable it at launch
-  with `--pixel-scroll` or `LUCIOLE_PIXEL_SCROLL=1`, or add `?pixel-scroll` to the web
-  page URL (also for `--web-local`). An explicit `pixelScroll: true | false` in
+- **Breaking:** Pixel scrolling is now off by default on the web and desktop. Compiled
+  app binaries and `serve` accept `--pixel-scroll`; the desktop host accepts only
+  `LUCIOLE_PIXEL_SCROLL=1` (on macOS: `open --env LUCIOLE_PIXEL_SCROLL=1 Notes.app`).
+  The environment variable also works for binaries and the web Server. Add
+  `?pixel-scroll` to a web page URL to enable it there (also for `--web-local`). An explicit `pixelScroll: true | false` in
   `run` or `runInPage` takes precedence. Applications can no longer declare the
   `pixel-scroll` argument: it is reserved for the runtime.
 

@@ -44,15 +44,30 @@ Côté code, `run()` lit la variable et crée l'Application avec `quitOnCtrlC: f
 générée ne l'affiche plus. Un hôte qui ouvre des panes (`openApplication`) leur passe la
 même option.
 
-Le défilement reste par lignes par défaut. `open Notes.app --args --pixel-scroll`
-ou `LUCIOLE_PIXEL_SCROLL=1` au lancement de l’hôte active le défilement pixel,
-sans rebuild : l’hôte relaie le choix au programme sur le PTY.
+Le défilement reste par lignes par défaut. L’hôte desktop accepte uniquement
+`LUCIOLE_PIXEL_SCROLL=1` pour activer le défilement pixel sans rebuild, et relaie
+cette variable au programme sur le PTY. Sur macOS :
+
+```sh
+open --env LUCIOLE_PIXEL_SCROLL=1 Notes.app
+```
+
+Finder et `open` ne transmettent pas l’environnement du shell à l’application ;
+`--env` le fournit explicitement. Depuis un shell, on peut aussi lancer directement
+le bundle :
+
+```sh
+LUCIOLE_PIXEL_SCROLL=1 Notes.app/Contents/MacOS/launcher
+```
+
+Le binaire de l’application, lancé directement (`notes --pixel-scroll`), accepte
+le flag ; l’hôte Electrobun ne le reçoit pas.
 Le Client attache alors le contrôleur partagé de [défilement pixel](PIXEL-SCROLL.md)
 quand le runtime OpenTUI fournit les capacités du patch, `writeControl` et
 `observeMouseInput`. Le writer ordonne les commandes avec les frames, et
 l’observateur reçoit les rapports souris avant leur dispatch ordinaire.
-`run(create, { pixelScroll: true | false })` prime sur le flag ou la variable ;
-`false` désactive cet attachement même lorsqu’ils sont présents. Sans ces capacités,
+`run(create, { pixelScroll: true | false })` prime sur la variable ;
+`false` désactive cet attachement même lorsque la variable est présente. Sans ces capacités,
 ou sans réponse compatible de la vue, le défilement reste par lignes ; un terminal
 natif ordinaire n’attache pas le contrôleur. Quitter détruit le renderer et détache
 le contrôleur avec son abonnement souris.

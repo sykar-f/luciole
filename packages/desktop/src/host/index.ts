@@ -27,9 +27,6 @@ const session = createWindowSession({
       : join(bundled, "bin", name),
   ],
   cwd,
-  pixelScroll: process.argv
-    .slice(2, process.argv.indexOf("--") < 0 ? undefined : process.argv.indexOf("--"))
-    .includes("--pixel-scroll"),
   send: (data) => mainWindow.webview.rpc?.send.output({ data }),
   onExit: () => mainWindow.close(),
 });

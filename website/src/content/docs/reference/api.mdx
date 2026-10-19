@@ -753,9 +753,12 @@ renders the app in your terminal. Its options:
 
 Pixel scrolling is off by default in web and desktop hosts. An explicit
 `pixelScroll: true | false` takes precedence over launch settings. Otherwise,
-`--pixel-scroll` or `LUCIOLE_PIXEL_SCROLL=1` enables it; the web page also accepts
-`?pixel-scroll`, including static sites built with `--web-local`. Plain terminals
-keep row scrolling.
+compiled app binaries accept `--pixel-scroll`; `LUCIOLE_PIXEL_SCROLL=1` works for
+binaries, the web Server and the packaged desktop host. The desktop host accepts
+only the variable: on macOS, use `open --env LUCIOLE_PIXEL_SCROLL=1 Notes.app`.
+
+The web page also accepts `?pixel-scroll`, including static sites built with
+`--web-local`. Plain terminals keep row scrolling.
 
 `run()` throws `Invalid Client environment: …` when a variable is invalid. When the Server's
 address is invalid, or its connection cannot open, `run()` prints the reason and exits with
