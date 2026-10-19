@@ -166,6 +166,7 @@ export async function publishRuntimeEntry({
   build,
   waiting,
   sourceTree,
+  validateReuse,
 }: {
   directory: string;
   checkout: string;
@@ -174,6 +175,7 @@ export async function publishRuntimeEntry({
   build: (temporary: string) => Promise<void>;
   waiting?: () => void;
   sourceTree?: () => string;
+  validateReuse?: (directory: string) => boolean;
 }) {
   mkdirSync(dirname(directory), { recursive: true });
   // SQLite's OS lock is released even on SIGKILL. Keep this file: unlinking it
@@ -200,7 +202,12 @@ export async function publishRuntimeEntry({
     const hasSource = (path: string) =>
       sourceTree === undefined ||
       /^[a-f0-9]{40}$/.test(readSourceTree(join(path, SOURCE_TREE_FILE)) ?? "");
-    if (existsSync(join(directory, marker)) && hasSource(directory)) return directory;
+    if (
+      existsSync(join(directory, marker)) &&
+      hasSource(directory) &&
+      (validateReuse === undefined || validateReuse(directory))
+    )
+      return directory;
     // A legacy entry has no source provenance and must be rebuilt once.
     const tree = sourceTree?.();
     const matchesSource = (path: string) =>
