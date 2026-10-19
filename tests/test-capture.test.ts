@@ -1,3 +1,4 @@
+import { rejectionOf } from "./helpers";
 import { expect, spyOn, test } from "bun:test";
 import { TextRenderable } from "@opentui/core";
 import { createTestRenderer } from "@opentui/core/testing";
@@ -226,7 +227,9 @@ for (const status of ["failed", "blocked", "stopped"] as const) {
     if (status === "blocked") Reflect.set(ui.renderer, "isSplitCursorSeedFrameBlocked", () => true);
     if (status === "stopped") Reflect.set(ui.renderer, "_controlState", "explicit_suspended");
     try {
-      await expect(renderFrame(ui)).rejects.toThrow("without presenting a frame");
+      const error = await rejectionOf(renderFrame(ui));
+      expect(String(error)).toContain("without presenting a frame");
+      expect(String(error)).toContain("hasScheduledRender");
       expect(ui.renderer.listenerCount("frame")).toBe(0);
     } finally {
       presentation.mockRestore();
@@ -273,8 +276,9 @@ for (const source of ["render", "native", "capture", "destroy"] as const) {
         if (source === "capture") throw failure;
         return ui.captureCharFrame();
       });
-      if (source === "destroy") await expect(result).rejects.toThrow("destroyed before presenting");
-      else await expect(result).rejects.toBe(failure);
+      const error = await rejectionOf(result);
+      if (source === "destroy") expect(String(error)).toContain("destroyed before presenting");
+      else expect(error).toBe(failure);
       expect(ui.renderer.listenerCount("frame")).toBe(0);
       expect(ui.renderer.listenerCount("render:error")).toBe(0);
       expect(ui.renderer.listenerCount("destroy")).toBe(source === "destroy" ? 0 : 1);
@@ -284,3 +288,23 @@ for (const source of ["render", "native", "capture", "destroy"] as const) {
     }
   });
 }
+
+test("no-act capture preserves native close failure on destruction", async () => {
+  const ui = await createTestRenderer({ width: 20, height: 3 });
+  const failure = new Error("native sink failed");
+  const closed = Promise.withResolvers<void>();
+  Object.defineProperty(ui.renderer, "closed", { configurable: true, value: closed.promise });
+  ui.renderOnce = async () => {
+    ui.renderer.destroy();
+    closed.reject(failure);
+  };
+  try {
+    const error = await rejectionOf(frames.renderCaptureWithoutAct(ui, ui.captureSpans));
+    expect(error).toBe(failure);
+    expect(ui.renderer.listenerCount("frame")).toBe(0);
+    expect(ui.renderer.listenerCount("render:error")).toBe(0);
+  } finally {
+    Reflect.deleteProperty(ui.renderer, "closed");
+    await ui.dispose();
+  }
+});
