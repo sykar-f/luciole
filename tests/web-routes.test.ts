@@ -2,6 +2,7 @@ import { afterAll, expect, test } from "bun:test";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { launch } from "./helpers";
 import { ABI_KEY } from "../packages/core/src/abi";
 import { WebOrigin, webAccess, WEB_PATH } from "../packages/core/src/web-routes";
 
@@ -83,3 +84,21 @@ test("Server pixel opt-in reaches every page entry and preserves its query", () 
   }
   expect(serve(`${WEB_PATH}?pixel-scroll`)?.status).toBe(200);
 });
+
+for (const setting of ["", "0", "1"]) {
+  test(`Server relays pixel environment ${setting || "empty"} to its page`, async () => {
+    const server = await launch("tests/web-pixel-server.ts", {
+      PIXEL_WEB_DIRECTORY: directory,
+      LUCIOLE_WEB_ORIGIN: ORIGIN,
+      LUCIOLE_PIXEL_SCROLL: setting,
+    });
+    try {
+      const response = await fetch(`${server.url}${WEB_PATH}`, { redirect: "manual" });
+      expect(response.status).toBe(setting === "1" ? 302 : 200);
+      if (setting === "1")
+        expect(response.headers.get("location")).toBe(`${WEB_PATH}?pixel-scroll=`);
+    } finally {
+      await server.stop();
+    }
+  });
+}
