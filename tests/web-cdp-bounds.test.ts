@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { chmodSync, existsSync, mkdirSync, readFileSync, rmSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import * as z from "zod/mini";
 import { alive, eventually, HANG_MS, temporaryDirectory } from "../scripts/pty/harness";
@@ -59,6 +59,44 @@ async function fixture() {
     record: join(directory.path, "chrome.json"),
     owner: join(directory.path, "owner"),
   };
+}
+
+// Hold each writer after creation but before its bytes are written. Existence
+// must remain a valid readiness signal even at this exact interleaving.
+for (const writer of ["owner", "chrome"] as const) {
+  test(`CDP ${writer} record stays hidden until its write completes`, async () => {
+    const f = await fixture();
+    using _directory = f.directory;
+    const child = Bun.spawn([process.execPath, join(root, "tests/web-cdp-owner.ts"), "normal"], {
+      env: {
+        ...process.env,
+        CHROME: f.chrome,
+        CDP_RECORD: f.record,
+        OWNER_RECORD: f.owner,
+        CDP_PAUSE_RECORD_WRITE: writer,
+      },
+      stdout: "ignore",
+      stderr: "pipe",
+    });
+    const stderr = new Response(child.stderr).text();
+    try {
+      const path = writer === "owner" ? f.owner : f.record;
+      expect(await eventually(() => existsSync(`${path}.writing`), HANG_MS)).toBe(true);
+      // On the old writer this read deterministically throws Unexpected EOF.
+      if (existsSync(path)) JSON.parse(readFileSync(path, "utf8"));
+      expect(existsSync(path)).toBe(false);
+      writeFileSync(`${path}.continue`, "");
+      expect(await eventually(() => existsSync(path), HANG_MS)).toBe(true);
+      (path === f.owner ? Owner : Record).parse(JSON.parse(readFileSync(path, "utf8")));
+      expect(await child.exited, await stderr).toBe(0);
+    } finally {
+      for (const path of [f.owner, f.record]) writeFileSync(`${path}.continue`, "");
+      if (!(await eventually(() => child.exitCode !== null || child.signalCode !== null, HANG_MS)))
+        child.kill("SIGKILL");
+      await child.exited;
+      await stderr;
+    }
+  });
 }
 
 for (const cause of [

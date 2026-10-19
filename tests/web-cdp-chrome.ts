@@ -1,5 +1,5 @@
 /** A protocol peer that acknowledges startup, then deliberately withholds one reply. */
-import { writeFileSync } from "node:fs";
+import { existsSync, renameSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import * as z from "zod/mini";
 
@@ -68,9 +68,17 @@ const server = Bun.serve({
   },
 });
 writeFileSync(join(profile, "DevToolsActivePort"), `${server.port}\n`);
-if (process.env.CDP_RECORD)
+if (process.env.CDP_RECORD) {
+  const path = process.env.CDP_RECORD;
+  const pending = path + ".tmp";
+  if (process.env.CDP_PAUSE_RECORD_WRITE === "chrome") {
+    writeFileSync(pending, "");
+    writeFileSync(`${path}.writing`, "");
+    const wait = new Int32Array(new SharedArrayBuffer(4));
+    while (!existsSync(`${path}.continue`)) Atomics.wait(wait, 0, 0, 10);
+  }
   writeFileSync(
-    process.env.CDP_RECORD,
+    pending,
     JSON.stringify({
       chrome: process.pid,
       guard: process.ppid,
@@ -78,3 +86,5 @@ if (process.env.CDP_RECORD)
       profile,
     }),
   );
+  renameSync(pending, path);
+}

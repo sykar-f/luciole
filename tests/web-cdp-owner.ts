@@ -9,10 +9,20 @@ async function main() {
       process.execPath,
       "-e",
       `
-const { writeFileSync } = require("node:fs");
+const { existsSync, renameSync, writeFileSync } = require("node:fs");
 const server = Bun.serve({ port: 0, fetch: () => new Response("ready") });
-if (process.env.OWNER_RECORD)
-  writeFileSync(process.env.OWNER_RECORD, JSON.stringify({ server: process.pid, guard: process.ppid }));
+if (process.env.OWNER_RECORD) {
+  const path = process.env.OWNER_RECORD;
+  const pending = path + ".tmp";
+  if (process.env.CDP_PAUSE_RECORD_WRITE === "owner") {
+    writeFileSync(pending, "");
+    writeFileSync(path + ".writing", "");
+    const wait = new Int32Array(new SharedArrayBuffer(4));
+    while (!existsSync(path + ".continue")) Atomics.wait(wait, 0, 0, 10);
+  }
+  writeFileSync(pending, JSON.stringify({ server: process.pid, guard: process.ppid }));
+  renameSync(pending, path);
+}
 console.log(JSON.stringify({ port: server.port }));
 `,
     ],
