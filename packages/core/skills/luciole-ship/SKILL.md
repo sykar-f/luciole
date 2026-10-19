@@ -51,10 +51,11 @@ packages such as sharp); it must stay next to the binary.
 
 ## Another platform needs its native packages
 
-A `--target` other than this machine's fails without `--native-dir`, `--client-only`
-included, because `bun install` installed only this machine's OpenTUI library. Install the
-target's packages from the app's lockfile in a directory of their own first, once per target
-system:
+Without a prepared OpenTUI entry for the target, a foreign `--target` needs
+`--native-dir`, `--client-only` included: `bun install` installed only this machine's
+OpenTUI library. Native Server packages still need `--native-dir` with a prepared
+entry. Install the target's packages from the app's lockfile in a directory of their own,
+once per target system:
 
 ```sh
 native=$(mktemp -d) && cp package.json bun.lock "$native/"

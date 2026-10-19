@@ -223,7 +223,9 @@ macOS targets also need a macOS SDK. Subsequent runs validate the manifest and f
 digests and reuse the entry without Zig or sources. A framework-only change keeps the
 entry; a patch change gives it a new key. Concurrent preparations share a lock.
 
-This command prepares the cache; builds do not consume these entries yet.
+`luciole build --compile` embeds the validated JavaScript/library pair for its target.
+A missing or corrupt entry keeps stock OpenTUI with row scroll and a preparation notice;
+compilation never invokes Zig.
 
 ### `luciole keys [generate]`
 
