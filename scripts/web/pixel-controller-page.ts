@@ -9,8 +9,7 @@ import {
   BoxRenderable,
 } from "@opentui/core";
 import { Terminal } from "@xterm/xterm";
-import { WebglAddon } from "../../packages/core/src/web/xterm-webgl/addon/WebglAddon";
-import { PixelScrollAddon } from "../../packages/core/src/web/pixel-scroll/host";
+import { attachTerminalView } from "../../packages/core/src/web/terminal-view";
 import { PixelController } from "../../packages/core/src/pixel-scroll/controller";
 import { detectScrollableViewport } from "../../packages/core/src/opentui-seams";
 import { isInputStream, terminalOutput } from "../../packages/core/src/web/streams";
@@ -27,24 +26,23 @@ const terminal = new Terminal({
   macOptionClickForcesSelection: true,
 });
 terminal.open(document.body);
-const webgl = new WebglAddon(true);
-terminal.loadAddon(webgl);
-if (!webgl.pixels) throw new Error("The controller fixture requires WebGL2");
-const host = new PixelScrollAddon(webgl.pixels);
-if (!parameters.has("noHost")) terminal.loadAddon(host);
 let remainder = 0;
-terminal.attachCustomWheelEventHandler((event) => {
-  if (!parameters.has("noHost") && !host.wheel(event)) return false;
-  const box = document.querySelector(".xterm-screen")?.getBoundingClientRect();
-  if (!box) return false;
-  remainder += event.deltaY / (box.height / terminal.rows);
-  const rows = Math.trunc(remainder);
-  remainder -= rows;
-  const x = Math.floor(((event.clientX - box.left) * terminal.cols) / box.width);
-  const y = Math.floor(((event.clientY - box.top) * terminal.rows) / box.height);
-  terminal.input(`\x1b[<${rows < 0 ? 64 : 65};${x + 1};${y + 1}M`.repeat(Math.abs(rows)));
-  return false;
+const terminalView = attachTerminalView(terminal, {
+  pixelScroll: !parameters.has("noHost"),
+  fallbackWheel: (event) => {
+    const box = document.querySelector(".xterm-screen")?.getBoundingClientRect();
+    if (!box) return false;
+    remainder += event.deltaY / (box.height / terminal.rows);
+    const rows = Math.trunc(remainder);
+    remainder -= rows;
+    const x = Math.floor(((event.clientX - box.left) * terminal.cols) / box.width);
+    const y = Math.floor(((event.clientY - box.top) * terminal.rows) / box.height);
+    terminal.input(`\x1b[<${rows < 0 ? 64 : 65};${x + 1};${y + 1}M`.repeat(Math.abs(rows)));
+    return false;
+  },
 });
+const presentation = terminalView.presentation;
+if (!presentation) throw new Error("The controller fixture requires WebGL2");
 const stdin = new PassThrough();
 if (!isInputStream(stdin)) throw new Error("Expected readable stdin");
 let controller: PixelController | undefined;
@@ -163,7 +161,7 @@ r.keyInput.on("keypress", (key) => {
   }
 });
 let presented: Presentation | undefined;
-webgl.pixels.onPresent((p) => {
+presentation.onPresent((p) => {
   presented = p;
 });
 const canvas = document.querySelector(".xterm-webgl-layer");
@@ -236,7 +234,7 @@ Object.assign(window, {
       outsideRows,
       selection: r.getSelection()?.getSelectedText() ?? "",
       nativeSelection: terminal.getSelection(),
-      cellHeight: webgl.pixels?.cellHeight,
+      cellHeight: presentation.cellHeight,
       cellWidth: canvas.width / terminal.cols,
       width: canvas.width,
       height: canvas.height,

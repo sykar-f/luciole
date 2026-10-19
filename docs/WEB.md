@@ -368,7 +368,7 @@ sans rien à faire défiler.
 Sans la capacité pixel, la molette arrive à
 l'application comme d'un terminal natif : un rapport SGR par hauteur
 de ligne parcourue, le reste gardé pour le tour suivant (`wheelReports`,
-`src/web/platform/run.tsx`). xterm.js seul envoie un rapport par événement `wheel`, quelle
+`src/web/terminal-view.ts`). xterm.js seul envoie un rapport par événement `wheel`, quelle
 que soit sa distance, et compte le trackpad pour un tiers : un cran de 100 px n'avançait
 une note que de 3 lignes, un balayage de 777 px de 33 (`scripts/web/scroll-bench.ts`).
 
@@ -431,14 +431,23 @@ grille canonique. Réduction des mouvements, lecteur d'écran, changements de
 métriques et perte du contexte révoquent la capacité ; sans négociation,
 `wheelReports` garde le chemin existant.
 
+`src/web/terminal-view.ts` assemble la vue sur un terminal déjà configuré et
+ouvert par l'hôte : WebGL, repli DOM, `PixelScrollAddon`, puis chaîne de molette
+avec un repli par lignes injecté. Le runtime et les trois fixtures pixel utilisent
+cet assemblage ; `@luciole-sh/core/terminal-view` le rend accessible au desktop.
+Les options du terminal, le transport, le presse-papiers, le dimensionnement et
+le cycle de vie restent à la charge de chaque hôte. Le résultat expose l'addon,
+le moteur actif et l'adaptateur de présentation pour les diagnostics des fixtures.
+
 - `createCliRenderer({ stdin, stdout })` : la sortie ANSI
   (NativeSpanFeed) va à l'émulateur, ses frappes et collages vont à `stdin`, son
   redimensionnement appelle `renderer.resize`. Restent à fournir `process.on`,
   `process.platform/env`, `events`, et des `fs` inertes (logs) : un petit module
   `process` du runtime web.
+
 - Émulateur : **xterm.js** (décision 3), comme `packages/desktop`.
 - Moteur de rendu : **WebGL** (fork interne de `@xterm/addon-webgl` 0.19.0,
-  `src/web/xterm-webgl/`, `run.tsx`, `drawOnGpu`), chargé avant
+  `src/web/xterm-webgl/`, `terminal-view.ts`, `attachTerminalView`), chargé avant
   que la police ne soit ajustée à la grille. xterm.js y dessine lui-même filets, blocs et
   glyphes powerline (`customGlyphs`) et donne à chaque cellule un nombre entier de pixels
   physiques : le moteur DOM, qui dessine les glyphes de la police dans des cellules de

@@ -11,10 +11,9 @@ import { PassThrough } from "node:stream";
 import * as z from "zod/mini";
 import { Terminal as XTerm } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
-import { WebglAddon } from "../xterm-webgl/addon/WebglAddon";
+import { attachTerminalView, cellAt, wheelReports } from "../terminal-view";
 import { OrdinaryPixelInput } from "../../pixel-scroll/ordinary-input";
 import { PixelController } from "../../pixel-scroll/controller";
-import { PixelScrollAddon } from "../pixel-scroll/host";
 import { createCliRenderer } from "@opentui/core";
 import { createRoot } from "@opentui/react";
 import { Shell, type Application, type ApplicationOptions } from "../../client";
@@ -35,7 +34,6 @@ import {
   tellEvent,
   type Grid,
   type Look,
-  type Renderer,
   type Run,
 } from "../embed";
 
@@ -76,38 +74,6 @@ const FONTS =
 const LARGEST_FONT = 24;
 const SMALLEST_FONT = 4;
 const FONT_STEP = 0.25;
-
-/**
- * The GPU renderer, where the page has WebGL2 (@xterm/addon-webgl): box drawing, blocks
- * and powerline glyphs drawn to the pixel by xterm.js (`customGlyphs`) and every cell a
- * whole device pixel wide, where the DOM renderer draws the font's glyphs in cells of a
- * fractional width: the blocks of a scrollbar then showed a seam between them, and a
- * frame's lines broke where the font's line height left a gap. Without WebGL2, or once
- * the context is lost (a browser keeps about sixteen; the least used go first, a frame's
- * out of view before a visible one's), the DOM renderer draws as before, at once: not a
- * blank screen for the seconds xterm.js would wait for the context to come back. Loaded
- * before the font is sized: the two renderers do not round a cell alike.
- */
-function drawOnGpu(terminal: XTerm) {
-  let webgl: WebglAddon | undefined;
-  const fallBack = () => {
-    webgl?.dispose();
-    webgl = undefined;
-  };
-  try {
-    webgl = new WebglAddon();
-    webgl.onContextLoss(fallBack);
-    terminal.loadAddon(webgl);
-    terminal.element
-      ?.querySelector(".xterm-webgl-layer")
-      ?.addEventListener("webglcontextlost", fallBack);
-  } catch {
-    fallBack();
-  }
-  const pixels = new PixelScrollAddon(webgl?.pixels);
-  terminal.loadAddon(pixels);
-  return { renderer: (): Renderer => (webgl ? "webgl" : "dom"), pixels };
-}
 
 /**
  * The largest font, on steps of FONT_STEP, at which `grid` fits the element, then exactly
@@ -176,63 +142,6 @@ function pageSession(key: string) {
 
 /** A session neither read nor written: the application starts at its first route each time. */
 const forgotten = { restored: undefined, schedule() {}, flush() {}, remove() {} };
-
-/**
- * The cell under a point of the page, 0-based, as xterm.js reports the mouse: from the
- * screen element's box and the grid. None outside the grid (the padding around it).
- */
-function cellAt(terminal: XTerm, x: number, y: number) {
-  const box = terminal.element?.querySelector(".xterm-screen")?.getBoundingClientRect();
-  if (!box?.width || !box.height) return undefined;
-  const column = Math.floor(((x - box.left) / box.width) * terminal.cols);
-  const row = Math.floor(((y - box.top) / box.height) * terminal.rows);
-  if (column < 0 || row < 0 || column >= terminal.cols || row >= terminal.rows) return undefined;
-  return { column, row };
-}
-
-const ESC = "\x1b";
-/** SGR mouse buttons of the wheel (OpenTUI enables mode 1006), and their modifier bits. */
-const WHEEL_UP = 64;
-const WHEEL_DOWN = 65;
-const ALT = 8;
-const CTRL = 16;
-
-/**
- * The wheel as a terminal reports it to an application that tracks the mouse: one report
- * for each row's height the wheel travels, as native terminals do. xterm.js sends one
- * report per wheel event whatever its distance, and counts a trackpad's pixels for a third
- * (CoreMouseService, consumeWheelEvent): a notch of a hundred pixels moved a document by
- * one report, a trackpad swipe by a fraction of what it travelled. Returns xterm.js's
- * custom wheel handler: false where it reports the turn itself. Shift+wheel and a terminal
- * without mouse tracking are left to xterm.js.
- */
-function wheelReports(terminal: XTerm) {
-  /** Pixels travelled the same way and not yet reported: less than a row. */
-  let rest = 0;
-  return (event: WheelEvent) => {
-    if (terminal.modes.mouseTrackingMode === "none" || event.shiftKey || !event.deltaY) return true;
-    const cell = cellAt(terminal, event.clientX, event.clientY);
-    const box = terminal.element?.querySelector(".xterm-screen")?.getBoundingClientRect();
-    if (!cell || !box?.height) return true;
-    const row = box.height / terminal.rows;
-    const pixels =
-      event.deltaMode === WheelEvent.DOM_DELTA_LINE
-        ? event.deltaY * row
-        : event.deltaMode === WheelEvent.DOM_DELTA_PAGE
-          ? event.deltaY * box.height
-          : event.deltaY;
-    if (Math.sign(pixels) !== Math.sign(rest)) rest = 0;
-    rest += pixels;
-    const rows = Math.trunc(rest / row);
-    rest -= rows * row;
-    if (!rows) return false;
-    const button =
-      (rows < 0 ? WHEEL_UP : WHEEL_DOWN) + (event.altKey ? ALT : 0) + (event.ctrlKey ? CTRL : 0);
-    // As typed: the application, the embedding page and its replay all get it (onData).
-    terminal.input(`${ESC}[<${button};${cell.column + 1};${cell.row + 1}M`.repeat(Math.abs(rows)));
-    return false;
-  };
-}
 
 /** The visible rows as text, read from the active buffer. */
 function screenLines(terminal: XTerm) {
@@ -337,11 +246,7 @@ export async function runInPage(
   const fit = new FitAddon();
   terminal.loadAddon(fit);
   terminal.open(element);
-  const gpu = drawOnGpu(terminal);
-  const fallbackWheel = wheelReports(terminal);
-  terminal.attachCustomWheelEventHandler(
-    (event) => gpu.pixels.wheel(event) && fallbackWheel(event),
-  );
+  const gpu = attachTerminalView(terminal, { fallbackWheel: wheelReports(terminal) });
   // The page around the terminal, and the journeys that drive it, read the screen from
   // the buffer, not from the DOM: the GPU renderer draws nothing there, and the DOM
   // renderer stops drawing while a frame is out of view.

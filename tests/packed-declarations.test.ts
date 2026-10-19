@@ -76,7 +76,7 @@ test("packed core resolves every entry to declarations in a strict consumer", as
   );
   const resolved: string[] = [];
   expect(await checkCoreTypes(consumer, (line) => resolved.push(line))).toEqual([]);
-  expect(resolved).toHaveLength(12);
+  expect(resolved).toHaveLength(13);
   expect(resolved.every((line) => line.endsWith(".d.ts"))).toBe(true);
   // macOS exposes temporary directories through /var and /private/var. Exercise
   // an alias on every platform: TypeScript reports the physical declaration path.

@@ -18,6 +18,7 @@
     "src/build.ts",
     "src/dev/supervisor.ts",
     "src/vt/pty.ts",
+    "src/web/terminal-view.ts",
     "src/test/index.ts",
     "src/sandbox/index.ts",
     "src/app-metadata.ts",
