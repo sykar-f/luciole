@@ -13,19 +13,20 @@ and marked **Breaking**.
 
 ## [Unreleased]
 
+## [0.5.1] - 2026-10-19
+
 ### Fixed
 
-- Closing a desktop window now exits successfully when its PTY closes during
-  terminal restoration after a voluntary leave.
-
+- Desktop apps on macOS now redraw after a window resize. Programs in a
+  `<Terminal>` now receive Ctrl+C and SIGWINCH through their controlling terminal.
+  The native PTY helper ships in the core package, beside compiled apps, and in
+  the desktop bundle. Fixes [#1](https://github.com/sykar-f/luciole/issues/1).
 - Pixel scroll in the web runtime no longer flickers in Safari and other WKWebView
   hosts on a Retina screen.
-
-- Closing a desktop window during startup now quits voluntarily and stops its
-  managed server, instead of leaving it in crash grace.
-
-- Desktop apps on macOS redraw after a window resize. Programs in a `<Terminal>`
-  receive Ctrl+C and SIGWINCH from the kernel through their controlling terminal.
+- A desktop window closed during startup now quits voluntarily and stops its
+  managed server. The server no longer waits for its crash grace period.
+- A voluntary desktop quit now returns exit code 0 even if the host closes the
+  PTY before terminal restoration ends.
 
 ## [0.5.0] - 2026-10-18
 
@@ -300,7 +301,8 @@ First public release, on npm. Five packages share this version: `luciole.sh`,
 - No multi-user load test and no public TLS proxy test. See
   <https://luciole.sh/status/>.
 
-[Unreleased]: https://github.com/sykar-f/luciole/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/sykar-f/luciole/compare/v0.5.1...HEAD
+[0.5.1]: https://github.com/sykar-f/luciole/releases/tag/v0.5.1
 [0.5.0]: https://github.com/sykar-f/luciole/releases/tag/v0.5.0
 [0.4.1]: https://github.com/sykar-f/luciole/releases/tag/v0.4.1
 [0.4.0]: https://github.com/sykar-f/luciole/releases/tag/v0.4.0
