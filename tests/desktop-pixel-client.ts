@@ -3,10 +3,13 @@ import { mock } from "bun:test";
 import { resolve } from "node:path";
 import { createRootRoute } from "@tanstack/react-router";
 import type { CliRenderer, CliRendererConfig } from "@opentui/core";
+import { detectOpenTuiMouseObserver } from "../packages/core/src/opentui-seams";
 
+// eslint-disable-next-line typescript/no-unsafe-assignment -- Opt-in entry supplies the same OpenTUI exports as the stock module.
 const core: typeof import("@opentui/core") = await import(
   process.env.DESKTOP_PIXEL_CORE ?? "@opentui/core"
 );
+const createRenderer = core.createCliRenderer;
 const mode = process.env.DESKTOP_PIXEL_CASE;
 let active: CliRenderer;
 let observed = 0;
@@ -18,7 +21,12 @@ void mock.module(resolve("packages/core/src/connect.ts"), () => ({
 void mock.module("@opentui/core", () => ({
   ...core,
   createCliRenderer: async (options: CliRendererConfig) => {
-    active = await core.createCliRenderer(options);
+    active = await createRenderer(options);
+    const reportError = console.error.bind(console);
+    console.error = (error: unknown) => {
+      process.send?.({ failure: error instanceof Error ? error.message : String(error) });
+      reportError(error);
+    };
     // Structural seams let the stock runtime exercise host gating and rejection.
     // The fractional journey below uses the prepared runtime's actual methods.
     if (mode !== "stock" && !process.env.DESKTOP_PIXEL_CORE)
@@ -35,11 +43,15 @@ void mock.module("@opentui/core", () => ({
           detached = true;
         },
       });
-    const observer = Reflect.get(active, "observeMouseInput");
-    if (typeof observer === "function")
+    if (mode === "missing-writer") Reflect.deleteProperty(active, "writeControl");
+    if (mode === "missing-observer") Reflect.deleteProperty(active, "observeMouseInput");
+    if (mode === "missing-frame") Reflect.deleteProperty(active, "setFramePlan");
+    const observer = detectOpenTuiMouseObserver(active);
+    if (observer.available) {
+      const observe = observer.renderer.observeMouseInput.bind(active);
       Object.assign(active, {
         observeMouseInput(receive: (raw: string) => void) {
-          const unsubscribe: () => void = observer.call(active, (raw: string) => {
+          const unsubscribe = observe((raw) => {
             observed++;
             process.send?.({ observed: true });
             receive(raw);
@@ -51,6 +63,7 @@ void mock.module("@opentui/core", () => ({
           };
         },
       });
+    }
     active.on("destroy", () => {
       // The attachment's destroy listener runs in the same emission.
       queueMicrotask(() => process.send?.({ destroyed: true, detached, observed }));
@@ -63,7 +76,13 @@ void mock.module("@opentui/react", () => ({
   ...react,
   createRoot: (renderer: CliRenderer) => ({
     render() {
-      const scroll = new core.ScrollBoxRenderable(renderer, { width: 30, height: 6 });
+      const scroll = new core.ScrollBoxRenderable(renderer, {
+        width: 30,
+        height: 6,
+        onMouseScroll() {
+          queueMicrotask(() => process.send?.({ rowScroll: scroll.scrollTop }));
+        },
+      });
       for (let i = 0; i < 30; i++)
         scroll.add(new core.TextRenderable(renderer, { content: `Desktop row ${i}`, height: 1 }));
       renderer.root.add(scroll);

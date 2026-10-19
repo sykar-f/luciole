@@ -37,6 +37,11 @@ async function launch(mode: string, desktop = true, prepared = false) {
     directory,
     errors,
     output: () => output,
+    wait: (condition: () => boolean) =>
+      until(() => {
+        if (child.exitCode !== null) throw new Error(`Client exited ${child.exitCode}: ${output}`);
+        return condition();
+      }),
     async close() {
       if (child.exitCode === null) child.kill("SIGKILL");
       await child.exited;
@@ -45,14 +50,23 @@ async function launch(mode: string, desktop = true, prepared = false) {
   };
 }
 
-for (const mode of ["stock", "disabled", "plain", "attached", "reject"]) {
+for (const mode of [
+  "stock",
+  "disabled",
+  "plain",
+  "missing-writer",
+  "missing-observer",
+  "missing-frame",
+  "attached",
+  "reject",
+]) {
   test(`desktop pixel attachment: ${mode}`, async () => {
     const f = await launch(mode, mode !== "plain");
     try {
       if (mode === "reject") {
         expect(await f.child.exited).toBe(1);
-        const errors = await f.errors;
-        expect(errors).toContain("desktop control write rejected");
+        const errors = (await f.errors) + f.output();
+        expect(f.events).toContainEqual({ failure: "desktop control write rejected" });
         expect(errors).not.toContain("Unhandled");
       } else {
         await until(() => {
@@ -63,6 +77,21 @@ for (const mode of ["stock", "disabled", "plain", "attached", "reject"]) {
         expect(f.events.some((event) => JSON.stringify(event) === '{"attached":true}')).toBe(
           mode === "attached",
         );
+        if (mode === "stock") {
+          await until(() => f.output().includes("Desktop row"));
+          f.child.terminal?.write("\x1b[<65;3;3M");
+          await until(() =>
+            f.events.some(
+              (event) =>
+                typeof event === "object" &&
+                event !== null &&
+                "rowScroll" in event &&
+                typeof event.rowScroll === "number" &&
+                event.rowScroll > 0,
+            ),
+          );
+          expect(operations(f.output())).toHaveLength(0);
+        }
         f.child.send({ quit: true });
         expect(await f.child.exited, await f.errors).toBe(0);
       }
@@ -78,6 +107,7 @@ for (const mode of ["stock", "disabled", "plain", "attached", "reject"]) {
 }
 
 function operations(wire: string): PixelOperation[] {
+  // eslint-disable-next-line no-control-regex -- Parse terminal OSC controls in the captured PTY stream.
   return Array.from(wire.matchAll(/\x1b\]19462;luciole-pixel;[^\x1b]*\x1b\\/g), (match) =>
     decode(match[0]),
   ).filter(
@@ -94,7 +124,9 @@ test.skipIf(!process.env.LUCIOLE_DESKTOP_PIXEL_CORE)(
   async () => {
     const f = await launch("patched", true, true);
     try {
-      await until(() => operations(f.output()).some((op) => op.op === "query" && op.version === 2));
+      await f.wait(() =>
+        operations(f.output()).some((op) => op.op === "query" && op.version === 2),
+      );
       const query = operations(f.output()).find((op) => op.op === "query" && op.version === 2);
       if (query?.op !== "query") throw new Error("Missing query");
       const capability = encode({
@@ -106,7 +138,7 @@ test.skipIf(!process.env.LUCIOLE_DESKTOP_PIXEL_CORE)(
         reason: "ready",
       });
       f.child.terminal?.write(capability);
-      await until(() => operations(f.output()).some((op) => op.op === "commit"));
+      await f.wait(() => operations(f.output()).some((op) => op.op === "commit"));
       const registration = operations(f.output()).findLast((op) => op.op === "register");
       if (registration?.op !== "register") throw new Error("Missing registration");
       f.child.terminal?.write(
@@ -132,7 +164,7 @@ test.skipIf(!process.env.LUCIOLE_DESKTOP_PIXEL_CORE)(
           source: "precise",
         }),
       );
-      await until(() =>
+      await f.wait(() =>
         operations(f.output()).some(
           (op) => op.op === "step" && Math.abs(op.fraction - 0.35) < 1e-6,
         ),
@@ -147,11 +179,11 @@ test.skipIf(!process.env.LUCIOLE_DESKTOP_PIXEL_CORE)(
       ).toEqual(["begin", "register", "step", "commit"]);
       // Ordinary mouse input reaches the patch observer before ordinary dispatch.
       f.child.terminal?.write("\x1b[<65;3;3M");
-      await until(() => f.events.some((event) => JSON.stringify(event) === '{"observed":true}'));
+      await f.wait(() => f.events.some((event) => JSON.stringify(event) === '{"observed":true}'));
       f.child.send({ quit: true });
       expect(await f.child.exited, await f.errors).toBe(0);
       expect(f.events).toContainEqual({ destroyed: true, detached: true, observed: 1 });
-      const trace = join(f.directory, "pty-trace.json");
+      const trace = process.env.LUCIOLE_DESKTOP_PIXEL_TRACE ?? join(f.directory, "pty-trace.json");
       await writeFile(
         trace,
         JSON.stringify(
