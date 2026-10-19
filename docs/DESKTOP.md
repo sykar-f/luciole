@@ -115,7 +115,8 @@ son processus par le programme. Le noyau envoie ainsi SIGWINCH après un redimen
 et SIGINT au groupe de premier plan quand le PTY reçoit Ctrl+C. Le lanceur corrige le
 cas de Bun 1.4.x où un `Bun.Terminal` alloué avant le spawn reste sans terminal de contrôle.
 Le stage contient le lanceur universel (arm64 et x86_64, macOS 13 ou plus) dans `native/` ;
-le build le signe avant de signer le bundle. Aucun compilateur n'est requis à l'installation.
+le stage le signe avec le binaire de l’app (`--sign`, signature ad hoc par défaut).
+Le hook du build vérifie sa signature avant la signature du bundle. Aucun compilateur n'est requis à l'installation.
 
 L'app tourne dans son répertoire de données (`Utils.paths.userData`,
 `~/Library/Application Support/<identifier>/…`) : ce qu'elle écrit par chemin relatif

@@ -11,18 +11,17 @@ export const sourcePtyLauncher = () =>
 export function ptyLauncher() {
   const bundled = join(dirname(process.execPath), "native", PTY_LAUNCHER);
   if (existsSync(bundled)) return bundled;
+  const embedded = fileURLToPath(import.meta.url).startsWith("/$bunfs/");
   const source = sourcePtyLauncher();
-  if (!source.startsWith("/$bunfs/") && existsSync(source)) return source;
+  if (!embedded && existsSync(source)) return source;
   // Built JS Clients still resolve their installed core package at run time.
   // A compiled app has no node_modules and must carry the sidecar above.
-  if (!source.startsWith("/$bunfs/")) {
+  if (!embedded) {
     try {
       const manifest = createRequire(import.meta.url).resolve("@luciole-sh/core/package.json");
       const installed = join(dirname(manifest), "native/luciole-pty/dist", PTY_LAUNCHER);
       if (existsSync(installed)) return installed;
     } catch {}
   }
-  throw new Error(
-    `The macOS PTY launcher is missing: ${source.startsWith("/$bunfs/") ? bundled : source}`,
-  );
+  throw new Error(`The macOS PTY launcher is missing: ${embedded ? bundled : source}`);
 }

@@ -19,14 +19,13 @@ test.skipIf(process.platform !== "darwin")(
     writeFileSync(
       child,
       `
-import {dlopen} from 'bun:ffi';
-const {symbols} = dlopen('libc.dylib', {ttyname:{args:['i32'],returns:'cstring'}});
+import {fstatSync} from 'node:fs';
 process.on('SIGWINCH', () => setTimeout(() => console.log('SIGWINCH '+process.stdout.columns+'x'+process.stdout.rows),0));
 process.on('message', message => {
   console.log('IPC '+JSON.stringify(message));
   if (message.hello === 'host') process.send({kind:'request',id:7,request:{type:'notify',title:'pty-probe'}});
 });
-console.log('SLAVE '+symbols.ttyname(0));
+console.log('SLAVE '+fstatSync(0).rdev);
 setInterval(() => {},1000);
 `,
     );
@@ -71,12 +70,13 @@ setInterval(() => {},1000);
         onExit: done,
       });
       await until(
-        () => output.includes("SLAVE "),
+        () => /SLAVE \d+\r?\n/.test(output),
         5000,
         () => output,
       );
-      const slave = /SLAVE (\/dev\/ttys\d+)/.exec(output)?.[1];
+      const slave = /\(allow file-ioctl \(literal "(\/dev\/ttys\d+)"\)\)/.exec(profile)?.[1];
       expect(slave).toBeDefined();
+      expect(output).toContain(`SLAVE ${statSync(slave ?? "").rdev}`);
       expect(profile).toContain(`(allow file-ioctl (literal "${slave}"))`);
       expect(profile).not.toContain('"/dev/ttys*"');
       pty.resize(120, 40);

@@ -26,6 +26,7 @@ import {
   symlinkSync,
   writeFileSync,
 } from "node:fs";
+import { spawnSync } from "node:child_process";
 import { join, relative } from "node:path";
 import { BUNDLED, METADATA, STAGE, readMetadata } from "../src/staged";
 
@@ -54,9 +55,13 @@ if (!existsSync(runtime) || !existsSync(linked))
 
 renameSync(linked, binary);
 symlinkSync(relative(join(bundled, "bin"), binary), linked);
-// The binary finds native packages next to itself (src/launcher/binary.ts).
+// The binary and host find native packages and the PTY helper next to themselves (src/launcher/binary.ts).
 const native = join(bundled, "bin", "native");
-if (existsSync(native)) symlinkSync(relative(macos, native), join(macos, "native"));
+const helper = join(native, "luciole-pty");
+if (!existsSync(helper)) throw new Error(`single-runtime: missing PTY helper ${helper}`);
+const signature = spawnSync("codesign", ["--verify", "--strict", helper], { stdio: "inherit" });
+if (signature.status !== 0) throw new Error(`single-runtime: unsigned PTY helper ${helper}`);
+symlinkSync(relative(macos, native), join(macos, "native"));
 rmSync(runtime);
 writeFileSync(
   runtime,
