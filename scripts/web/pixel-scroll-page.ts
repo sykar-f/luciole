@@ -9,7 +9,7 @@ import {
   MODE,
   type PixelOperation,
 } from "../../packages/core/src/pixel-scroll/protocol";
-import type { Presentation } from "../../packages/core/src/web/pixel-scroll/presentation";
+import type { Presentation } from "../../packages/core/src/pixel-scroll/presentation";
 
 const COLS = 12;
 const ROWS = 8;

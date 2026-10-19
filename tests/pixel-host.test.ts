@@ -3,11 +3,8 @@ import type { Terminal } from "@xterm/xterm";
 import { decode, MODE, NS } from "../packages/core/src/pixel-scroll/protocol";
 import { PixelScrollAddon } from "../packages/core/src/web/pixel-scroll/host";
 import type { PixelOperation, PixelReport } from "../packages/core/src/pixel-scroll/protocol";
-import type {
-  PixelRenderer,
-  Presentation,
-} from "../packages/core/src/web/pixel-scroll/presentation";
-import { PixelSession } from "../packages/core/src/web/pixel-scroll/session";
+import type { PixelRenderer, Presentation } from "../packages/core/src/pixel-scroll/presentation";
+import { PixelSession } from "../packages/core/src/pixel-scroll/session";
 
 function fixture(
   reason: Extract<PixelReport, { op: "capability" }>["reason"] = "ready",

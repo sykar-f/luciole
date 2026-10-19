@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { createTestRenderer } from "@opentui/core/testing";
 import { openTuiCheckoutDirectory, webRuntimeDirectory } from "../packages/core/src/web-runtime";
 import { opentuiWasm } from "../packages/core/src/web/opentui/plugin";
-import { detectOpenTuiSeams } from "../packages/core/src/web/opentui-seams";
+import { detectOpenTuiSeams } from "../packages/core/src/opentui-seams";
 
 const root = resolve(import.meta.dir, "..");
 const INTEGRATION_MS = 240_000;

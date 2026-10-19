@@ -7,10 +7,10 @@ import { createCliRenderer, ScrollBoxRenderable, TextRenderable, RGBA } from "@o
 import { Terminal } from "@xterm/xterm";
 import { WebglAddon } from "../../packages/core/src/web/xterm-webgl/addon/WebglAddon";
 import { PixelScrollAddon } from "../../packages/core/src/web/pixel-scroll/host";
-import { PixelController } from "../../packages/core/src/web/pixel-scroll/controller";
-import { detectScrollableViewport } from "../../packages/core/src/web/opentui-seams";
+import { PixelController } from "../../packages/core/src/pixel-scroll/controller";
+import { detectScrollableViewport } from "../../packages/core/src/opentui-seams";
 import { isInputStream, terminalOutput } from "../../packages/core/src/web/streams";
-import type { Presentation } from "../../packages/core/src/web/pixel-scroll/presentation";
+import type { Presentation } from "../../packages/core/src/pixel-scroll/presentation";
 import { decode, decodePayload, OSC } from "../../packages/core/src/pixel-scroll/protocol";
 
 import { MarkdownEditorRenderable } from "../../packages/markdown-editor/src/view/EditorRenderable";

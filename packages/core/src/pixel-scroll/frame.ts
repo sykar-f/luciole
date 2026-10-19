@@ -1,4 +1,4 @@
-import { encode, VERSION, type PixelOperation, type Rect } from "../../pixel-scroll/protocol";
+import { encode, VERSION, type PixelOperation, type Rect } from "./protocol";
 import {
   detectScrollableViewport,
   type RenderFramePlan,

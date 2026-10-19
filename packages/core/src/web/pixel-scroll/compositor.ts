@@ -1,5 +1,5 @@
 import type { Rect } from "../../pixel-scroll/protocol";
-import type { PixelRenderer, Presentation } from "./presentation";
+import type { PixelRenderer, Presentation } from "../../pixel-scroll/presentation";
 
 const HALF_PIXEL = 0.5;
 

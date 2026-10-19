@@ -1,4 +1,4 @@
-import type { Rect } from "../../pixel-scroll/protocol";
+import type { Rect } from "./protocol";
 
 export type Presentation = {
   id: number;

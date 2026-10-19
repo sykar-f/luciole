@@ -69,12 +69,21 @@ try {
       throw error;
     }
   };
+  const openFixture = async (url: string, label: string) => {
+    // Page.navigate can return before the new document and its hit grid are ready.
+    await browser.evaluate("window.pixelScrollNavigating=true");
+    await browser.open(url);
+    await wait(
+      "!window.pixelScrollNavigating && !!window.probe && probe.r.hitTest(20,3) !== 0",
+      label + " rendered hit map",
+    );
+  };
   await browser.send("Emulation.setFocusEmulationEnabled", { enabled: true });
   await browser.send("Browser.grantPermissions", {
     origin: server.url.origin,
     permissions: ["clipboardReadWrite", "clipboardSanitizedWrite"],
   });
-  await browser.open(server.url.href);
+  await openFixture(server.url.href, "initial fixture");
   await wait("!!window.probe?.state().presented", "the negotiated ScrollBox presentation");
   expect(await browser.evaluate("devicePixelRatio")).toBe(Number(process.argv[2] ?? 1));
   expect(
@@ -329,7 +338,10 @@ try {
         },
       ],
     });
-    await browser.open(server.url.href + (scenario === "reduced" ? "" : "?" + scenario));
+    await openFixture(
+      server.url.href + (scenario === "reduced" ? "" : "?" + scenario),
+      scenario + " fixture",
+    );
     await wait("!!window.probe", scenario + " fixture");
     await browser.evaluate("probe.wheel(20,3,.375)");
     expect(await browser.evaluate("probe.state().left.position")).toBe(0);
@@ -350,7 +362,7 @@ try {
   await browser.send("Emulation.setEmulatedMedia", {
     features: [{ name: "prefers-reduced-motion", value: "no-preference" }],
   });
-  await browser.open(server.url.href);
+  await openFixture(server.url.href, "native-selection fixture");
   await wait("!!window.probe?.state().presented", "native-selection fixture");
   await browser.evaluate(
     "{const r=probe.state().left.rect;probe.wheel(r.x+r.width-2,r.y+2.5,.375)}",

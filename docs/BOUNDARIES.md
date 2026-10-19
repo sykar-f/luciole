@@ -146,3 +146,11 @@ pour mettre en cache le runtime Bun officiel ; `--web` une fois par framework, p
 préparer le runtime navigateur (voir [ARCHITECTURE.md](ARCHITECTURE.md#deux-formes-de-distribution)). `bun run check`
 valide séparément les types du framework et de l’exemple ; la compilation d’un
 starter utilise la transpilation TypeScript, pas une vérification exhaustive des types.
+
+## Défilement au pixel
+
+`src/pixel-scroll/` contient le contrôleur applicatif et les modules communs
+sans dépendance au navigateur. Il n'importe pas `src/web/`, le DOM, xterm.js
+ou WebGL. Les capacités optionnelles d'OpenTUI sont dans `src/opentui-seams.ts`.
+L'addon xterm et le compositeur WebGL restent sous `src/web/pixel-scroll/`
+et importent les modules communs ; le contrat est décrit dans [PIXEL-SCROLL](PIXEL-SCROLL.md).

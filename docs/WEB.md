@@ -418,7 +418,10 @@ l'application ; le geste suivant revient au chemin ordinaire.
 
 Le [contrat expérimental de défilement au pixel](PIXEL-SCROLL.md) définit les
 opérations en bande, les transactions de présentation et les entrées précises
-partagées entre le contrôleur applicatif et l'hôte xterm. L'addon interne
+partagées entre le contrôleur applicatif et l'hôte xterm. Le contrôleur et ses
+modules indépendants du navigateur vivent dans `src/pixel-scroll/`, avec le codec,
+la session et les interfaces de présentation ; les capacités OpenTUI sont dans
+`src/opentui-seams.ts`. L'addon interne
 `src/web/pixel-scroll/host.ts` répond à la découverte, puis ne remplace les
 entrées ordinaires qu'après activation explicite du mode privé. Ses captures
 GPU sont préparées hors écran ; chaque rendu publie une frame validée entière

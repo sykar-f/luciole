@@ -26,6 +26,11 @@ application est une codebase unique ; son build produit deux programmes.
 
 ## Le framework que nous développons
 
+Le défilement au pixel sépare les modules indépendants du navigateur
+(`src/pixel-scroll/` : contrôleur, codec, session et interfaces de présentation)
+des intégrations xterm et WebGL (`src/web/pixel-scroll/`). Les capacités
+optionnelles du renderer OpenTUI sont déclarées dans `src/opentui-seams.ts`.
+
 | Fichier                 | Responsabilité                                                                                                                                                                                                                                                 |
 | ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `src/cli.ts`            | Arguments ; les sous-commandes sont listées dans `src/commands/index.ts`. Une cible qui n'en est pas une (`luciole ./notes`, une URL) va au launcher.                                                                                                          |

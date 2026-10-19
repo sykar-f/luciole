@@ -1,10 +1,10 @@
 /* eslint-disable typescript/consistent-type-assertions -- Partial renderer, viewport and immutable map doubles isolate controller lifecycle and frame encoding from a native renderer. */
 import { EventEmitter } from "node:events";
 import { Renderable, type CliRenderer } from "@opentui/core";
-import { PixelController } from "../packages/core/src/web/pixel-scroll/controller";
-import { OrdinaryPixelInput } from "../packages/core/src/web/pixel-scroll/ordinary-input";
-import { PixelHistory, RETAINED_GENERATIONS } from "../packages/core/src/web/pixel-scroll/history";
-import { PixelDiscovery } from "../packages/core/src/web/pixel-scroll/discovery";
+import { PixelController } from "../packages/core/src/pixel-scroll/controller";
+import { OrdinaryPixelInput } from "../packages/core/src/pixel-scroll/ordinary-input";
+import { PixelHistory, RETAINED_GENERATIONS } from "../packages/core/src/pixel-scroll/history";
+import { PixelDiscovery } from "../packages/core/src/pixel-scroll/discovery";
 import { expect, spyOn, test } from "bun:test";
 import { decode, encode } from "../packages/core/src/pixel-scroll/protocol";
 import {
@@ -13,12 +13,12 @@ import {
   pixelHitSource,
   planPixelFrame,
   type PixelFrame,
-} from "../packages/core/src/web/pixel-scroll/frame";
+} from "../packages/core/src/pixel-scroll/frame";
 import type {
   RenderFramePlan,
   RenderHitMap,
   ScrollableViewport,
-} from "../packages/core/src/web/opentui-seams";
+} from "../packages/core/src/opentui-seams";
 
 function fixture(fraction = 0.25) {
   const viewport = {

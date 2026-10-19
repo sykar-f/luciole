@@ -1,4 +1,4 @@
-import { decode, type PixelReport } from "../../pixel-scroll/protocol";
+import { decode, type PixelReport } from "./protocol";
 
 const SHIFT = 1;
 const ALT = 2;
