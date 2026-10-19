@@ -144,13 +144,19 @@ let exported: Exported[] = [];
 /** Every name of every entry of the published packages, from the checker of each package's project. */
 async function inventory(): Promise<Exported[]> {
   const projects = packages.filter((pkg) => entriesOf(pkg).length > 0);
+  const configOf = (dir: string) =>
+    join(
+      root,
+      dir,
+      existsSync(join(root, dir, "tsconfig.dts.json")) ? "tsconfig.dts.json" : "tsconfig.json",
+    );
   const snapshot = await api.updateSnapshot({
-    openProjects: projects.map(({ dir }) => join(root, dir, "tsconfig.json")),
+    openProjects: projects.map(({ dir }) => configOf(dir)),
   });
   const names: Exported[] = [];
   for (const pkg of projects) {
-    const project = snapshot.getProject(join(root, pkg.dir, "tsconfig.json"));
-    if (!project) throw new Error(`${pkg.dir}/tsconfig.json: no project`);
+    const project = snapshot.getProject(configOf(pkg.dir));
+    if (!project) throw new Error(`${configOf(pkg.dir)}: no project`);
     const spans = docsOf(pkg).flatMap((path) => spansOf(readFileSync(join(root, path), "utf8")));
     for (const [specifier, source] of entriesOf(pkg)) {
       const file = await project.program.getSourceFile(join(root, pkg.dir, source));
