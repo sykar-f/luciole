@@ -3,6 +3,8 @@
  * machine. The build identity is inside it; it connects to Servers of the same build only.
  * Validated on a compiled binary (OpenTUI embeds its native library through `type: "file"`).
  */
+import { findNativeRuntime } from "./native-runtime";
+import { nativeRuntimePlugin } from "./native-runtime-plugin";
 import { definedProperties } from "./defined-properties";
 import { run, textOf } from "./subprocess";
 import { dirname, join, resolve } from "node:path";
@@ -214,6 +216,12 @@ async function compileEntry(
   const runtime = await resolveRuntime(target, options);
   const portability = await runtimePortability(runtime);
   if (portability && options.portable) throw new Error(portability);
+  const prepared = findNativeRuntime(target, options.cache);
+  if (!prepared)
+    console.warn(
+      `Warning: luciole compile: stock OpenTUI; row scroll (no complete native runtime for ${target}). ` +
+        `Prepare with: luciole native-runtime --target ${target}`,
+    );
   const result = await Bun.build({
     entrypoints: [entry],
     compile: {
@@ -227,18 +235,20 @@ async function compileEntry(
     // OpenTUI picks glibc or musl at run time; fixing it drops the other native package.
     define:
       os === "linux" ? { "process.env.OPENTUI_LIBC": JSON.stringify(musl ? "musl" : "") } : {},
-    plugins: nativeDir
-      ? [
-          {
-            name: "luciole-native-target",
-            setup(b) {
-              b.onResolve({ filter: /^@opentui\/core-(darwin|linux|win32)-/ }, (a) => ({
-                path: Bun.resolveSync(a.path, nativeDir),
-              }));
+    plugins: prepared
+      ? [nativeRuntimePlugin(prepared)]
+      : nativeDir
+        ? [
+            {
+              name: "luciole-native-target",
+              setup(b) {
+                b.onResolve({ filter: /^@opentui\/core-(darwin|linux|win32)-/ }, (a) => ({
+                  path: Bun.resolveSync(a.path, nativeDir),
+                }));
+              },
             },
-          },
-        ]
-      : [],
+          ]
+        : [],
   }).catch((error: unknown) => {
     const messages = bundleMessages(error).join("\n");
     const missing = /Could not resolve: "(@opentui\/core-[\w-]+)"/.exec(messages)?.[1];

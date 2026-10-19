@@ -58,6 +58,8 @@ const compiled = Bun.spawnSync(
       : []),
     ...flags,
   ],
+  // Inherit the compiler's single row-scroll warning when its prepared native entry
+  // is absent or corrupt. This is a usable fallback, so staging still succeeds.
   { stdout: "inherit", stderr: "inherit" },
 );
 if (compiled.exitCode !== 0) process.exit(compiled.exitCode ?? 1);

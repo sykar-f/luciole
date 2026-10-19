@@ -245,9 +245,9 @@ warning into an error.
 - `bun-linux-x64`, `bun-linux-arm64`
 - `bun-linux-x64-musl`, `bun-linux-arm64-musl`
 
-A target other than this machine's also needs `--native-dir`. OpenTUI ships its native library
-in one package per platform, and `bun install` installs only this machine's. Without
-`--native-dir`, the build stops and names the missing package.
+Without a prepared OpenTUI entry for the target, a foreign target needs `--native-dir`:
+`bun install` installs only this machine's OpenTUI library. The build stops and names a
+missing package. Native Server packages still need `--native-dir` with a prepared entry.
 
 Install the target's packages in a directory of their own, as the build's message says:
 

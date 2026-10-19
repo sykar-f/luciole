@@ -55,8 +55,9 @@ there and pick its target:
 | `Linux x86_64` on Alpine             | `bun-linux-x64-musl`   |
 | `Linux aarch64` on Alpine            | `bun-linux-arm64-musl` |
 
-Another target also needs its platform's packages, OpenTUI's included. Install them from the
-app's lockfile in a directory of their own, then pass that directory with `--native-dir`:
+Without a prepared OpenTUI entry for the target, install its native package from the
+app's lockfile with `--native-dir`. Native Server packages still need this directory
+even with a prepared entry:
 
 ```sh
 mkdir -p ../notes-linux && cp package.json bun.lock ../notes-linux/

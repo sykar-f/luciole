@@ -72,8 +72,13 @@ vérifie ces empreintes, sans Zig ni checkout source. Une entrée manquante ou a
 est reconstruite par cette commande ; deux préparations concurrentes partagent un verrou
 et l'entrée complète devient visible par un renommage atomique.
 
-Cette commande prépare seulement le cache. Les builds ne consomment pas encore ces
-entrées ; leur intégration à `luciole build --compile` est une étape suivante.
+`luciole build --compile` embarque le couple préparé pour sa cible, JavaScript et
+bibliothèque native ensemble. Il ne lance jamais Zig ni la préparation. Sans entrée
+complète (cache vide ou altéré), il conserve OpenTUI standard et le défilement par
+lignes, avec un avertissement donnant la commande de préparation. Le stage desktop
+transmet cet avertissement et continue son build ; après préparation, il faut le relancer.
+Les builds sans `--compile` gardent leur comportement habituel. Pour une cible étrangère
+sans entrée préparée, `--native-dir` reste disponible.
 
 ## L'hôte Electrobun : `packages/desktop`
 
