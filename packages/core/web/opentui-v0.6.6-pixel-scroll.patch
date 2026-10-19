@@ -12,41 +12,90 @@ index 17f2d82..8ccad81 100644
    ot_session_read_output: { 0: context, 1: buffer, 2: empty, 4: buffer },
    ot_session_drain_output: {
 diff --git a/packages/core/src/NativeSession.ts b/packages/core/src/NativeSession.ts
-index 9048978..436b2e0 100644
+index 9048978..7f1a005 100644
 --- a/packages/core/src/NativeSession.ts
 +++ b/packages/core/src/NativeSession.ts
-@@ -504,6 +504,39 @@ export class NativeSession {
+@@ -504,6 +504,88 @@ export class NativeSession {
      return this.lib.sessionGetCapabilities(this.context, this.session)
    }
  
 +  private frameOutput: Uint8Array[] | null = null
++  private frameOutputPending = false
++  private releaseFrameOutput: (() => void) | null = null
++  private orderedOutput: Promise<void> = Promise.resolve()
++
++  /** Reserve output synchronously, before yielding to an earlier writer. */
++  private async acquireOutput(): Promise<() => void> {
++    const previous = this.orderedOutput
++    let release!: () => void
++    this.orderedOutput = new Promise<void>((resolve) => { release = resolve })
++    await previous
++    return release
++  }
 +
 +  /** Stage one planned frame until all segments and capture callbacks succeed. */
-+  beginFrameOutput(): void {
-+    if (this.frameOutput) throw new Error("Frame output is already staged")
-+    this.checkOpen()
-+    this.buffer ??= new Uint8Array(this.outputBufferSize)
-+    this.frameOutput = []
++  async beginFrameOutput(): Promise<void> {
++    if (this.frameOutputPending) throw new Error("Frame output is already staged")
++    this.frameOutputPending = true
++    const release = await this.acquireOutput()
++    try {
++      this.checkOpen()
++      // Earlier ordinary output must reach the sink before staging starts.
++      await this.idle()
++      this.buffer ??= new Uint8Array(this.outputBufferSize)
++      this.frameOutput = []
++      this.releaseFrameOutput = release
++    } catch (error) {
++      this.frameOutputPending = false
++      release()
++      throw error
++    }
 +  }
 +
 +  async endFrameOutput(commit: boolean): Promise<void> {
-+    await this.idle()
-+    const chunks = this.frameOutput
-+    this.frameOutput = null
-+    if (!commit || !chunks) return
-+    const length = chunks.reduce((total, chunk) => total + chunk.length, 0)
-+    const bytes = new Uint8Array(length)
-+    let offset = 0
-+    for (const chunk of chunks) {
-+      bytes.set(chunk, offset)
-+      offset += chunk.length
++    const release = this.releaseFrameOutput
++    if (!release) throw new Error("Frame output is not staged")
++    try {
++      await this.idle()
++      const chunks = this.frameOutput
++      this.frameOutput = null
++      if (!commit || !chunks) return
++      const length = chunks.reduce((total, chunk) => total + chunk.length, 0)
++      const bytes = new Uint8Array(length)
++      let offset = 0
++      for (const chunk of chunks) {
++        bytes.set(chunk, offset)
++        offset += chunk.length
++      }
++      await this.writeOutputBytes(bytes)
++    } finally {
++      this.frameOutput = null
++      this.frameOutputPending = false
++      this.releaseFrameOutput = null
++      release()
 +    }
-+    // Keep ordinary sized plans in one borrowed-sink write. Large plans still
-+    // use the checked atomic queue bound, within the same 2026 envelope.
-+    const limit = Math.min(length, Number(this.maxAtomicWriteBytes))
-+    for (let start = 0; start < length; start += limit) {
-+      // Admission pressure consumes no bytes. Drain it before admitting this
-+      // same batch, so a partially published plan keeps its closing envelope.
++  }
++
++  /** Ordered with complete frame transactions and other control writes.
++   * Copies caller bytes before waiting; queue pressure is drained, not thrown.
++   * Lifecycle and sink failures still reject the returned promise.
++   */
++  async writeControl(bytes: Uint8Array): Promise<void> {
++    const owned = bytes.slice()
++    const release = await this.acquireOutput()
++    try {
++      this.checkOpen()
++      await this.idle()
++      await this.writeOutputBytes(owned)
++    } finally {
++      release()
++    }
++  }
++
++  private async writeOutputBytes(bytes: Uint8Array): Promise<void> {
++    const limit = Number(this.maxAtomicWriteBytes)
++    for (let start = 0; start < bytes.length; start += limit) {
++      // Admission pressure consumes no bytes. Retry the same batch after drain.
 +      while (!this.write(bytes.subarray(start, start + limit))) await this.idle()
 +      await this.idle()
 +    }
@@ -55,7 +104,7 @@ index 9048978..436b2e0 100644
    /** Copies all bytes or returns false under queue pressure. Capacity-exceeding writes throw RangeError;
     * lifecycle errors take precedence while writing is unavailable. */
    write(bytes: Uint8Array): boolean {
-@@ -788,13 +821,20 @@ export class NativeSession {
+@@ -788,13 +870,20 @@ export class NativeSession {
      // Set the gate before calling user code so even an inline drain is not lost.
      this.blocked = true
      try {
@@ -78,52 +127,6 @@ index 9048978..436b2e0 100644
        if (!this.stopped && ready) this.blocked = false
      } catch (error) {
        this.output = null
-diff --git a/packages/core/src/ScrollableViewport.ts b/packages/core/src/ScrollableViewport.ts
-new file mode 100644
-index 0000000..d93908e
---- /dev/null
-+++ b/packages/core/src/ScrollableViewport.ts
-@@ -0,0 +1,40 @@
-+import type { Renderable } from "./Renderable.js"
-+
-+/** A content-only vertical scroll surface. Positions and deltas are in rows. */
-+export interface ScrollableViewport {
-+  readonly owner: Renderable
-+  readonly position: number
-+  readonly origin: number
-+  readonly max: number
-+  readonly rect: Readonly<{ x: number; y: number; width: number; height: number }>
-+  set(position: number): void
-+  /** Consume a precise delta without acceleration; return the unconsumed remainder. */
-+  scroll(delta: number): number
-+  /** Describe a paint pass, without changing logical state or scheduling work. */
-+  project(origin: number): { renderable: Renderable; translateX: number; translateY: number }
-+}
-+
-+export function getScrollableViewport(value: unknown): ScrollableViewport | undefined {
-+  if (!value || typeof value !== "object") return undefined
-+  const viewport = Reflect.get(value, "scrollableViewport")
-+  if (!viewport || typeof viewport !== "object") return undefined
-+  return ["set", "scroll", "project"].every((key) => typeof Reflect.get(viewport, key) === "function")
-+    ? (viewport as ScrollableViewport)
-+    : undefined
-+}
-+
-+/** Only one member of an ancestor/descendant chain may carry a fraction. */
-+export function settleScrollableChain(owner: Renderable): void {
-+  const settle = (node: unknown) => {
-+    const viewport = getScrollableViewport(node)
-+    if (viewport && !Number.isInteger(viewport.position)) viewport.set(Math.round(viewport.position))
-+  }
-+  for (let parent = owner.parent; parent; parent = parent.parent) settle(parent)
-+  const visit = (node: Renderable) => {
-+    for (const child of node.getChildren()) {
-+      settle(child)
-+      visit(child)
-+    }
-+  }
-+  visit(owner)
-+}
 diff --git a/packages/core/src/index.ts b/packages/core/src/index.ts
 index 6f776f6..ffc034b 100644
 --- a/packages/core/src/index.ts
@@ -287,7 +290,7 @@ index ff4ebe5..0aed61a 100644
      if (value === this._value) return
      this._value = value
 diff --git a/packages/core/src/renderer.ts b/packages/core/src/renderer.ts
-index 91a46db..0febe79 100644
+index 91a46db..bf8b85f 100644
 --- a/packages/core/src/renderer.ts
 +++ b/packages/core/src/renderer.ts
 @@ -902,6 +902,30 @@ export enum RendererControlState {
@@ -321,7 +324,7 @@ index 91a46db..0febe79 100644
  export class CliRenderer extends EventEmitter implements RenderContext {
    private static animationFrameId = 0
    private lib: RenderLib
-@@ -977,6 +1001,187 @@ export class CliRenderer extends EventEmitter implements RenderContext {
+@@ -977,6 +1001,198 @@ export class CliRenderer extends EventEmitter implements RenderContext {
    private frameCount: number = 0
    // Bumped once per loop() iteration; see RenderContext.frameId.
    private _frameId: number = 0
@@ -333,6 +336,17 @@ index 91a46db..0febe79 100644
 +    return this._isFramePlanPass
 +  }
 +  private framePlan: (() => RenderFramePlan | null) | null = null
++
++  /** Observe complete raw mouse sequences before ordinary dispatch; never consumes input. */
++  public observeMouseInput(observer: (raw: string) => void): () => void {
++    this.on("input:mouse", observer)
++    return () => { this.off("input:mouse", observer) }
++  }
++
++  /** Write control bytes after any complete frame output, waiting under pressure. */
++  public writeControl(bytes: Uint8Array): Promise<void> {
++    return this.nativeSession.writeControl(bytes)
++  }
 +
 +  private finishFramePlanPass(): void {
 +    if (!this._isFramePlanPass) return
@@ -441,7 +455,7 @@ index 91a46db..0febe79 100644
 +      this.finishFramePlanPass()
 +      return this.presentNativeScene()
 +    }
-+    session.beginFrameOutput()
++    await session.beginFrameOutput()
 +    this._isFramePlanPass = true
 +    let complete = false
 +    const write = (bytes?: Uint8Array) => {
@@ -509,7 +523,7 @@ index 91a46db..0febe79 100644
    private lastFpsTime: number = 0
    private currentFps: number = 0
    private targetFrameTime: number = 1000 / this._targetFps
-@@ -1681,6 +1886,7 @@ export class CliRenderer extends EventEmitter implements RenderContext {
+@@ -1681,6 +1897,7 @@ export class CliRenderer extends EventEmitter implements RenderContext {
    }
  
    public requestRender() {
@@ -517,7 +531,15 @@ index 91a46db..0febe79 100644
      if (this._isDestroyed || this._controlState === RendererControlState.EXPLICIT_SUSPENDED) {
        return
      }
-@@ -3589,7 +3795,11 @@ export class CliRenderer extends EventEmitter implements RenderContext {
+@@ -3466,6 +3683,7 @@ export class CliRenderer extends EventEmitter implements RenderContext {
+         this._keyHandler.processParsedKey(event.key)
+         return
+       case "mouse":
++        this.emit("input:mouse", event.raw)
+         if (this._useMouse && this.processSingleMouseEvent(event.event)) {
+           return
+         }
+@@ -3589,7 +3807,11 @@ export class CliRenderer extends EventEmitter implements RenderContext {
      }
    }
  
@@ -530,7 +552,7 @@ index 91a46db..0febe79 100644
      if (this._splitHeight > 0) {
        if (mouseEvent.y < this.renderOffset) {
          return false
-@@ -3617,7 +3827,7 @@ export class CliRenderer extends EventEmitter implements RenderContext {
+@@ -3617,7 +3839,7 @@ export class CliRenderer extends EventEmitter implements RenderContext {
      }
  
      if (mouseEvent.type === "scroll") {
@@ -539,7 +561,7 @@ index 91a46db..0febe79 100644
        const maybeRenderable = Renderable.renderablesByNumber.get(maybeRenderableId)
        const fallbackTarget =
          this._currentFocusedRenderable &&
-@@ -3634,7 +3844,7 @@ export class CliRenderer extends EventEmitter implements RenderContext {
+@@ -3634,7 +3856,7 @@ export class CliRenderer extends EventEmitter implements RenderContext {
        return true
      }
  
@@ -548,7 +570,7 @@ index 91a46db..0febe79 100644
      const sameElement = maybeRenderableId === this.lastOverRenderableNum
      this.lastOverRenderableNum = maybeRenderableId
      const maybeRenderable = Renderable.renderablesByNumber.get(maybeRenderableId)
-@@ -3831,7 +4041,8 @@ export class CliRenderer extends EventEmitter implements RenderContext {
+@@ -3831,7 +4053,8 @@ export class CliRenderer extends EventEmitter implements RenderContext {
    }
  
    public hitTest(x: number, y: number): number {
@@ -558,7 +580,7 @@ index 91a46db..0febe79 100644
    }
  
    private takeMemorySnapshot(): void {
-@@ -4798,6 +5009,7 @@ export class CliRenderer extends EventEmitter implements RenderContext {
+@@ -4798,6 +5021,7 @@ export class CliRenderer extends EventEmitter implements RenderContext {
          return
        // Bump before any work so all callers this iteration see the new id.
        this._frameId++
@@ -566,7 +588,7 @@ index 91a46db..0febe79 100644
  
        const now = this.normalizeClockTime(this.clock.now(), this.lastTime)
        const elapsed = this.getElapsedMs(now, this.lastTime)
-@@ -4844,6 +5056,14 @@ export class CliRenderer extends EventEmitter implements RenderContext {
+@@ -4844,6 +5068,14 @@ export class CliRenderer extends EventEmitter implements RenderContext {
        // Callbacks can start terminal setup; a frame step is invalid until it settles.
        if (this.nativeTerminalTransition && !(await this.waitForTerminalTransition())) return
        if (!this.canRender || this.currentControlState === RendererControlState.EXPLICIT_SUSPENDED) return
@@ -581,7 +603,7 @@ index 91a46db..0febe79 100644
        const sceneStart = performance.now()
        const requestedBeforeScene = this.immediateRerenderRequested
        try {
-@@ -4877,7 +5097,9 @@ export class CliRenderer extends EventEmitter implements RenderContext {
+@@ -4877,7 +5109,9 @@ export class CliRenderer extends EventEmitter implements RenderContext {
  
        // If destroy() was requested during this frame, skip native work and scheduling.
        if (this.canRender && !this.nativeSplitFlush) {
@@ -592,7 +614,7 @@ index 91a46db..0febe79 100644
          if (!this.canRender || this.currentControlState === RendererControlState.EXPLICIT_SUSPENDED) return
          if (nativeStatus === "rendered") this.frameCount++
          if (this.getElapsedMs(now, this.lastFpsTime) >= 1000) {
-@@ -4889,7 +5111,7 @@ export class CliRenderer extends EventEmitter implements RenderContext {
+@@ -4889,7 +5123,7 @@ export class CliRenderer extends EventEmitter implements RenderContext {
  
          if (nativeStatus === "rendered") {
            // Check if hit grid changed and recheck hover state if needed
@@ -601,7 +623,7 @@ index 91a46db..0febe79 100644
              this.recheckHoverState()
            }
            if (!this.canRender) return
-@@ -4950,22 +5172,27 @@ export class CliRenderer extends EventEmitter implements RenderContext {
+@@ -4950,22 +5184,27 @@ export class CliRenderer extends EventEmitter implements RenderContext {
        const completion = this.renderingCompletion
        this.renderingCompletion = null
        try {
@@ -644,6 +666,124 @@ index 91a46db..0febe79 100644
        } finally {
          completion?.resolve()
        }
+diff --git a/packages/core/src/tests/pixel-seams.test.ts b/packages/core/src/tests/pixel-seams.test.ts
+new file mode 100644
+index 0000000..e94511d
+--- /dev/null
++++ b/packages/core/src/tests/pixel-seams.test.ts
+@@ -0,0 +1,112 @@
++import { expect, spyOn, test } from "bun:test"
++import { Writable } from "node:stream"
++import { NativeSession } from "../NativeSession.js"
++import { BoxRenderable } from "../renderables/Box.js"
++import { createTestRenderer } from "../testing/test-renderer.js"
++
++const bytes = (text: string) => new TextEncoder().encode(text)
++
++test("control writes wait for every split frame chunk and retry admission pressure", async () => {
++  const chunks: Buffer[] = []
++  let resume!: () => void
++  let reached!: () => void
++  const firstChunk = new Promise<void>((resolve) => { reached = resolve })
++  let held = false
++  const sink = new Writable({
++    highWaterMark: 1,
++    write(chunk, _encoding, done) {
++      chunks.push(Buffer.from(chunk))
++      if (!held) {
++        held = true
++        resume = () => done()
++        reached()
++      } else setImmediate(done)
++    },
++  })
++  const session = new NativeSession(sink, {
++    output: { chunkSize: 256, spanCapacity: 32, maxBytes: 8192n, controlCapacity: 128 },
++    outputBufferSize: 17,
++  })
++  const accept = session.write.bind(session)
++  let attempts = 0
++  const admission = spyOn(session, "write").mockImplementation((batch) =>
++    ++attempts === 2 ? false : accept(batch),
++  )
++  try {
++    const limit = Number(session.maxAtomicWriteBytes)
++    const parts = ["\x1b[?2026h", "A".repeat(limit), "B".repeat(limit), "\x1b[?2026l"]
++    await session.beginFrameOutput()
++    // Staging uses ordinary admission; drain each part so the frame exceeds the queue.
++    for (const part of parts) {
++      while (!session.write(bytes(part))) await session.idle()
++      await session.idle()
++    }
++    // Force the rejection inside the commit drain, not while staging.
++    attempts = 0
++    const frame = session.endFrameOutput(true)
++    await firstChunk
++    const command = bytes("CONTROL".repeat(limit))
++    const expected = new TextDecoder().decode(command)
++    const control = session.writeControl(command)
++    command.fill(0)
++    const next = session.writeControl(bytes("NEXT"))
++    expect(chunks.every((chunk) => !chunk.includes("CONTROL"))).toBe(true)
++    resume()
++    await Promise.all([frame, control, next])
++    expect(Buffer.concat(chunks).toString()).toBe(parts.join("") + expected + "NEXT")
++    expect(attempts).toBeGreaterThan(3)
++  } finally {
++    admission.mockRestore()
++    resume?.()
++    await session.close()
++    sink.destroy()
++  }
++})
++
++test("aborted frames release ordered controls and controls precede later frames", async () => {
++  const chunks: Buffer[] = []
++  const sink = new Writable({ write(chunk, _encoding, done) { chunks.push(Buffer.from(chunk)); done() } })
++  const session = new NativeSession(sink)
++  try {
++    await session.beginFrameOutput()
++    expect(session.write(bytes("discarded"))).toBe(true)
++    const control = session.writeControl(bytes("first"))
++    await session.endFrameOutput(false)
++    const frame = session.beginFrameOutput()
++    await control
++    await frame
++    expect(session.write(bytes("frame"))).toBe(true)
++    const after = session.writeControl(bytes("last"))
++    await session.endFrameOutput(true)
++    await after
++    expect(Buffer.concat(chunks).toString()).toBe("firstframelast")
++    await session.close()
++    await expect(session.writeControl(bytes("closed"))).rejects.toThrow()
++    await expect(session.beginFrameOutput()).rejects.toThrow()
++  } finally {
++    await session.close()
++    sink.destroy()
++  }
++})
++
++test("mouse observers see assembled raw input before hit dispatch without consuming it", async () => {
++  const f = await createTestRenderer({ width: 8, height: 2, useMouse: true })
++  try {
++    const seen: string[] = []
++    const box = new BoxRenderable(f.renderer, { width: 8, height: 2 })
++    box.onMouseDown = () => seen.push("dispatch")
++    f.renderer.root.add(box)
++    await f.renderOnce()
++    const unsubscribe = f.renderer.observeMouseInput((raw) => seen.push(raw))
++    const raw = "\x1b[<0;1;1M"
++    f.renderer.stdin.emit("data", Buffer.from(raw.slice(0, 5)))
++    expect(seen).toEqual([])
++    f.renderer.stdin.emit("data", Buffer.from(raw.slice(5)))
++    expect(seen).toEqual([raw, "dispatch"])
++    unsubscribe()
++    f.renderer.stdin.emit("data", Buffer.from(raw))
++    expect(seen).toEqual([raw, "dispatch", "dispatch"])
++  } finally {
++    await f.dispose()
++  }
++})
 diff --git a/packages/core/src/zig.ts b/packages/core/src/zig.ts
 index d83570a..0bd604f 100644
 --- a/packages/core/src/zig.ts
@@ -698,7 +838,7 @@ index 12cc13e..22d1f7a 100644
   * capacity. A successful empty read returns a zero byte_count and request_id.
   * Failure leaves both outputs unchanged. The next read requires completion of
 diff --git a/packages/native/src/context-abi.zig b/packages/native/src/context-abi.zig
-index 1ab48e3..3d7efa1 100644
+index 1abe280..282390d 100644
 --- a/packages/native/src/context-abi.zig
 +++ b/packages/native/src/context-abi.zig
 @@ -745,6 +745,27 @@ pub fn ot_session_get_write_limit(
@@ -730,10 +870,10 @@ index 1ab48e3..3d7efa1 100644
      context: ?*ContextHandle,
      session_ptr: ?*const c.ot_handle,
 diff --git a/packages/native/src/context.zig b/packages/native/src/context.zig
-index 062c22c..52c85ea 100644
+index 5bbdb79..bfcf5d6 100644
 --- a/packages/native/src/context.zig
 +++ b/packages/native/src/context.zig
-@@ -2906,6 +2906,47 @@ pub const Context = struct {
+@@ -2905,6 +2905,47 @@ pub const Context = struct {
          value.cancelSceneFrame();
      }
  

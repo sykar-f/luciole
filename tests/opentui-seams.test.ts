@@ -5,7 +5,11 @@ import { tmpdir } from "node:os";
 import { createTestRenderer } from "@opentui/core/testing";
 import { openTuiCheckoutDirectory, webRuntimeDirectory } from "../packages/core/src/web-runtime";
 import { opentuiWasm } from "../packages/core/src/web/opentui/plugin";
-import { detectOpenTuiSeams } from "../packages/core/src/opentui-seams";
+import {
+  detectOpenTuiSeams,
+  detectOpenTuiMouseObserver,
+  detectOpenTuiControlWriter,
+} from "../packages/core/src/opentui-seams";
 
 const root = resolve(import.meta.dir, "..");
 const INTEGRATION_MS = 240_000;
@@ -57,9 +61,12 @@ test.skipIf(process.env["LUCIOLE_OPENTUI_INTEGRATION"] !== "1")(
     const checkout = openTuiCheckoutDirectory();
     const directory = await mkdtemp(join(process.env["TMPDIR"] ?? tmpdir(), "opentui-seams-"));
     const result = await Bun.build({
-      entrypoints: [join(import.meta.dir, "opentui-seams-fixture.ts")],
+      entrypoints: [
+        join(import.meta.dir, "opentui-seams-fixture.ts"),
+        join(checkout, "packages/core/src/tests/pixel-seams.test.ts"),
+      ],
       outdir: directory,
-      naming: "seams.test.js",
+      naming: "[name].test.js",
       target: "bun",
       format: "esm",
       external: ["bun:test"],
@@ -88,7 +95,14 @@ test.skipIf(process.env["LUCIOLE_OPENTUI_INTEGRATION"] !== "1")(
       `globalThis.OPENTUI_WASM = new Uint8Array(await Bun.file(${JSON.stringify(join(runtime, "opentui.wasm"))}).arrayBuffer());\n`,
     );
     const child = Bun.spawn(
-      [process.execPath, "test", "--preload", preload, join(directory, "seams.test.js")],
+      [
+        process.execPath,
+        "test",
+        "--preload",
+        preload,
+        join(directory, "opentui-seams-fixture.test.js"),
+        join(directory, "pixel-seams.test.test.js"),
+      ],
       { cwd: root, stdout: "pipe", stderr: "pipe" },
     );
     const [stdout, stderr, code] = await Promise.all([
@@ -97,6 +111,74 @@ test.skipIf(process.env["LUCIOLE_OPENTUI_INTEGRATION"] !== "1")(
       child.exited,
     ]);
     expect({ code, output: stdout + stderr }).toMatchObject({ code: 0 });
+  },
+  INTEGRATION_MS,
+);
+
+test("input observer and control writer detections are independent and reject missing methods", () => {
+  for (const candidate of [
+    undefined,
+    null,
+    false,
+    1,
+    "renderer",
+    {},
+    { observeMouseInput: true, writeControl: 1 },
+  ]) {
+    expect(detectOpenTuiMouseObserver(candidate)).toEqual({
+      available: false,
+      missing: ["observeMouseInput"],
+    });
+    expect(detectOpenTuiControlWriter(candidate)).toEqual({
+      available: false,
+      missing: ["writeControl"],
+    });
+  }
+  const observer = {
+    observeMouseInput() {
+      return () => {};
+    },
+  };
+  const writer = { async writeControl() {} };
+  expect(detectOpenTuiMouseObserver(observer)).toEqual({ available: true, renderer: observer });
+  expect(detectOpenTuiControlWriter(observer).available).toBe(false);
+  expect(detectOpenTuiControlWriter(writer)).toEqual({ available: true, renderer: writer });
+  expect(detectOpenTuiMouseObserver(writer).available).toBe(false);
+});
+
+test.skipIf(process.env["LUCIOLE_OPENTUI_INTEGRATION"] !== "1")(
+  "pixel patch alone applies at v0.6.6 and passes native ABI and pixel groups",
+  async () => {
+    const directory = await mkdtemp(
+      join(process.env["TMPDIR"] ?? tmpdir(), "opentui-native-seams-"),
+    );
+    const checkout = join(directory, "opentui");
+    const execute = async (command: string[], cwd = root) => {
+      const child = Bun.spawn(command, {
+        cwd,
+        stdout: "inherit",
+        stderr: "inherit",
+        signal: AbortSignal.timeout(INTEGRATION_MS - 5_000),
+      });
+      expect(await child.exited).toBe(0);
+    };
+    await execute([
+      process.execPath,
+      "--eval",
+      `
+      import { prepareOpenTuiCheckout } from ${JSON.stringify(join(root, "packages/core/src/web-runtime.ts"))};
+      const tree = prepareOpenTuiCheckout(${JSON.stringify(checkout)}, "https://github.com/anomalyco/opentui", "v0.6.6", [${JSON.stringify(join(root, "packages/core/web/opentui-v0.6.6-pixel-scroll.patch"))}]);
+      console.log("native pixel-only source tree:", tree);
+    `,
+    ]);
+    await execute([process.execPath, "install", "--frozen-lockfile"], checkout);
+    await execute([process.execPath, "packages/core/scripts/native-abi.ts", "--check"], checkout);
+    const native = join(checkout, "packages/native");
+    await execute([process.execPath, "run", "prepare:zig"], native);
+    const zig = process.env["ZIG"] ?? "zig";
+    for (const group of ["Pixel", "Scene", "renderer", "Session"])
+      await execute([zig, "build", "test", `-Dtest-filter=${group}`, "--summary", "all"], native);
+    await execute([zig, "build", "test-abi", "--summary", "all"], native);
   },
   INTEGRATION_MS,
 );

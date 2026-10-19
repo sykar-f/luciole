@@ -104,3 +104,42 @@ export function detectScrollableViewport(value: unknown): ScrollableViewport | u
   const viewport: unknown = Reflect.get(value, "scrollableViewport");
   return isScrollableViewport(viewport) ? viewport : undefined;
 }
+
+/** Observe each assembled raw mouse sequence before ordinary OpenTUI dispatch. */
+export interface OpenTuiMouseObserver {
+  observeMouseInput(observer: (raw: string) => void): () => void;
+}
+
+/** Resolve once copied control bytes have drained after complete frame transactions. */
+export interface OpenTuiControlWriter {
+  writeControl(bytes: Uint8Array): Promise<void>;
+}
+
+/** These independent capabilities keep existing frame-plan fallback decisions stable. */
+export function detectOpenTuiMouseObserver(
+  renderer: unknown,
+):
+  | { available: true; renderer: CliRenderer & OpenTuiMouseObserver }
+  | { available: false; missing: readonly ["observeMouseInput"] } {
+  if (
+    typeof renderer === "object" &&
+    renderer !== null &&
+    typeof Reflect.get(renderer, "observeMouseInput") === "function"
+  )
+    return { available: true, renderer: renderer as CliRenderer & OpenTuiMouseObserver };
+  return { available: false, missing: ["observeMouseInput"] };
+}
+
+export function detectOpenTuiControlWriter(
+  renderer: unknown,
+):
+  | { available: true; renderer: CliRenderer & OpenTuiControlWriter }
+  | { available: false; missing: readonly ["writeControl"] } {
+  if (
+    typeof renderer === "object" &&
+    renderer !== null &&
+    typeof Reflect.get(renderer, "writeControl") === "function"
+  )
+    return { available: true, renderer: renderer as CliRenderer & OpenTuiControlWriter };
+  return { available: false, missing: ["writeControl"] };
+}
