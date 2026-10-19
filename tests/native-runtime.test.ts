@@ -10,6 +10,7 @@ import {
 } from "node:fs";
 import { join, resolve } from "node:path";
 import { tmpdir } from "node:os";
+import * as z from "zod/mini";
 import {
   NATIVE_TARGETS,
   findNativeRuntime,
@@ -41,8 +42,7 @@ const files = {
 function stage(directory: string, target = hostTarget()) {
   for (const [file, contents] of Object.entries({
     ...files,
-    [`library/${NATIVE_TARGETS[COMPILE_TARGETS.find((t) => t === target)!].library}`]:
-      "native bytes",
+    [`library/${NATIVE_TARGETS[nativeRuntimeIdentity(target).target].library}`]: "native bytes",
   })) {
     mkdirSync(join(directory, file, ".."), { recursive: true });
     writeFileSync(join(directory, file), contents);
@@ -71,8 +71,10 @@ test("all six target entries require a complete, matching manifest and digests",
     await prepare(cache, target);
     expect(findNativeRuntime(target, cache)).toBe(directory);
     const manifestPath = join(directory, "native-runtime.json");
-    const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
-    manifest.files = {};
+    const manifest = z
+      .record(z.string(), z.unknown())
+      .parse(JSON.parse(readFileSync(manifestPath, "utf8")));
+    manifest["files"] = {};
     writeFileSync(manifestPath, JSON.stringify(manifest));
     expect(findNativeRuntime(target, cache)).toBeUndefined();
   }
@@ -93,7 +95,13 @@ test("provenance, required assets and relative digest paths are validated", asyn
     { tree: "b".repeat(40) },
     { files: { "../outside": "0".repeat(64) } },
   ]) {
-    writeFileSync(manifestPath, JSON.stringify({ ...JSON.parse(original), ...change }));
+    writeFileSync(
+      manifestPath,
+      JSON.stringify({
+        ...z.record(z.string(), z.unknown()).parse(JSON.parse(original)),
+        ...change,
+      }),
+    );
     expect(findNativeRuntime(hostTarget(), cache)).toBeUndefined();
   }
   writeFileSync(manifestPath, original);
@@ -160,23 +168,25 @@ test("cache identity tracks ordered patch bytes, target and upstream toolchain",
 test("a framework source change keeps the native entry key", async () => {
   const root = scratch();
   const source = resolve("packages/core/src/native-runtime.ts");
-  // Bundle a private copy of the preparer, then change its framework source bytes.
+  // Bundle a private installation and retain source bytes that frameworkHash would read.
   const entry = join(root, "entry.ts");
   writeFileSync(entry, `export {nativeRuntimeDirectory} from ${JSON.stringify(source)};`);
   const result = await Bun.build({
     entrypoints: [entry],
-    outdir: join(root, "bundle"),
+    outdir: join(root, "src"),
     target: "bun",
     external: ["bun:sqlite"],
   });
   expect(result.success).toBe(true);
-  const bundle = join(root, "bundle/entry.js");
+  const bundle = join(root, "src/entry.js");
+  const frameworkSource = join(root, "src/framework-source.ts");
+  writeFileSync(frameworkSource, "export const framework = 1;\n");
   const key = async () => {
     const child = Bun.spawn(
       [
         process.execPath,
         "--eval",
-        `import {nativeRuntimeDirectory} from ${JSON.stringify(bundle)}; console.log(nativeRuntimeDirectory("bun-darwin-arm64", "/cache"))`,
+        `import {nativeRuntimeDirectory} from ${JSON.stringify(bundle)}; console.log(await nativeRuntimeDirectory("bun-darwin-arm64", "/cache"))`,
       ],
       { stdout: "pipe", stderr: "pipe" },
     );
@@ -191,7 +201,7 @@ test("a framework source change keeps the native entry key", async () => {
     join(root, "web/opentui-v0.6.6-pixel-scroll.patch"),
   );
   const before = await key();
-  writeFileSync(bundle, `${readFileSync(bundle, "utf8")}\n// changed luciole framework source\n`);
+  writeFileSync(frameworkSource, "export const framework = 2;\n");
   expect(await key()).toBe(before);
   writeFileSync(join(root, "web/opentui-v0.6.6-pixel-scroll.patch"), "changed patch");
   expect(await key()).not.toBe(before);

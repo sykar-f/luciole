@@ -25,6 +25,7 @@ import {
 
 const ZIG_VERSION = "0.16.0";
 const LAYOUT_VERSION = 1;
+const HASH_PREFIX = 16;
 const MANIFEST = "native-runtime.json";
 const SOURCE_TREE = "opentui-source-tree";
 const GENERATED_ABI = "core/native-abi.generated.ts";
@@ -103,7 +104,7 @@ export function nativeRuntimeDirectory(target = hostTarget(), cache = defaultCac
   return join(
     cache,
     "native",
-    `${target}-${digest(JSON.stringify(nativeRuntimeIdentity(target))).slice(0, 16)}`,
+    `${target}-${digest(JSON.stringify(nativeRuntimeIdentity(target))).slice(0, HASH_PREFIX)}`,
   );
 }
 
@@ -195,7 +196,7 @@ export function prepareNativeRuntimeEntry({
   const identity = nativeRuntimeIdentity(target);
   const checkout = nativeCheckoutDirectory(cache);
   const complete = (path: string) => nativeRuntimeComplete(path, target);
-  let tree: string;
+  let tree = "";
   return publishRuntimeEntry({
     directory,
     checkout,
@@ -207,7 +208,7 @@ export function prepareNativeRuntimeEntry({
     async build(temporary) {
       await build(temporary);
       // Hash the sidecar too; the shared publisher writes the same bytes before rename.
-      writeFileSync(join(temporary, SOURCE_TREE), `${tree!}\n`);
+      writeFileSync(join(temporary, SOURCE_TREE), `${tree}\n`);
       const files: Record<string, string> = {};
       for (const file of [
         ...new Bun.Glob("**/*").scanSync({ cwd: temporary, onlyFiles: true, dot: true }),
@@ -215,7 +216,7 @@ export function prepareNativeRuntimeEntry({
         files[file] = digest(readFileSync(join(temporary, file)));
       writeFileSync(
         join(temporary, MANIFEST),
-        `${JSON.stringify({ ...identity, tree: tree!, files }, null, 2)}\n`,
+        `${JSON.stringify({ ...identity, tree, files }, null, 2)}\n`,
       );
       if (!complete(temporary)) throw new Error("Incomplete native OpenTUI runtime build");
     },
@@ -226,7 +227,7 @@ function nativeCheckoutDirectory(cache: string) {
   return join(
     cache,
     "native",
-    `opentui-${OPENTUI_TAG}-${ZIG_VERSION}-${digest(readFileSync(PIXEL_SCROLL_PATCH)).slice(0, 16)}`,
+    `opentui-${OPENTUI_TAG}-${ZIG_VERSION}-${digest(readFileSync(PIXEL_SCROLL_PATCH)).slice(0, HASH_PREFIX)}`,
   );
 }
 
@@ -239,7 +240,7 @@ export async function prepareNativeRuntime({
   const selected = checkedTarget(target);
   const configuration = NATIVE_TARGETS[selected];
   const checkout = nativeCheckoutDirectory(cache);
-  let tree: string;
+  let tree = "";
   return prepareNativeRuntimeEntry({
     target,
     cache,
@@ -266,7 +267,7 @@ export async function prepareNativeRuntime({
       const artifact = buildOpenTuiLibrary({
         checkout,
         zig,
-        tree: tree!,
+        tree,
         artifact: join(
           checkout,
           "packages/native/lib",

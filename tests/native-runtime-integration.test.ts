@@ -4,8 +4,13 @@ import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync } from "node
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
-import { findNativeRuntime, NATIVE_TARGETS } from "../packages/core/src/native-runtime";
-import { COMPILE_TARGETS, hostTarget } from "../packages/core/src/targets";
+import * as z from "zod/mini";
+import {
+  findNativeRuntime,
+  nativeRuntimeIdentity,
+  NATIVE_TARGETS,
+} from "../packages/core/src/native-runtime";
+import { hostTarget } from "../packages/core/src/targets";
 
 test.skipIf(!process.env["LUCIOLE_OPENTUI_INTEGRATION"])(
   "native host CLI builds matching JS/library/ABI and reuses without Zig or sources",
@@ -39,14 +44,16 @@ test.skipIf(!process.env["LUCIOLE_OPENTUI_INTEGRATION"])(
         }),
       );
       expect(exit).toBe(0);
-      return stdout.trim();
+      return stdout.trim().split("\n").at(-1) ?? "";
     }
     try {
       const directory = await command();
       expect(findNativeRuntime(hostTarget(), cache)).toBe(directory);
-      const target = COMPILE_TARGETS.find((candidate) => candidate === hostTarget())!;
-      const imported = await import(pathToFileURL(join(directory, "library/index.bun.js")).href);
-      expect(existsSync(imported.default)).toBe(true);
+      const target = nativeRuntimeIdentity(hostTarget()).target;
+      const imported: unknown = await import(
+        pathToFileURL(join(directory, "library/index.bun.js")).href
+      );
+      expect(existsSync(z.object({ default: z.string() }).parse(imported).default)).toBe(true);
       const library = dlopen(join(directory, "library", NATIVE_TARGETS[target].library), {
         ot_scene_copy_hits: { args: [], returns: "void" },
         ot_session_set_frame_sync: { args: [], returns: "void" },
