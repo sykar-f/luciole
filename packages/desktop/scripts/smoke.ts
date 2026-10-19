@@ -165,7 +165,7 @@ try {
   if (sessions.length)
     throw new Error(`smoke: the session survived the quit: ${sessions.join(", ")}`);
   // Electrobun's initial installer stays alive after the real app quits.
-  launcher.kill();
+  launcher.kill("SIGKILL");
   await launcher.exited;
   await eventually(
     "the extraction bootstrap to end",
