@@ -5,16 +5,24 @@ import { openSession } from "../packages/core/src/session";
 import { connect } from "../packages/core/src/connect";
 import { ensureServer } from "../packages/core/src/launcher/managed";
 
+if (process.env.STARTUP_BARRIER) process.on("SIGHUP", () => process.send?.({ hungup: true }));
 const server = await ensureServer({
   id: "startup",
   name: "startup",
   buildId: "build-1",
-  command: [process.execPath, "--conditions=react-server", resolve("tests/lifetime-server.ts")],
+  command: [
+    process.execPath,
+    "--conditions=react-server",
+    resolve(
+      process.env.STARTUP_BARRIER ? "tests/desktop-startup-server.ts" : "tests/lifetime-server.ts",
+    ),
+  ],
   graceMs: 900_000,
   directories: { state: process.env.XDG_STATE_HOME ?? "/tmp" },
   client: "startup",
   attach: true,
 });
+if (process.env.STARTUP_BARRIER) await new Promise<never>(() => {});
 process.env.LUCIOLE_LIFETIME_CLIENT = "startup";
 process.env.LUCIOLE_SESSION = "startup";
 // A session the launcher has claimed from a previous launch.

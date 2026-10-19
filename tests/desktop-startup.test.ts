@@ -95,3 +95,66 @@ test("a desktop hangup before launch planning exits without creating a Server", 
     await rm(work, { recursive: true, force: true });
   }
 });
+
+test("a desktop hangup while its managed Server starts waits to leave voluntarily", async () => {
+  const work = await mkdtemp("/tmp/luciole-starting-");
+  const arrived = Promise.withResolvers<z.infer<typeof Ready>>();
+  const release = Promise.withResolvers<void>();
+  const barrier = Bun.serve({
+    port: 0,
+    async fetch(request) {
+      arrived.resolve(Ready.parse(await request.json()));
+      await release.promise;
+      return new Response("continue");
+    },
+  });
+  const child = spawn(process.execPath, ["tests/desktop-startup-client.ts"], {
+    env: {
+      ...process.env,
+      LUCIOLE_DESKTOP: "1",
+      XDG_RUNTIME_DIR: work,
+      XDG_STATE_HOME: join(work, "state"),
+      STARTUP_BARRIER: barrier.url.href,
+    },
+    stdio: ["ignore", "ignore", "inherit", "ipc"],
+  });
+  const exited = new Promise((done) =>
+    child.once("exit", (code, signal) => done({ code, signal })),
+  );
+  child.once("exit", () => arrived.reject(new Error("Client exited before readiness barrier")));
+  let server: z.infer<typeof Ready> | undefined;
+  try {
+    server = await arrived.promise;
+    // The desktop coordinator's listener is already installed. A second listener
+    // acknowledges delivery so releasing readiness cannot race the first signal.
+    child.kill("SIGHUP");
+    await new Promise<void>((done) => child.once("message", () => done()));
+    // A second hangup must not take the default action during asynchronous cleanup.
+    child.kill("SIGHUP");
+    await new Promise<void>((done) => child.once("message", () => done()));
+    release.resolve();
+    expect(await exited).toEqual({ code: 0, signal: null });
+    const ready = server;
+    await until(() => {
+      try {
+        process.kill(ready.pid, 0);
+        return false;
+      } catch {
+        return true;
+      }
+    }, WAIT_MS);
+    const log = await Bun.file(join(work, "state/startup/server.log")).text();
+    expect(log).toContain("stopping: the last Client left");
+    expect(log).not.toContain("waiting 900 s for a Client");
+  } finally {
+    release.resolve();
+    child.kill("SIGKILL");
+    if (server) {
+      await fetch("http://localhost/lifetime/stop", { method: "POST", unix: server.socket }).catch(
+        () => {},
+      );
+    }
+    await barrier.stop(true);
+    await rm(work, { recursive: true, force: true });
+  }
+}, 15_000);
