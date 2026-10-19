@@ -13,7 +13,7 @@ import { Terminal as XTerm } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { attachTerminalView, cellAt, wheelReports } from "../terminal-view";
 import { OrdinaryPixelInput } from "../../pixel-scroll/ordinary-input";
-import { PixelController } from "../../pixel-scroll/controller";
+import { attachPixelScroll } from "../../pixel-scroll/attach";
 import { createCliRenderer } from "@opentui/core";
 import { createRoot } from "@opentui/react";
 import { Shell, type Application, type ApplicationOptions } from "../../client";
@@ -266,7 +266,7 @@ export async function runInPage(
   const control = embedded
     ? controlledNetwork(fetch ?? ((input, init) => globalThis.fetch(input, init)))
     : undefined;
-  let pixels: PixelController | undefined;
+  let pixels: ReturnType<typeof attachPixelScroll>;
   const write = (data: string) => {
     pixels?.ordinary(data);
     return stdin.write(data);
@@ -304,7 +304,8 @@ export async function runInPage(
     exitOnCtrlC: false,
     exitSignals: [],
   });
-  pixels = PixelController.attach(renderer, (commands) => terminal.write(commands), {
+  pixels = attachPixelScroll(renderer, {
+    write: (commands) => terminal.write(commands),
     pixelScroll,
   });
   // Framed, the embedding page asks at each turn of the wheel whether the application
