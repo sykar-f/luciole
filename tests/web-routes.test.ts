@@ -68,3 +68,18 @@ test("LUCIOLE_WEB_ORIGIN is an origin, not a URL", () => {
   expect(WebOrigin.safeParse(`${ORIGIN}/app`).success).toBe(false);
   expect(WebOrigin.safeParse("notes.example.com").success).toBe(false);
 });
+
+test("Server pixel opt-in reaches every page entry and preserves its query", () => {
+  const web = webAccess(directory, ORIGIN, true);
+  const serve = (path: string) => web.serve(request(path), new URL(`${ORIGIN}${path}`));
+  for (const path of ["/", WEB_PATH.slice(0, -1), WEB_PATH, `${WEB_PATH}index.html`]) {
+    const response = serve(`${path}?path=%2Fnotes&restore=off`);
+    expect(response?.status).toBe(302);
+    const target = new URL(response?.headers.get("location") ?? "", ORIGIN);
+    expect(target.searchParams.has("pixel-scroll")).toBe(true);
+    expect(target.searchParams.get("path")).toBe("/notes");
+    expect(target.searchParams.get("restore")).toBe("off");
+    expect(serve(target.pathname + target.search)?.status).toBe(200);
+  }
+  expect(serve(`${WEB_PATH}?pixel-scroll`)?.status).toBe(200);
+});

@@ -16,6 +16,8 @@ export type WindowSessionOptions = {
   command: readonly string[];
   env?: Record<string, string | undefined>;
   cwd?: string;
+  /** Parsed host launch flag; relayed to the Client without changing app arguments. */
+  pixelScroll?: boolean;
   /** The program's output, decoded, a batch per event loop turn. */
   send: (data: string) => void;
   onExit: (code: number | null) => void;
@@ -52,7 +54,12 @@ export function createWindowSession(options: WindowSessionOptions): WindowSessio
         cols: size.cols,
         rows: size.rows,
         cwd: options.cwd,
-        env: { ...options.env, LUCIOLE_DESKTOP: "1", BUN_BE_BUN: undefined },
+        env: {
+          ...options.env,
+          ...(options.pixelScroll ? { LUCIOLE_PIXEL_SCROLL: "1" } : {}),
+          LUCIOLE_DESKTOP: "1",
+          BUN_BE_BUN: undefined,
+        },
         onData: (bytes) => {
           pending += decoder.decode(bytes, { stream: true });
           if (scheduled) return;

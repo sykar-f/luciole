@@ -52,7 +52,7 @@ test(
     const preload = join(directory, "preload.ts");
     await Bun.write(
       preload,
-      `globalThis.OPENTUI_WASM = new Uint8Array(await Bun.file(${JSON.stringify(join(runtime, "opentui.wasm"))}).arrayBuffer());`,
+      `Object.assign(globalThis, { window: globalThis, parent: globalThis, location: { search: "" } }); globalThis.OPENTUI_WASM = new Uint8Array(await Bun.file(${JSON.stringify(join(runtime, "opentui.wasm"))}).arrayBuffer());`,
     );
     const child = Bun.spawn(
       [process.execPath, "test", "--preload", preload, join(directory, "fixture.test.js")],

@@ -22,6 +22,7 @@ import type { Session } from "../../restore";
 import { isInputStream, terminalOutput } from "../streams";
 import { wheelRoom } from "../wheel-room";
 import {
+  pixelScrollOf,
   controlledNetwork,
   embedded,
   onInput,
@@ -64,7 +65,7 @@ export type PageOptions = {
   restore?: boolean;
   /** The route to open when no session is restored (embed.ts, `pathOf`). */
   path?: string;
-  /** `false` keeps row scrolling in the web runtime. Enabled by default. */
+  /** Overrides the URL launch flag; pixel scrolling is off by default. */
   pixelScroll?: boolean;
 } & Look;
 
@@ -228,7 +229,7 @@ export async function runInPage(
     name,
     sessionKey,
     restore = true,
-    pixelScroll = true,
+    pixelScroll = pixelScrollOf(location.search),
     path,
     grid,
     background,
@@ -307,14 +308,17 @@ export async function runInPage(
   });
   const failed = (error: unknown) => console.error(messageOf(error));
   const writer = detectOpenTuiControlWriter(renderer);
-  pixels = attachPixelScroll(renderer, {
-    write: (commands) => {
-      // The controller does not await writes, including its final release.
-      if (writer.available) void writer.renderer.writeControl(Buffer.from(commands)).catch(failed);
-      else terminal.write(commands);
-    },
-    pixelScroll,
-  });
+  pixels = pixelScroll
+    ? attachPixelScroll(renderer, {
+        write: (commands) => {
+          // The controller does not await writes, including its final release.
+          if (writer.available)
+            void writer.renderer.writeControl(Buffer.from(commands)).catch(failed);
+          else terminal.write(commands);
+        },
+        pixelScroll,
+      })
+    : undefined;
   // Framed, the embedding page asks at each turn of the wheel whether the application
   // still scrolls under the pointer. Without mouse tracking the wheel reaches nothing it
   // draws: xterm.js would turn it into arrow keys.

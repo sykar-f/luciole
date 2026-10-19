@@ -385,11 +385,18 @@ de recalage, sauf le retour canonique nécessaire à la libération.
 
 ## Comportement du contrôleur web et desktop
 
-`runInPage` installe le contrôleur par défaut via `attachPixelScroll(renderer, options)` ; `pixelScroll: false` (également
-accepté par `run`) désactive son installation. La découverte ne bloque jamais
+Le défilement pixel est désactivé par défaut sur le web et le desktop : aucun
+contrôleur n'est attaché. Une option explicite `pixelScroll: true | false` de `run`
+ou `runInPage` prime toujours sur le lancement. Sinon, `--pixel-scroll` ou
+`LUCIOLE_PIXEL_SCROLL=1` l'active au lancement du binaire ; le Server relaie ce
+choix à la page par `?pixel-scroll`. Ce paramètre active aussi un site statique
+(`--web-local`), sans rebuild. L'hôte desktop relaie son flag ou sa variable au
+Client sur le PTY. `runInPage` installe alors le contrôleur via
+`attachPixelScroll(renderer, options)`. L'addon de la vue reste chargé : il ne
+répond qu'à la découverte d'un contrôleur activé. La découverte ne bloque jamais
 le démarrage. Sans réponse compatible, avec la réduction des mouvements ou le
 lecteur d'écran, le chemin ordinaire par lignes reste actif. Avec
-`LUCIOLE_DESKTOP=1`, `run` installe aussi ce contrôleur par défaut si le runtime
+`LUCIOLE_DESKTOP=1`, `run` installe aussi ce contrôleur lorsqu’il est activé, si le runtime
 fournit les capacités du patch, le writer de contrôle ordonné et l’observateur
 souris. Sur OpenTUI stock, ou dans un terminal natif ordinaire, le défilement
 reste par lignes.

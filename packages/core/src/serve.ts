@@ -31,6 +31,7 @@ const ServerEnvironment = z.object({
   LUCIOLE_DEVTOOLS: z.string().optional(),
   /** The one browser origin the web runtime is served to (src/web-routes.ts). */
   LUCIOLE_WEB_ORIGIN: WebOrigin.optional(),
+  LUCIOLE_PIXEL_SCROLL: z.string().optional(),
 });
 
 export function serve(config: ServerConfig) {
@@ -58,7 +59,7 @@ export function serve(config: ServerConfig) {
     auth,
     ...(env.data.LUCIOLE_DEVTOOLS === undefined ? {} : { devtools: env.data.LUCIOLE_DEVTOOLS }),
     testing,
-    web: webAccess(config.web, env.data.LUCIOLE_WEB_ORIGIN),
+    web: webAccess(config.web, env.data.LUCIOLE_WEB_ORIGIN, env.data.LUCIOLE_PIXEL_SCROLL === "1"),
     keepAlive: (req) => server.timeout(req, 0),
     ...(dropOnce
       ? {

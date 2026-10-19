@@ -454,7 +454,7 @@ l'option, propose la plus proche (« did you mean ») et sort avec le code 2. `-
 généré : options de l'application, puis options du runtime, puis exemples.
 
 Les options du runtime sont réservées ; le build refuse une application qui déclare
-`--url --on --target --grace --yes --help -h --version --new`.
+`--url --on --target --grace --yes --help -h --version --new --pixel-scroll`.
 
 Côté Server, la valeur est typée par l'import, sans génération de code :
 

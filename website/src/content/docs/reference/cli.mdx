@@ -316,3 +316,15 @@ Apps installed from the npm registry live in `$XDG_DATA_HOME/luciole/apps/`.
   A compiled app binary has its own commands (`serve`, `--url`, `--on`, `--new`, `--version`): see
   [opening an app](/docs/guides/opening-an-app/#hand-someone-a-single-binary).
 </Note>
+
+### Pixel scrolling at launch
+
+A compiled app accepts `--pixel-scroll`, including `<app> serve --pixel-scroll`.
+Pixel scrolling is off by default in web and desktop hosts. `LUCIOLE_PIXEL_SCROLL=1`
+enables it without a command-line flag. The desktop host relays its setting to the
+Client; the Server redirects its web page to include `?pixel-scroll`. Add that
+parameter directly for a static site (`luciole build --web-local`). An explicit
+`pixelScroll: true | false` in `run` or `runInPage` takes precedence.
+
+`--` ends runtime options; words after it belong to the application. The name
+`pixel-scroll` is reserved and cannot be declared in `app/args.ts`.

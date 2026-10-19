@@ -227,8 +227,10 @@ test("ordinary SGR input after disposal never accesses the renderer", () => {
       renders++;
     },
   });
-  const controller = PixelController.attach(renderer as unknown as CliRenderer, (s) =>
-    writes.push(s),
+  const controller = PixelController.attach(
+    renderer as unknown as CliRenderer,
+    (s) => writes.push(s),
+    { pixelScroll: true },
   );
   if (!controller) throw new Error("Missing controller");
   const discovery = writes[0];
@@ -297,9 +299,13 @@ test("viewport key ownership is optional and keeps modified Page routing", () =>
         };
       },
     });
-    const controller = PixelController.attach(renderer as unknown as CliRenderer, (wire) => {
-      if (!query) query = discoveryQuery(wire);
-    });
+    const controller = PixelController.attach(
+      renderer as unknown as CliRenderer,
+      (wire) => {
+        if (!query) query = discoveryQuery(wire);
+      },
+      { pixelScroll: true },
+    );
     if (query?.op !== "query" || !controller) throw new Error("Missing controller query");
     osc.emit(
       "sequence",
@@ -429,8 +435,10 @@ test("owner pointer dispatch scopes the named origin without changing event coor
         };
       },
     });
-    const controller = PixelController.attach(renderer as unknown as CliRenderer, (wire) =>
-      writes.push(wire),
+    const controller = PixelController.attach(
+      renderer as unknown as CliRenderer,
+      (wire) => writes.push(wire),
+      { pixelScroll: true },
     );
     try {
       const wire = writes[0];
@@ -707,8 +715,10 @@ function windowController(version: 1 | 2 = 2) {
     },
   });
   const writes: string[] = [];
-  const controller = PixelController.attach(renderer as unknown as CliRenderer, (wire) =>
-    writes.push(wire),
+  const controller = PixelController.attach(
+    renderer as unknown as CliRenderer,
+    (wire) => writes.push(wire),
+    { pixelScroll: true },
   );
   const query = discoveryQuery(writes[0] ?? "");
   if (!controller || query?.op !== "query") throw new Error("Missing controller query");
@@ -1073,6 +1083,7 @@ test("shared attachment injects discovery output and ordinary input with lifecyc
     let receive: ((sequence: string) => void) | undefined;
     let unsubscribed = 0;
     const attached = attachPixelScroll(f.renderer as unknown as CliRenderer, {
+      pixelScroll: true,
       write: (commands) => {
         writes.push(commands);
       },
@@ -1142,4 +1153,17 @@ test("shared attachment leaves stock renderers and disabled pixel scroll untouch
     expect(observers).toBe(0);
     expect(f.renderer.listenerCount("destroy")).toBe(0);
   }
+});
+
+test("the shared controller stays detached by default", () => {
+  const f = attachmentRenderer();
+  const writes: string[] = [];
+  expect(
+    attachPixelScroll(f.renderer as unknown as CliRenderer, {
+      write: (wire) => {
+        writes.push(wire);
+      },
+    }),
+  ).toBeUndefined();
+  expect(writes).toEqual([]);
 });

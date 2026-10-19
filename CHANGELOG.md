@@ -13,6 +13,14 @@ and marked **Breaking**.
 
 ## [Unreleased]
 
+### Changed
+
+- Pixel scrolling is now off by default on the web and desktop. Enable it at launch
+  with `--pixel-scroll` or `LUCIOLE_PIXEL_SCROLL=1`, or add `?pixel-scroll` to the web
+  page URL (also for `--web-local`). An explicit `pixelScroll: true | false` in
+  `run` or `runInPage` takes precedence. Applications can no longer declare the
+  `pixel-scroll` argument: it is reserved for the runtime.
+
 ### Added
 
 - `TestClient.spans()` captures text, cell widths, RGBA colors and attributes after

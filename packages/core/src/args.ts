@@ -68,6 +68,7 @@ export const RESERVED_FLAGS: readonly string[] = [
   "help",
   "version",
   "new",
+  "pixel-scroll",
 ];
 export const RESERVED_SHORTS: readonly string[] = ["h"];
 

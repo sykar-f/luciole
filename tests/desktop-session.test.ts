@@ -57,3 +57,24 @@ test("closing the window hangs the program up", async () => {
   await until(() => window.exit() !== undefined);
   expect(window.exit()).toBe(7);
 });
+
+for (const source of ["flag", "environment", "absent"] as const) {
+  test(`desktop host relays pixel scroll from ${source}`, async () => {
+    let output = "";
+    let exit: number | null | undefined;
+    const session = createWindowSession({
+      command: ["/bin/sh", "-c", 'echo "pixel=[${LUCIOLE_PIXEL_SCROLL-unset}]"'],
+      env: { LUCIOLE_PIXEL_SCROLL: source === "environment" ? "1" : undefined },
+      pixelScroll: source === "flag",
+      send: (data) => {
+        output += data;
+      },
+      onExit: (code) => {
+        exit = code;
+      },
+    });
+    session.open({ cols: 40, rows: 10 });
+    await until(() => exit !== undefined);
+    expect(output).toContain(source === "absent" ? "pixel=[unset]" : "pixel=[1]");
+  });
+}

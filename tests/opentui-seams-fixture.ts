@@ -304,7 +304,7 @@ test("private input waits through a yielding canonical paint, before planning it
     return () => {};
   });
   const wires: string[] = [];
-  const controller = PixelController.attach(f.r, (wire) => wires.push(wire));
+  const controller = PixelController.attach(f.r, (wire) => wires.push(wire), { pixelScroll: true });
   const queries = (wires[0] ?? "").slice(start.length, -end.length);
   const query = decode(queries.slice(0, queries.indexOf("\x1b\\") + 2));
   if (!controller || !receive || query?.op !== "query") throw new Error("Missing discovery");

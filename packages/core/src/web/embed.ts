@@ -190,6 +190,9 @@ export function controlledNetwork(inner: Fetch): {
   };
 }
 
+/** `?pixel-scroll`: enable pixel scrolling for this page, including static sites. */
+export const pixelScrollOf = (search: string) => new URLSearchParams(search).has("pixel-scroll");
+
 const Colour = z.string().check(z.regex(/^[0-9a-f]{6}$/i));
 export type Look = { grid?: Grid; background?: string; foreground?: string };
 

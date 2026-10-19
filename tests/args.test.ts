@@ -163,3 +163,9 @@ test("a launcher takes its own flags out, and leaves the rest to the application
   // What only a compiled binary does is said as before.
   expect(() => builtArgs(["--on", "host"])).toThrow("luciole build --compile");
 });
+
+test("pixel-scroll is reserved for the runtime", () => {
+  expect(() => defineArgs({ options: z.object({ pixelScroll: z.boolean().optional() }) })).toThrow(
+    "--pixel-scroll is reserved by luciole",
+  );
+});

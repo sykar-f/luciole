@@ -646,16 +646,16 @@ Every event carries `at`, in epoch milliseconds.
 An app does not need these exports. A host, a test or a tool uses them to create and drive an
 app.
 
-| Export                                     | Contract                                                                                           |
-| ------------------------------------------ | -------------------------------------------------------------------------------------------------- |
-| `createApplication(options)`               | Returns an `Application`, configured by `ApplicationOptions` (below).                              |
-| `Shell({ app })`                           | Renders an `Application`.                                                                          |
-| `run(create, { name?, sessionKey? })`      | Starts a Client in the current process. `create` receives `RunOptions` and returns the app.        |
-| `createActions()`                          | Binds one bundle's Server Function references and `host` to its `Application`. The build calls it. |
-| `ApplicationEvent`                         | The type of the events above.                                                                      |
-| `LiveState`, `TracerLike`                  | The types of `useLive`'s result and of `instrumentTracing`'s tracer.                               |
-| `Session`, `SessionEntry`                  | The types of a restored session and its history entries.                                           |
-| `OpenApplicationOptions`, `PublisherCheck` | The types of `openApplication`'s options and its signature check.                                  |
+| Export                                              | Contract                                                                                           |
+| --------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| `createApplication(options)`                        | Returns an `Application`, configured by `ApplicationOptions` (below).                              |
+| `Shell({ app })`                                    | Renders an `Application`.                                                                          |
+| `run(create, { name?, sessionKey?, pixelScroll? })` | Starts a Client in the current process. `create` receives `RunOptions` and returns the app.        |
+| `createActions()`                                   | Binds one bundle's Server Function references and `host` to its `Application`. The build calls it. |
+| `ApplicationEvent`                                  | The type of the events above.                                                                      |
+| `LiveState`, `TracerLike`                           | The types of `useLive`'s result and of `instrumentTracing`'s tracer.                               |
+| `Session`, `SessionEntry`                           | The types of a restored session and its history entries.                                           |
+| `OpenApplicationOptions`, `PublisherCheck`          | The types of `openApplication`'s options and its signature check.                                  |
 
 | Option of `ApplicationOptions`                   | Type                   | Default            | Contract                                                                                  |
 | ------------------------------------------------ | ---------------------- | ------------------ | ----------------------------------------------------------------------------------------- |
@@ -735,7 +735,7 @@ timeout and the `signal` apply until that root arrives.
   caption="A test loses the first answer of one Server Function, to check that the Coder example never sends it twice."
 />
 
-`run(create, { name?, sessionKey? })` connects to the Server, reopens the restored session and
+`run(create, { name?, sessionKey?, pixelScroll? })` connects to the Server, reopens the restored session and
 renders the app in your terminal. Its options:
 
 - `name` names the Client in its messages and its restored sessions. Default: `"luciole"`.
@@ -750,6 +750,12 @@ renders the app in your terminal. Its options:
 - `session`, the restored session
 - `quitOnCtrlC`, `false` in a desktop window
 - `wrapTransport`, when `luciole devtools` is attached
+
+Pixel scrolling is off by default in web and desktop hosts. An explicit
+`pixelScroll: true | false` takes precedence over launch settings. Otherwise,
+`--pixel-scroll` or `LUCIOLE_PIXEL_SCROLL=1` enables it; the web page also accepts
+`?pixel-scroll`, including static sites built with `--web-local`. Plain terminals
+keep row scrolling.
 
 `run()` throws `Invalid Client environment: …` when a variable is invalid. When the Server's
 address is invalid, or its connection cannot open, `run()` prints the reason and exits with

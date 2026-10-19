@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { until } from "./helpers";
 import { decode, encode, type PixelOperation } from "../packages/core/src/pixel-scroll/protocol";
 
-async function launch(mode: string, desktop = true, prepared = false) {
+async function launch(mode: string, desktop = true, prepared = false, pixelFlag?: string) {
   const directory = await mkdtemp(join(process.env.TMPDIR ?? "/tmp", "desktop-pixel-"));
   let output = "";
   const events: unknown[] = [];
@@ -12,6 +12,7 @@ async function launch(mode: string, desktop = true, prepared = false) {
     env: {
       ...process.env,
       LUCIOLE_DESKTOP: desktop ? "1" : undefined,
+      LUCIOLE_PIXEL_SCROLL: pixelFlag,
       LUCIOLE_SESSION: undefined,
       LUCIOLE_DEVTOOLS: undefined,
       XDG_STATE_HOME: directory,
@@ -199,3 +200,39 @@ test.skipIf(!process.env.LUCIOLE_DESKTOP_PIXEL_CORE)(
   },
   20_000,
 );
+
+for (const [mode, flag, attached] of [
+  ["launch-default", undefined, false],
+  ["launch-enabled", "1", true],
+  ["launch-other", "true", false],
+  ["disabled", "1", false],
+  ["attached", "0", true],
+] as const) {
+  test(`native pixel precedence: ${mode}, environment ${flag ?? "absent"}`, async () => {
+    const f = await launch(mode, true, false, flag);
+    try {
+      await f.wait(() => f.events.some((event) => JSON.stringify(event) === '{"ready":true}'));
+      expect(f.events.some((event) => JSON.stringify(event) === '{"attached":true}')).toBe(
+        attached,
+      );
+      if (!attached) {
+        await f.wait(() => f.output().includes("Desktop row"));
+        f.child.terminal?.write("\x1b[<65;3;3M");
+        await f.wait(() =>
+          f.events.some(
+            (event) =>
+              typeof event === "object" &&
+              event !== null &&
+              "rowScroll" in event &&
+              Number(event.rowScroll) > 0,
+          ),
+        );
+        expect(operations(f.output())).toHaveLength(0);
+      }
+      f.child.send({ quit: true });
+      expect(await f.child.exited, await f.errors).toBe(0);
+    } finally {
+      await f.close();
+    }
+  }, 15_000);
+}

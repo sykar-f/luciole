@@ -44,11 +44,15 @@ Côté code, `run()` lit la variable et crée l'Application avec `quitOnCtrlC: f
 générée ne l'affiche plus. Un hôte qui ouvre des panes (`openApplication`) leur passe la
 même option.
 
-Le Client attache aussi le contrôleur partagé de [défilement pixel](PIXEL-SCROLL.md)
+Le défilement reste par lignes par défaut. `open Notes.app --args --pixel-scroll`
+ou `LUCIOLE_PIXEL_SCROLL=1` au lancement de l’hôte active le défilement pixel,
+sans rebuild : l’hôte relaie le choix au programme sur le PTY.
+Le Client attache alors le contrôleur partagé de [défilement pixel](PIXEL-SCROLL.md)
 quand le runtime OpenTUI fournit les capacités du patch, `writeControl` et
 `observeMouseInput`. Le writer ordonne les commandes avec les frames, et
 l’observateur reçoit les rapports souris avant leur dispatch ordinaire.
-`run(create, { pixelScroll: false })` désactive cet attachement. Sans ces capacités,
+`run(create, { pixelScroll: true | false })` prime sur le flag ou la variable ;
+`false` désactive cet attachement même lorsqu’ils sont présents. Sans ces capacités,
 ou sans réponse compatible de la vue, le défilement reste par lignes ; un terminal
 natif ordinaire n’attache pas le contrôleur. Quitter détruit le renderer et détache
 le contrôleur avec son abonnement souris.

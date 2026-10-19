@@ -70,7 +70,7 @@ export class PixelController {
   static attach(
     renderer: CliRenderer,
     write: (commands: string) => void,
-    { pixelScroll = true, settle = false }: { pixelScroll?: boolean; settle?: boolean } = {},
+    { pixelScroll = false, settle = false }: { pixelScroll?: boolean; settle?: boolean } = {},
   ) {
     if (!pixelScroll) return;
     const found = detectOpenTuiSeams(renderer);
