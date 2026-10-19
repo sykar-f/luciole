@@ -62,16 +62,18 @@ Le navigateur ouvre `https://notes.example.com/` et arrive sur `/_luciole/web/`.
 est dans `$XDG_CACHE_HOME/luciole/web/<clé d'ABI>-<hash du framework>/` : la page est
 aussi du code du framework. `luciole build --web` le prépare s'il manque. En local : `LUCIOLE_WEB_ORIGIN=http://127.0.0.1:3000`.
 
-| Fichier                                 | Rôle                                                                                                 |
-| --------------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| `src/web-runtime.ts`                    | Préparation par clé d'ABI : OpenTUI au tag de l'ABI, patch, Zig, bundle ; copie                      |
-| `src/web-routes.ts`                     | `/_luciole/web/*` et l'origine déclarée (`Origin` et `Host`)                                         |
-| `src/web/build.ts`                      | Bundle de la page : variantes, OpenTUI depuis ses sources, shims Node, clé d'ABI                     |
-| `src/web/platform/`                     | Variantes : `run`, `app-bundle`, `host-direct`, `vt/terminal`, `flight/server`                       |
-| `src/web/opentui/`, `src/web/node/`     | Backend FFI WASM d'OpenTUI, Worker tree-sitter ; built-ins Node d'une page                           |
-| `web/opentui-v0.6.6.patch`              | Le patch OpenTUI : scène native et ABI C pour wasm32-wasi                                            |
-| `web/opentui-v0.6.6-pixel-scroll.patch` | Les seams de frame, hit maps et viewport, appliquées après le port wasm32                            |
-| `scripts/web/`                          | Driver CDP et parcours navigateur (`test:web`, `test:web:local`, `test:web:forge`, `test:web:coder`) |
+| Fichier                                 | Rôle                                                                                                                        |
+| --------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `src/web-runtime.ts`                    | Préparation par clé d'ABI : bundle web, orchestration et copie ; préparation OpenTUI partagée dans `src/opentui-runtime.ts` |
+| `src/opentui-runtime.ts`                | Préparation partagée des sources OpenTUI patchées, compilation des bibliothèques et publication atomique des runtimes.      |
+| `src/targets.ts`                        | Cibles de compilation et emplacement du cache partagés, réexportés par `src/compile.ts`.                                    |
+| `src/web-routes.ts`                     | `/_luciole/web/*` et l'origine déclarée (`Origin` et `Host`)                                                                |
+| `src/web/build.ts`                      | Bundle de la page : variantes, OpenTUI depuis ses sources, shims Node, clé d'ABI                                            |
+| `src/web/platform/`                     | Variantes : `run`, `app-bundle`, `host-direct`, `vt/terminal`, `flight/server`                                              |
+| `src/web/opentui/`, `src/web/node/`     | Backend FFI WASM d'OpenTUI, Worker tree-sitter ; built-ins Node d'une page                                                  |
+| `web/opentui-v0.6.6.patch`              | Le patch OpenTUI : scène native et ABI C pour wasm32-wasi                                                                   |
+| `web/opentui-v0.6.6-pixel-scroll.patch` | Les seams de frame, hit maps et viewport, appliquées après le port wasm32                                                   |
+| `scripts/web/`                          | Driver CDP et parcours navigateur (`test:web`, `test:web:local`, `test:web:forge`, `test:web:coder`)                        |
 
 ## Mode d'emploi (tout dans le navigateur)
 

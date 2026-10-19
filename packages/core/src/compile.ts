@@ -5,7 +5,6 @@
  */
 import { definedProperties } from "./defined-properties";
 import { run, textOf } from "./subprocess";
-import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { cp, mkdir, mkdtemp, rename, rm } from "node:fs/promises";
 import { z } from "zod";
@@ -25,18 +24,11 @@ import { readAppMetadata } from "./app-metadata";
 import { matchesDist, publishedDist } from "./registry/npm";
 import { checkSigning, notarizeClient, signClient, type SignOptions } from "./sign";
 
-export const COMPILE_TARGETS = [
-  "bun-darwin-arm64",
-  "bun-darwin-x64",
-  "bun-linux-x64",
-  "bun-linux-arm64",
-  "bun-linux-x64-musl",
-  "bun-linux-arm64-musl",
-] as const satisfies readonly Bun.Build.CompileTarget[];
-export type CompileTarget = (typeof COMPILE_TARGETS)[number];
+import { COMPILE_TARGETS, type CompileTarget, hostTarget, defaultCache } from "./targets";
+export { COMPILE_TARGETS, type CompileTarget, hostTarget, defaultCache } from "./targets";
+
 const isTarget = (target: string): target is CompileTarget =>
   COMPILE_TARGETS.some((t) => t === target);
-export const hostTarget = () => `bun-${process.platform}-${process.arch}`;
 
 export type CompileOptions = {
   /** Defaults to the machine running the build. */
@@ -280,9 +272,6 @@ async function compileEntry(
       options.notarize === undefined ? undefined : await notarizeClient(outfile, options.notarize),
   });
 }
-
-export const defaultCache = () =>
-  join(process.env["XDG_CACHE_HOME"] || join(homedir(), ".cache"), "luciole");
 
 /**
  * Bun's stock runtime for `target` (`@oven/bun-<os>-<arch>` on npm), downloaded on the
