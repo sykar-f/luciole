@@ -6,7 +6,8 @@
  * Otherwise a shell warns "job control turned off", Ctrl+C reaches no foreground process
  * group and `sleep 30` survives it. A terminal emulator or tmux does the same; closing
  * the PTY then hangs the whole session up.
- * - macOS: Bun 1.4.x does not attach a preallocated Bun.Terminal to the new session.
+ * - macOS: Bun 1.4.x does not attach a preallocated Bun.Terminal to the new session
+ *   (oven-sh/bun#33237). Remove the launcher once a fixed Bun release is the minimum.
  *   `detached: true` creates the session. The native luciole-pty launcher calls
  *   TIOCSCTTY, then execs the program with the same pid and file descriptors.
  *   A check before spawn keeps missing-command errors synchronous. If exec fails

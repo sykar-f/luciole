@@ -38,3 +38,32 @@ test.if(process.platform === "linux")(
     }
   },
 );
+
+/** macOS revokes the slave when its session leader exits; the tail must arrive first. */
+test("a direct program's last UTF-8 bytes arrive before its exit code", async () => {
+  const tail = "é終🙂".repeat(512) + "[last-byte]";
+  const chunks: Buffer[] = [];
+  let report!: (snapshot: { code: number | null; bytes: Buffer }) => void;
+  const exited = new Promise<{ code: number | null; bytes: Buffer }>((resolve) => {
+    report = resolve;
+  });
+  const pty = spawnPty({
+    command: [
+      process.execPath,
+      "-e",
+      `import {writeSync} from 'node:fs'; writeSync(1, Buffer.from(${JSON.stringify(tail)})); process.exit(23);`,
+    ],
+    cols: 80,
+    rows: 24,
+    onData: (data) => chunks.push(Buffer.from(data)),
+    // Snapshot here: later output must not make an early exit notification look correct.
+    onExit: (code) => report({ code, bytes: Buffer.concat(chunks) }),
+  });
+  try {
+    const snapshot = await exited;
+    expect(snapshot.code).toBe(23);
+    expect(snapshot.bytes).toEqual(Buffer.from(tail));
+  } finally {
+    pty.kill();
+  }
+});
