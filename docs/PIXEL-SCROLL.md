@@ -399,7 +399,9 @@ Le module `pixel-scroll/attach.ts` reçoit le writer ordonné `write`, les optio
 retourne une fonction de désabonnement. Le résultat expose `ordinary` et
 `dispose` ; sans les capacités du patch, ou avec `pixelScroll: false`, il vaut
 `undefined`. La destruction du renderer désabonne aussi l'observateur.
-Dans le web, `write` appelle toujours `terminal.write` et le writer stdin appelle
+Dans le web, `write` utilise `writeControl` lorsque le renderer le fournit, sinon
+`terminal.write` ; ses rejets suivent le signalement des erreurs de sortie de la
+page, sans rejet non traité. Le writer stdin appelle
 `ordinary(data)` avant `stdin.write(data)`, au même endroit après le contrôle
 réseau. Le chemin desktop injecte `writeControl` du renderer et son abonnement
 `observeMouseInput` à `input:mouse`, qui transmet le SGR brut avant le dispatch.
@@ -467,8 +469,8 @@ promesse après la transaction, jamais depuis un callback de capture de cette
 même frame. `detectOpenTuiControlWriter` vérifie cette capacité séparément des
 points d’intégration de rendu existants.
 
-Ces points d’intégration sont disponibles sans modifier le comportement des
-applications : aucun contrôleur ne les utilise encore. Le chemin web actuel
-écrit ses commandes directement avec `terminal.write`, hors de cette file.
-Il reste donc exposé à une commande insérée entre les fragments d’une frame
-pendant son drainage ; `frame:plan:end` n’est pas une barrière de sortie.
+Les contrôleurs web et desktop utilisent cette file avec le runtime patché :
+leurs commandes attendent le drainage de tous les fragments de la frame.
+Le repli web sur `terminal.write`, réservé à un renderer sans `writeControl`,
+reste exposé à une insertion entre les fragments ; `frame:plan:end` n’est pas
+une barrière de sortie.

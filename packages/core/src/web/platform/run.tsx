@@ -14,6 +14,7 @@ import { FitAddon } from "@xterm/addon-fit";
 import { attachTerminalView, cellAt, wheelReports } from "../terminal-view";
 import { OrdinaryPixelInput } from "../../pixel-scroll/ordinary-input";
 import { attachPixelScroll } from "../../pixel-scroll/attach";
+import { detectOpenTuiControlWriter } from "../../opentui-seams";
 import { createCliRenderer } from "@opentui/core";
 import { createRoot } from "@opentui/react";
 import { Shell, type Application, type ApplicationOptions } from "../../client";
@@ -304,8 +305,14 @@ export async function runInPage(
     exitOnCtrlC: false,
     exitSignals: [],
   });
+  const failed = (error: unknown) => console.error(messageOf(error));
+  const writer = detectOpenTuiControlWriter(renderer);
   pixels = attachPixelScroll(renderer, {
-    write: (commands) => terminal.write(commands),
+    write: (commands) => {
+      // The controller does not await writes, including its final release.
+      if (writer.available) void writer.renderer.writeControl(Buffer.from(commands)).catch(failed);
+      else terminal.write(commands);
+    },
     pixelScroll,
   });
   // Framed, the embedding page asks at each turn of the wheel whether the application
@@ -321,7 +328,7 @@ export async function runInPage(
   new ResizeObserver(layout).observe(element);
   stage("terminal");
   // Output failures close the renderer independently of a voluntary quit.
-  void renderer.closed.catch((error: unknown) => console.error(messageOf(error)));
+  void renderer.closed.catch(failed);
   app.quit = () => {
     if (renderer.isDestroyed) return;
     session.remove();
