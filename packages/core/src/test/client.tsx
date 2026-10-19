@@ -2,7 +2,7 @@ import { join } from "node:path";
 import { act, type ReactNode } from "react";
 import { KeyCodes, type MouseButton } from "@opentui/core/testing";
 import { testRender } from "@opentui/react/test-utils";
-import { renderFrame } from "./frame";
+import { renderFrame, renderSpans, type SpanFrame } from "./frame";
 import type { Application, ApplicationOptions, TransportEvent } from "../client";
 import { until, untilDrawn, untilFrame, WAIT_MS, type TestUI } from "./wait";
 
@@ -133,6 +133,13 @@ export type TestClient = {
   settled(text?: string): Promise<string>;
   /** The screen now, as text. */
   frame(): Promise<string>;
+  /**
+   * Renders and returns a detached snapshot after native presentation. Each line has
+   * spans with text, width in terminal cells, foreground/background RGBA colors and
+   * numeric attributes. Includes cols, rows and the zero-based cursor coordinates.
+   * Later renders do not change the snapshot; RGBA colors support toInts() and equals().
+   */
+  spans(): Promise<SpanFrame>;
   /** A left click on the first cell of `text`; fails when the screen does not show it. */
   click(text: string, button?: MouseButton): Promise<void>;
   /**
@@ -184,6 +191,7 @@ export async function openClient(
     waitFor: (text, timeout) => untilFrame(ui, text, timeout),
     settled: (text) => untilDrawn(ui, text),
     frame: () => renderFrame(ui),
+    spans: () => renderSpans(ui),
     click: (text, button) => act(() => clickOn(ui, text, button)),
     press: (key, modifiers) =>
       act(async () => {

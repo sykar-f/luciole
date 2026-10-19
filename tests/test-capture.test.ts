@@ -134,22 +134,6 @@ test("frame propagates a later capture failure after an earlier frame succeeded"
   }
 });
 
-// These guards let the regression run against the parent, before the added API exists.
-function hasSpans<T extends object>(
-  client: T,
-): client is T & {
-  spans(): Promise<ReturnType<Parameters<typeof renderFrame>[0]["captureSpans"]>>;
-} {
-  return typeof Reflect.get(client, "spans") === "function";
-}
-function hasNoAct<T extends object>(
-  module: T,
-): module is T & {
-  renderCaptureWithoutAct<R>(ui: Parameters<typeof renderFrame>[0], capture: () => R): Promise<R>;
-} {
-  return typeof Reflect.get(module, "renderCaptureWithoutAct") === "function";
-}
-
 /** Start another native presentation before a renderOnce caller resumes. */
 function overlap(ui: Parameters<typeof renderFrame>[0], change: () => void) {
   const renderOnce = ui.renderOnce;
@@ -178,7 +162,6 @@ test(
       text.content = "snapshot after";
     });
     try {
-      if (!hasSpans(client)) throw new Error("TestClient.spans is missing");
       const snapshot = await client.spans();
       expect(concurrent.forced()).toBe(true);
       expect(snapshot.cols).toBe(110);
@@ -223,7 +206,6 @@ test("no-act span capture fences overlapping native presentation", async () => {
     text.content = "after";
   });
   try {
-    if (!hasNoAct(frames)) throw new Error("renderCaptureWithoutAct is missing");
     const snapshot = await frames.renderCaptureWithoutAct(ui, ui.captureSpans);
     expect(snapshot.lines[0]?.spans.map((span) => span.text).join("")).toContain("before");
     expect(concurrent.forced()).toBe(true);
@@ -242,9 +224,9 @@ for (const status of ["failed", "blocked", "stopped"] as const) {
     const presentation = spyOn(ui.renderer.nativeScene, "commit").mockReturnValue(3);
     const log = spyOn(console, "error").mockImplementation(() => {});
     if (status === "blocked") Reflect.set(ui.renderer, "isSplitCursorSeedFrameBlocked", () => true);
-    if (status === "stopped") ui.renderer.suspend();
+    if (status === "stopped") Reflect.set(ui.renderer, "_controlState", "explicit_suspended");
     let result: unknown;
-    const pending = renderFrame(ui).catch((error) => {
+    const pending = renderFrame(ui).catch((error: unknown) => {
       result = error;
     });
     try {
@@ -259,6 +241,55 @@ for (const status of ["failed", "blocked", "stopped"] as const) {
       log.mockRestore();
       await ui.dispose();
       await pending;
+    }
+  });
+}
+
+for (const capture of [
+  renderFrame,
+  (ui: Parameters<typeof renderFrame>[0]) =>
+    frames.renderCaptureWithoutAct(ui, ui.captureCharFrame),
+]) {
+  test(`${capture.name || "no-act"} preserves an output-idle retry`, async () => {
+    const ui = await createTestRenderer({ width: 20, height: 3 });
+    ui.renderer.root.add(new TextRenderable(ui.renderer, { content: "retry presented" }));
+    const commit = spyOn(ui.renderer.nativeScene, "commit").mockReturnValueOnce(2);
+    try {
+      expect(await capture(ui)).toContain("retry presented");
+      expect(commit.mock.calls.length).toBeGreaterThanOrEqual(2);
+    } finally {
+      commit.mockRestore();
+      await ui.dispose();
+    }
+  });
+}
+
+for (const source of ["render", "native", "capture", "destroy"] as const) {
+  test(`no-act capture forwards ${source} failure and removes listeners`, async () => {
+    const ui = await createTestRenderer({ width: 20, height: 3 });
+    ui.renderer.root.add(new TextRenderable(ui.renderer, { content: "before" }));
+    const failure = new Error(`${source} failed`);
+    const native =
+      source === "native"
+        ? spyOn(ui.renderer.nativeScene, "commit").mockImplementation(() => {
+            throw failure;
+          })
+        : undefined;
+    if (source === "render") ui.renderOnce = () => Promise.reject(failure);
+    if (source === "destroy") ui.renderOnce = () => ui.dispose();
+    try {
+      const result = frames.renderCaptureWithoutAct(ui, () => {
+        if (source === "capture") throw failure;
+        return ui.captureCharFrame();
+      });
+      if (source === "destroy") await expect(result).rejects.toThrow("destroyed before presenting");
+      else await expect(result).rejects.toBe(failure);
+      expect(ui.renderer.listenerCount("frame")).toBe(0);
+      expect(ui.renderer.listenerCount("render:error")).toBe(0);
+      expect(ui.renderer.listenerCount("destroy")).toBe(0);
+    } finally {
+      native?.mockRestore();
+      await ui.dispose();
     }
   });
 }
