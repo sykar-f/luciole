@@ -13,18 +13,15 @@ and marked **Breaking**.
 
 ## [Unreleased]
 
-### Documentation
-
-- Installed skills and agent guidance now teach OpenTUI 0.6.6 resource ownership,
-  async terminal handoff, renderer-scoped animation, layout resets, paint hooks and
-  editor display offsets, with pointers to the upstream release docs.
+## [0.5.0] - 2026-10-18
 
 ### Added
 
-- `useProgramStatus` in `@luciole-sh/core/client` reports working, permission waits,
-  completion and errors to supporting terminals, with isolated records for embedded
-  panes. Agent and coder report their turns through it.
-
+- `useProgramStatus(identity, status)` in `@luciole-sh/core/client` reports task
+  state to terminals that support OSC 7501. Supply `app` and `title` in the
+  identity. Report work, permission waits, completion or errors with optional task
+  IDs. Embedded panes have separate records and clear them on close. The hook
+  sends no reports in the web runtime. Agent and coder now report their turns.
 - `syntaxStyle(styles, renderer)` in `@luciole-sh/core/client` creates a syntax
   style for one renderer.
 
@@ -35,28 +32,55 @@ and marked **Breaking**.
   and the starter. Upgrade all three app pins to 0.6.6 and rebuild both Client
   and Server: the runtime ABI changes.
 - **Breaking**: native resources such as `SyntaxStyle` require an owner. Use
-  `syntaxStyle(styles, renderer)` or pass `renderer.nativeScene` to the factory;
-  keep resources within their renderer's lifetime. Schedule animation with
+  `syntaxStyle(styles, renderer)` or pass `renderer.nativeScene` to the factory.
+  Create styles per renderer. The creator must release them after consumers
+  finish, within their renderer's lifetime. Schedule animation with
   `renderer.requestAnimationFrame()`, `createTimeline(options, renderer)` and
-  `getTimelineEngine(renderer)`; OpenTUI no longer installs global animation APIs.
-- **Breaking**: await `renderer.suspend()` and `renderer.resume()` around an
-  external editor. After `renderer.destroy()`, await `renderer.closed` and handle
-  its rejection before reusing streams or exiting. Luciole now does this on
-  quit, signals and fatal setup failures. Explicit app `process.exit()` uses
-  OpenTUI’s synchronous emergency restore to real stdout. Uncaught errors keep
-  OpenTUI’s non-fatal behavior. Check `renderer.isDestroyed` before late native calls.
+  `getTimelineEngine(renderer)`. OpenTUI no longer installs global animation APIs.
+- **Breaking**: await `renderer.suspend()` before an external editor takes the
+  terminal. Await `renderer.resume()` in `finally`. If you own a renderer, call
+  `renderer.destroy()`, then await `renderer.closed` and handle its rejection
+  before you reuse streams or exit. Luciole does this on quit, signals and fatal
+  setup failures. Explicit app `process.exit()` uses OpenTUI's synchronous
+  emergency restore to real stdout. Uncaught errors keep OpenTUI's non-fatal
+  behavior. Check `renderer.isDestroyed` before late native calls.
 - **Breaking**: custom renderables draw through `renderSelf` or paint hooks and
   report intrinsic size with `setMeasureProvider()`. Unbuffered hooks record
-  draws; use `buffered: true` for cell reads or move frame reads to a post-process
-  function. Drawing coordinates and sizes must be finite integers.
-- **Breaking**: removing a layout prop now restores its default, and `visible`
-  set to `null` or `undefined` shows the node. Use `visible={false}` to hide it.
-- Clients started inside SSH or mosh sessions now honor `TERM` and `COLORTERM`. With
+  draws and cannot read cells. Use an owned offscreen buffer or a whole-frame
+  post-process function for cell effects. Text, editor and image hooks also
+  record draws with `buffered: true`. Use finite integer draw positions in the
+  signed 32-bit range. Round positions at the draw boundary; retain fractional
+  animation state. Invalid coordinates throw `RangeError`.
+- **Breaking**: OpenTUI now restores layout defaults when a prop disappears or
+  receives `null` or `undefined`. Keep an explicit prop value if you need to
+  retain it. An edge reset exposes its shorthand again; a `flexShrink` reset
+  gives `1`. Set `visible={false}` to hide a node: `null` or `undefined` shows it.
+- **Breaking**: editors now preserve control characters. C0 and DEL use two
+  display cells; C1 uses four. For custom cursor or selection offsets, replace
+  string length with `EditBuffer.measureText(text)` or
+  `measureEditText(text, { widthMethod, tabWidth })` from `@opentui/core`.
+  Use the editor's width method and tab width.
+- **Breaking**: `markdownStyle(palette, renderer)` now requires a renderer.
+  In Client components, pass the renderer from `useRenderer()` in
+  `@opentui/react`. Cache native styles per renderer, as the examples do.
+- Runtime dependencies advance to React and React Flight 19.3.1, TanStack Router
+  1.170.45 and zod 4.6.7. The React DOM peer range starts at 19.3.1; the optional
+  SQLite WASM peer range starts at 3.53.4-build2. Rebuild apps to use the new ABI.
+- The web runtime uses OpenTUI 0.6.6 through WebAssembly and retains pixel-scroll
+  contract v2. With pixel scroll, native paint hooks can run twice per frame.
+  Keep side effects out of those hooks. You can reuse prepared runtimes with a
+  valid source record without Zig, git or the network. Entries without that
+  record rebuild once. A rebuild rejects source checkouts that differ from the
+  expected tag and patches, then fetches a fresh checkout.
+- Installed skills and agent guidance now teach OpenTUI 0.6.6 resource ownership,
+  async terminal handoff, animation per renderer, layout resets, paint hooks and
+  editor display offsets. The site guide covers the same upgrade rules.
+
+### Fixed
+
+- Clients inside SSH or mosh sessions now honor `TERM` and `COLORTERM`. With
   `TERM=xterm-256color` and no `COLORTERM`, colors use the 256-color palette.
   Export or forward `COLORTERM=truecolor` on the remote host for truecolor.
-- **Breaking**: `markdownStyle(palette, renderer)` now requires a renderer.
-  In Client components, pass the renderer returned by `useRenderer()` from
-  `@opentui/react`. Syntax styles in the examples and harness are cached per renderer.
 
 ## [0.4.1] - 2026-10-16
 
@@ -262,7 +286,8 @@ First public release, on npm. Five packages share this version: `luciole.sh`,
 - No multi-user load test and no public TLS proxy test. See
   <https://luciole.sh/status/>.
 
-[Unreleased]: https://github.com/sykar-f/luciole/compare/v0.4.1...HEAD
+[Unreleased]: https://github.com/sykar-f/luciole/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/sykar-f/luciole/releases/tag/v0.5.0
 [0.4.1]: https://github.com/sykar-f/luciole/releases/tag/v0.4.1
 [0.4.0]: https://github.com/sykar-f/luciole/releases/tag/v0.4.0
 [0.3.2]: https://github.com/sykar-f/luciole/releases/tag/v0.3.2
