@@ -1,8 +1,7 @@
 /* eslint-disable no-magic-numbers -- Synthetic pixel fixture geometry and colors. */
 /** Synthetic xterm-only fixture: no OpenTUI renderer or app-side controller. */
 import { Terminal } from "@xterm/xterm";
-import { WebglAddon } from "../../packages/core/src/web/xterm-webgl/addon/WebglAddon";
-import { PixelScrollAddon } from "../../packages/core/src/web/pixel-scroll/host";
+import { attachTerminalView } from "../../packages/core/src/web/terminal-view";
 import {
   decode,
   encode,
@@ -22,13 +21,9 @@ const terminal = new Terminal({
   theme: { background: "#112233" },
 });
 terminal.open(document.body);
-const webgl = new WebglAddon(true);
-terminal.loadAddon(webgl);
-const pixels = webgl.pixels;
+const view = attachTerminalView(terminal, { fallbackWheel: () => true });
+const pixels = view.presentation;
 if (!pixels) throw new Error("Fixture requires WebGL2");
-const addon = new PixelScrollAddon(pixels);
-terminal.loadAddon(addon);
-terminal.attachCustomWheelEventHandler((event) => addon.wheel(event));
 const reports: unknown[] = [];
 terminal.onData((data) => reports.push(decode(data) ?? data));
 let presented: Presentation | undefined;

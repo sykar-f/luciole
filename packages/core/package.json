@@ -83,6 +83,11 @@
       "bun": "./src/vt/pty.ts",
       "default": "./src/vt/pty.ts"
     },
+    "./terminal-view": {
+      "types": "./dts/packages/core/src/web/terminal-view.d.ts",
+      "bun": "./src/web/terminal-view.ts",
+      "default": "./src/web/terminal-view.ts"
+    },
     "./test": {
       "types": "./dts/packages/core/src/test/index.d.ts",
       "bun": "./src/test/index.ts",

@@ -14,6 +14,14 @@ const modelHelper =
 
 /** Exported, but not for apps: each name gives why it stays out of the docs. */
 export const internalExports: Readonly<Record<string, string>> = {
+  "@luciole-sh/core/terminal-view#attachTerminalView":
+    "Internal terminal assembly for the desktop host and browser fixtures; not an app API.",
+  "@luciole-sh/core/terminal-view#TerminalViewOptions":
+    "Internal terminal assembly for the desktop host and browser fixtures; not an app API.",
+  "@luciole-sh/core/terminal-view#cellAt":
+    "Internal terminal assembly for the desktop host and browser fixtures; not an app API.",
+  "@luciole-sh/core/terminal-view#wheelReports":
+    "Internal terminal assembly for the desktop host and browser fixtures; not an app API.",
   "@luciole-sh/core/args#grammar": launchPlumbing,
   "@luciole-sh/core/args#Flag": launchPlumbing,
   "@luciole-sh/core/args#suggest": launchPlumbing,

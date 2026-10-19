@@ -30,6 +30,11 @@ Le défilement au pixel sépare les modules indépendants du navigateur
 (`src/pixel-scroll/` : contrôleur, codec, session et interfaces de présentation)
 des intégrations xterm et WebGL (`src/web/pixel-scroll/`). Les capacités
 optionnelles du renderer OpenTUI sont déclarées dans `src/opentui-seams.ts`.
+`src/web/terminal-view.ts` assemble WebGL avec son repli DOM, l'addon pixel et
+la chaîne de molette sur un terminal configuré par l'hôte. Le runtime web et
+les fixtures navigateur partagent ce module, exposé au desktop par
+`@luciole-sh/core/terminal-view` ; le repli de molette par lignes est injecté,
+les options du terminal, le transport et le dimensionnement restent dans l'hôte.
 
 | Fichier                 | Responsabilité                                                                                                                                                                                                                                                 |
 | ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
