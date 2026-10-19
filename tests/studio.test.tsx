@@ -1,4 +1,5 @@
 /** @jsxImportSource @opentui/react */
+import { renderFrame } from "../packages/core/src/test/frame";
 /**
  * studio end to end, offline: its real Server on the scripted generator, its generated
  * Client in OpenTUI's test renderer, the preview's Client on a real PTY (sandboxed where
@@ -43,10 +44,7 @@ async function startStudio(mode: string = MODE) {
   const app = createApp({ url: server.url, latencyMs: 0 });
   await app.router.load();
   const ui = await testRender(<Shell app={app} />, { width: WIDTH, height: HEIGHT });
-  const frame = async () => {
-    await ui.renderOnce();
-    return ui.captureCharFrame();
-  };
+  const frame = () => renderFrame(ui);
   const step = (work: () => unknown) =>
     act(async () => {
       await work();

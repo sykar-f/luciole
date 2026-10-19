@@ -1,4 +1,5 @@
 /** @jsxImportSource @opentui/react */
+import { renderFrame } from "../packages/core/src/test/frame";
 import { expect, test } from "bun:test";
 import { act } from "react";
 import { testRender } from "@opentui/react/test-utils";
@@ -71,7 +72,7 @@ test("500 ms RTT delays Flight and actions while input, hover and scroll stay lo
     // Input, hover and scroll are on screen while the action is unanswered and unsent.
     expect(field.value).toBe("abc");
     expect(scroll.scrollTop).toBeGreaterThan(top);
-    let frame = ui.captureCharFrame();
+    let frame = await renderFrame(ui);
     expect(frame).toContain("Waiting for Server");
     expect(frame).not.toContain("Server replied in");
     expect(await counts()).toEqual(before);
@@ -80,7 +81,7 @@ test("500 ms RTT delays Flight and actions while input, hover and scroll stay lo
       await ui.mockMouse.moveTo(hover.x + 2, hover.y + 1);
     });
     await ui.renderOnce();
-    frame = ui.captureCharFrame();
+    frame = await renderFrame(ui);
     expect(frame).toContain("Hover active (local)");
     expect(frame).toContain("Waiting for Server");
     // A read-only Server Function does not refresh the page.
@@ -88,7 +89,7 @@ test("500 ms RTT delays Flight and actions while input, hover and scroll stay lo
     request.release();
     await eventually(async () => {
       await ui.renderOnce();
-      return ui.captureCharFrame().includes("Server replied in");
+      return (await renderFrame(ui)).includes("Server replied in");
     });
     // The one-way latency is applied again on the way back.
     expect(performance.now() - released).toBeGreaterThanOrEqual(240);

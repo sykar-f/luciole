@@ -1,4 +1,5 @@
 /** @jsxImportSource @opentui/react */
+import { renderFrame } from "../packages/core/src/test/frame";
 import { expect, test } from "bun:test";
 import { act } from "react";
 import { testRender } from "@opentui/react/test-utils";
@@ -55,10 +56,7 @@ test("search parameters reach the Server page as strings and key the route cache
     const ui = await testRender(<Shell app={app} />, { width: 80, height: 8 });
     rendered = ui;
     const renders = async () => (await metricsOf(running)).renders;
-    const frame = async () => {
-      await ui.renderOnce();
-      return ui.captureCharFrame();
-    };
+    const frame = () => renderFrame(ui);
     const go = (search?: Record<string, string>) =>
       act(async () => {
         await app.router.navigate({ to: "/items", search });

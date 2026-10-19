@@ -1,4 +1,5 @@
 /** @jsxImportSource @opentui/react */
+import { renderFrame } from "../packages/core/src/test/frame";
 import { test, expect } from "bun:test";
 import { act } from "react";
 import { Renderable, TextRenderable } from "@opentui/core";
@@ -50,18 +51,15 @@ async function start(
 }
 const path = (app: { router: { state: { resolvedLocation?: { pathname: string } } } }) =>
   app.router.state.resolvedLocation?.pathname;
-const frame = async (ui: TestUI) => {
-  await ui.renderOnce();
-  return ui.captureCharFrame();
-};
+const frame = (ui: TestUI) => renderFrame(ui);
 /** Renders frames, which drive the timelines, until `check` holds. */
-const untilRendered = async (ui: TestUI, check: () => boolean) => {
+const untilRendered = async (ui: TestUI, check: (frame: string) => boolean) => {
   const deadline = performance.now() + WAIT_MS;
   while (performance.now() < deadline) {
     let holds = false;
+    const shown = await renderFrame(ui);
     await act(async () => {
-      await ui.renderOnce();
-      holds = check();
+      holds = check(shown);
     });
     if (holds) return;
     // The step of a bounded poll, not a wait for the outcome.
@@ -73,10 +71,8 @@ const untilRendered = async (ui: TestUI, check: () => boolean) => {
 };
 /** Renders frames until one shows `text`. */
 const untilShown = (ui: TestUI, text: string | RegExp) =>
-  untilRendered(ui, () =>
-    typeof text === "string"
-      ? ui.captureCharFrame().includes(text)
-      : text.test(ui.captureCharFrame()),
+  untilRendered(ui, (shown) =>
+    typeof text === "string" ? shown.includes(text) : text.test(shown),
   );
 /** What the line above the title says; nothing while saves go well. */
 const status = (ui: TestUI) => {

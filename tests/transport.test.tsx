@@ -1,4 +1,5 @@
 /** @jsxImportSource @opentui/react */
+import { renderFrame } from "../packages/core/src/test/frame";
 import { test, expect } from "bun:test";
 import { act } from "react";
 import { testRender } from "@opentui/react/test-utils";
@@ -264,19 +265,19 @@ test(
       const ui = await testRender(<Shell app={app} />, { width: 80, height: 12 });
       rendered = ui;
       await ui.renderOnce();
-      expect(ui.captureCharFrame()).toContain("STREAM LOADING");
-      expect(ui.captureCharFrame()).toContain("SHELL READY");
+      expect(await renderFrame(ui)).toContain("STREAM LOADING");
+      expect(await renderFrame(ui)).toContain("SHELL READY");
       await Bun.write(release, "");
       // One act() per step: the Suspense retry commits when an act() ends, not within one.
       const deadline = performance.now() + WAIT_MS;
       for (;;) {
         await ui.renderOnce();
-        if (ui.captureCharFrame().includes("STREAM COMPLETE")) break;
+        if ((await renderFrame(ui)).includes("STREAM COMPLETE")) break;
         if (performance.now() > deadline) throw new Error("The streamed content never rendered");
         // The step of a poll bounded by WAIT_MS, not a wait for the outcome.
         await act(() => Bun.sleep(10));
       }
-      expect(ui.captureCharFrame()).not.toContain("STREAM LOADING");
+      expect(await renderFrame(ui)).not.toContain("STREAM LOADING");
     } finally {
       // The page stream ends once released, should a check above have failed first.
       await Bun.write(release, "");

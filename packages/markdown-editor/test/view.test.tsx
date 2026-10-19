@@ -2,6 +2,7 @@
  * What the editor draws, cell by cell: OpenTUI renders it, the test reads characters and
  * colors back. The heading bands are the ones luciole's <Markdown> draws.
  */
+import { renderFrame } from "../../core/src/test/frame";
 import { afterEach, beforeEach, expect, test } from "bun:test";
 import { act, useState, type ComponentProps } from "react";
 import { MouseEvent, RGBA, SyntaxStyle, type CliRenderer } from "@opentui/core";
@@ -99,11 +100,8 @@ function cell(x: number, y: number): Cell {
   }
   throw new Error(`No cell at ${x},${y}`);
 }
-const rows = () =>
-  ui
-    ?.captureCharFrame()
-    .split("\n")
-    .map((row) => row.trimEnd()) ?? [];
+const rows = async () =>
+  ui ? (await renderFrame(ui)).split("\n").map((row) => row.trimEnd()) : [];
 const same = (a: RGBA, b: RGBA) => a.toInts().join() === b.toInts().join();
 /** How far `color` is from `to`, over the three channels. */
 const distance = (color: RGBA, to: RGBA) =>
@@ -114,7 +112,7 @@ const distance = (color: RGBA, to: RGBA) =>
 
 test("an H1 is three rows on its band, full up to column 28, fading out to the edge", async () => {
   await show("# Title");
-  const frame = rows();
+  const frame = await rows();
   expect(frame[0]).toBe("");
   expect(frame[1]).toBe("  Title");
   expect(frame[2]).toBe("");
@@ -139,7 +137,7 @@ test("an H1 is three rows on its band, full up to column 28, fading out to the e
 
 test("each level reads apart: shorter bands down to H3, then a bar, then capitals", async () => {
   await show("## Two\n\n### Three\n\n#### Four\n\n##### Five\n\n###### Six");
-  const frame = rows();
+  const frame = await rows();
   expect(frame.slice(0, 9)).toEqual([
     "  Two",
     "",
@@ -167,7 +165,7 @@ test("each level reads apart: shorter bands down to H3, then a bar, then capital
 
 test("headings keep the reader's rhythm: two lines above an H1, one under an H3", async () => {
   await show("para\n\n# One\n\ntext\n\n### Three\nunder\n\n## Two after three");
-  expect(rows().slice(0, 13)).toEqual([
+  expect((await rows()).slice(0, 13)).toEqual([
     "para",
     "",
     "",
@@ -183,7 +181,7 @@ test("headings keep the reader's rhythm: two lines above an H1, one under an H3"
     "",
   ]);
   // An H2 that ends an H3's section stands two lines apart.
-  expect(rows()[14]).toBe("  Two after three");
+  expect((await rows())[14]).toBe("  Two after three");
 });
 
 test("the document shows as it reads: no Markdown marker on screen", async () => {
@@ -210,24 +208,24 @@ test("the document shows as it reads: no Markdown marker on screen", async () =>
       "---",
     ].join("\n"),
   );
-  const text = rows().join("\n");
+  const text = (await rows()).join("\n");
   for (const marker of ["**", "`", "~~", "](", "- [", "> ", "---"])
     expect(text).not.toContain(marker);
-  expect(rows()).toContain("Some bold, italic, gone, code and a link.");
-  expect(rows()).toContain("[ ] a task");
-  expect(rows()).toContain("[✓] done");
-  expect(rows()).toContain("  ◦ nested");
-  expect(rows()).toContain("2. second");
-  expect(rows()).toContain("▎ quoted");
-  expect(rows()).toContain("▎ ▎ deeper");
-  expect(rows()).toContain("▎ • listed in a quote");
-  expect(rows().at(-1) ?? rows().findLast((row) => row)).toBeDefined();
-  expect(rows().some((row) => row.startsWith("─".repeat(WIDTH)))).toBe(true);
+  expect(await rows()).toContain("Some bold, italic, gone, code and a link.");
+  expect(await rows()).toContain("[ ] a task");
+  expect(await rows()).toContain("[✓] done");
+  expect(await rows()).toContain("  ◦ nested");
+  expect(await rows()).toContain("2. second");
+  expect(await rows()).toContain("▎ quoted");
+  expect(await rows()).toContain("▎ ▎ deeper");
+  expect(await rows()).toContain("▎ • listed in a quote");
+  expect((await rows()).at(-1) ?? (await rows()).findLast((row) => row)).toBeDefined();
+  expect((await rows()).some((row) => row.startsWith("─".repeat(WIDTH)))).toBe(true);
 });
 
 test("what an item holds lines up with its text", async () => {
   await show("1. first\n\n   more of it\n\n   ```\n   code\n   ```\n2. second");
-  const frame = rows();
+  const frame = await rows();
   expect(frame.slice(0, 9)).toEqual([
     "1. first",
     "",
@@ -249,7 +247,7 @@ test("what an item holds lines up with its text", async () => {
 test("code sits on its panel, its language on the right, colored by Tree-sitter", async () => {
   await show("```ts\nconst a = 1;\n```");
   // A row of panel above the code, holding its language, and one below.
-  expect(rows().slice(0, 3)).toEqual([`${" ".repeat(WIDTH - 3)}ts`, "  const a = 1;", ""]);
+  expect((await rows()).slice(0, 3)).toEqual([`${" ".repeat(WIDTH - 3)}ts`, "  const a = 1;", ""]);
   for (const y of [0, 1, 2])
     for (const x of [0, 30, WIDTH - 1]) expect(same(cell(x, y).bg, PANEL)).toBe(true);
   for (let i = 0; i < 50 && same(cell(2, 1).fg, cell(8, 1).fg); i++) {
@@ -270,8 +268,8 @@ test("typing Markdown turns it into what it means on screen, and reports Markdow
     await ui?.mockInput.typeText("some **bold** text");
   });
   await ui?.renderOnce();
-  expect(rows()[1]).toBe("  Hello");
-  expect(rows()).toContain("some bold text");
+  expect((await rows())[1]).toBe("  Hello");
+  expect(await rows()).toContain("some bold text");
   expect(log.at(-1)).toBe("# Hello\n\nsome **bold** text");
 });
 
@@ -291,13 +289,13 @@ test("the page is centered at the reading width; bands and panels reach into its
   // A page 20 wide in an editor 60 wide: 20 columns of margin on each side, and every
   // text starting at the same column, the title and the code included.
   const margin = " ".repeat(20);
-  expect(rows().slice(0, 4)).toEqual([
+  expect((await rows()).slice(0, 4)).toEqual([
     `${margin}Title`,
     "",
     `${margin}words words words`,
     `${margin}words words words`,
   ]);
-  expect(rows()[6]).toBe(`${margin}code`);
+  expect((await rows())[6]).toBe(`${margin}code`);
   // The band and the panel start two columns into the margin; neither goes past the page.
   expect(same(cell(18, 0).bg, BAND)).toBe(true);
   expect(same(cell(17, 0).bg, BAND)).toBe(false);
@@ -318,7 +316,7 @@ const TABLE = [
 
 test("a table is drawn as one: columns sized and aligned, the header over a rule, boxed", async () => {
   await show(`Fruit:\n\n${TABLE}`);
-  expect(rows().slice(2, 8)).toEqual([
+  expect((await rows()).slice(2, 8)).toEqual([
     "╭────────┬────────┬───────╮",
     "│ Left   │ Center │ Right │",
     "├────────┼────────┼───────┤",
@@ -332,21 +330,24 @@ test("a table is drawn as one: columns sized and aligned, the header over a rule
 
 test("a table is edited as its Markdown: the cursor in it shows the pipes", async () => {
   await show(`Fruit:\n\n${TABLE}\n\nafter`);
-  expect(rows()[2]).toStartWith("╭");
-  const after = rows().indexOf("after");
+  expect((await rows())[2]).toStartWith("╭");
+  const after = (await rows()).indexOf("after");
   await act(async () => {
     ui?.mockInput.pressArrow("down");
   });
   await ui?.renderOnce();
-  expect(rows().slice(3, 5)).toEqual(["| Left | Center | Right |", "| :--- | :----: | ----: |"]);
+  expect((await rows()).slice(3, 5)).toEqual([
+    "| Left | Center | Right |",
+    "| :--- | :----: | ----: |",
+  ]);
   // The rows of its box are kept: what follows the table does not move.
-  expect(rows().indexOf("after")).toBe(after);
+  expect((await rows()).indexOf("after")).toBe(after);
 });
 
 test("a table too wide for the page narrows its widest columns and wraps their text", async () => {
   const words = "many words that will never fit on one line of a page sixty columns wide";
   await show(`x\n\n| a | b |\n| - | - |\n| 1 | ${words} |`);
-  const table = rows().slice(2, 9);
+  const table = (await rows()).slice(2, 9);
   // As wide as the page, not wider: the long cell wrapped over two rows.
   for (const row of table) expect(row.length).toBeLessThanOrEqual(WIDTH);
   expect(table[0]?.length).toBe(WIDTH);
@@ -375,13 +376,13 @@ test("a task's box lights up under the pointer, and a click on it ticks it", asy
 
 test("an image the terminal cannot draw shows its alternative text", async () => {
   await show("x\n\n![The mark](https://example.com/mark.png)\n\nSee ![a logo](logo.png) here.");
-  expect(rows()[2]).toBe("▣ The mark");
-  expect(rows()[4]).toBe("See ▣ a logo here.");
+  expect((await rows())[2]).toBe("▣ The mark");
+  expect((await rows())[4]).toBe("See ▣ a logo here.");
 });
 
 test("link definitions and HTML comments step back; two lists in a row stand apart", async () => {
   await show("x\n\n[ref]: https://x.y\n\n<!-- note -->\n\n- a\n* b\n\n1. one\n2. two");
-  expect(rows().slice(0, 9)).toEqual([
+  expect((await rows()).slice(0, 9)).toEqual([
     "x",
     "",
     "[ref]: https://x.y",
@@ -398,7 +399,7 @@ test("link definitions and HTML comments step back; two lists in a row stand apa
 test("the numbers of an ordered list line up on the right", async () => {
   const items = Array.from({ length: 10 }, (_, i) => `${i + 1}. item`).join("\n");
   await show(items);
-  expect(rows().slice(0, 10)).toEqual([
+  expect((await rows()).slice(0, 10)).toEqual([
     " 1. item",
     " 2. item",
     " 3. item",
@@ -447,14 +448,14 @@ test("ticking a task far down the page keeps the page where it is", async () => 
   await show(`${lines}\n\n- [ ] far task`, log);
   for (let i = 0; i < 30; i++) await ui?.mockMouse.scroll(10, 10, "down");
   await ui?.renderOnce();
-  const row = rows().findIndex((text) => text.includes("far task"));
+  const row = (await rows()).findIndex((text) => text.includes("far task"));
   expect(row).toBeGreaterThan(0);
   await act(async () => {
     await ui?.mockMouse.click(1, row);
   });
   await ui?.renderOnce();
   expect(log.at(-1)).toEndWith("- [x] far task");
-  expect(rows()[row]).toContain("far task");
+  expect((await rows())[row]).toContain("far task");
 });
 
 test("Down at the end of code that ends the document leaves it for a new paragraph", async () => {
@@ -469,8 +470,8 @@ test("Down at the end of code that ends the document leaves it for a new paragra
 
 test("in the block being edited, a link shows its address; elsewhere only its text", async () => {
   await show("see [site](https://x.y) now\n\nand [there](https://z.w)");
-  expect(rows()[0]).toBe("see site (https://x.y) now");
-  expect(rows()[2]).toBe("and there");
+  expect((await rows())[0]).toBe("see site (https://x.y) now");
+  expect((await rows())[2]).toBe("and there");
 });
 
 test("what notes write beyond CommonMark reads as it means, and as written where edited", async () => {
@@ -490,7 +491,7 @@ test("what notes write beyond CommonMark reads as it means, and as written where
       "[^1]: The note itself.",
     ].join("\n"),
   );
-  const frame = rows();
+  const frame = await rows();
   // The cursor's block keeps its syntax, faint; the others read as they mean.
   expect(frame[0]).toBe("a ==hi== b[^1] :tada:");
   expect(frame[2]).toBe("a hi b¹ 🎉 :nope:");
@@ -512,9 +513,9 @@ test("math reads in Unicode in a line where exact, as TeX otherwise, and on a pa
       "$$",
     ].join("\n"),
   );
-  expect(rows()[2]).toBe("With α² + β₁ ≤ √x and \\frac{a}{b}, not $5 or $10.");
+  expect((await rows())[2]).toBe("With α² + β₁ ≤ √x and \\frac{a}{b}, not $5 or $10.");
   // Without a renderer, display math is its TeX on a panel labelled "math".
-  expect(rows().slice(4, 7)).toEqual([
+  expect((await rows()).slice(4, 7)).toEqual([
     `  $$${" ".repeat(WIDTH - 9)}math`,
     "  \\sum_{k=1}^n k",
     "  $$",
@@ -542,14 +543,12 @@ const FAINT = RGBA.fromHex("#4a5561");
 const paragraphs = (count: number) =>
   Array.from({ length: count }, (_, i) => `line ${i}`).join("\n\n");
 /** Row `y` of the page, the bar's column left out. */
-const text = (y: number) => (rows()[y] ?? "").slice(0, BAR_X).trimEnd();
+const text = async (y: number) => ((await rows())[y] ?? "").slice(0, BAR_X).trimEnd();
 const thumbRows = () =>
   Array.from({ length: HEIGHT }, (_, y) => cell(BAR_X, y).char).filter((c) => c !== " ");
 /** The last row showing text, and the empty rows under it. */
-const bottom = () => {
-  const frame = rows()
-    .slice(0, HEIGHT)
-    .map((row) => row.slice(0, BAR_X).trimEnd());
+const bottom = async () => {
+  const frame = (await rows()).slice(0, HEIGHT).map((row) => row.slice(0, BAR_X).trimEnd());
   const last = frame.findLastIndex((row) => row !== "");
   return { last, empty: HEIGHT - 1 - last, text: frame[last] };
 };
@@ -566,9 +565,9 @@ test("a document that fits shows no scrollbar; one that does not, a faint thumb 
   expect(cell(BAR_X, 0).char).toBe("█");
   expect(same(cell(BAR_X, 0).fg, FAINT)).toBe(true);
   // The page keeps its sixty columns: nothing of the text reaches the bar's column.
-  expect(text(0)).toBe("line 0");
-  expect(rows().every((row) => row.length <= WIDTH + BAR)).toBe(true);
-  expect(bottom()).toMatchObject({ last: HEIGHT - 2, empty: 1, text: "line 14" });
+  expect(await text(0)).toBe("line 0");
+  expect((await rows()).every((row) => row.length <= WIDTH + BAR)).toBe(true);
+  expect(await bottom()).toMatchObject({ last: HEIGHT - 2, empty: 1, text: "line 14" });
 });
 
 test("the wheel scrolls past the last line by a quarter of the editor, the thumb at the bottom", async () => {
@@ -577,7 +576,7 @@ test("the wheel scrolls past the last line by a quarter of the editor, the thumb
   for (let i = 0; i < 100; i++) await ui?.mockMouse.scroll(10, 10, "down");
   await ui?.renderOnce();
   // The tail: seven empty rows under the last line, and no further.
-  expect(bottom()).toMatchObject({ last: HEIGHT - 1 - 7, empty: 7, text: "line 59" });
+  expect(await bottom()).toMatchObject({ last: HEIGHT - 1 - 7, empty: 7, text: "line 59" });
   expect(cell(BAR_X, HEIGHT - 1).char).toBe("█");
   expect(cell(BAR_X, 0).char).toBe(" ");
   // Not content: nothing was added to the Markdown.
@@ -586,7 +585,7 @@ test("the wheel scrolls past the last line by a quarter of the editor, the thumb
   await ui?.mockMouse.scroll(10, 10, "up");
   await ui?.renderOnce();
   expect(cell(BAR_X, HEIGHT - 1).char).toBe("▀");
-  expect(bottom().empty).toBe(4);
+  expect((await bottom()).empty).toBe(4);
 });
 
 test("the cursor stops at the last line: the keyboard brings it into view, never into the tail", async () => {
@@ -597,7 +596,7 @@ test("the cursor stops at the last line: the keyboard brings it into view, never
   await ui?.renderOnce();
   // The last line at the bottom row; the thumb near the end of its track, short of it by
   // the tail the wheel may still travel.
-  expect(bottom()).toMatchObject({ last: HEIGHT - 1, empty: 0, text: "line 59" });
+  expect(await bottom()).toMatchObject({ last: HEIGHT - 1, empty: 0, text: "line 59" });
   expect(cell(BAR_X, HEIGHT - 4).char).toBe("█");
   expect(cell(BAR_X, HEIGHT - 1).char).toBe(" ");
   // Down again moves nothing: there is no line to go to.
@@ -605,14 +604,14 @@ test("the cursor stops at the last line: the keyboard brings it into view, never
     ui?.mockInput.pressArrow("down");
   });
   await ui?.renderOnce();
-  expect(bottom()).toMatchObject({ last: HEIGHT - 1, text: "line 59" });
+  expect(await bottom()).toMatchObject({ last: HEIGHT - 1, text: "line 59" });
   // Typing at the end adds lines: the page follows the cursor, the bar the page.
   await act(async () => {
     ui?.mockInput.pressEnter();
     await ui?.mockInput.typeText("more");
   });
   await ui?.renderOnce();
-  expect(bottom()).toMatchObject({ last: HEIGHT - 1, text: "more" });
+  expect(await bottom()).toMatchObject({ last: HEIGHT - 1, text: "more" });
   expect(cell(BAR_X, HEIGHT - 4).char).toBe("█");
 });
 
@@ -624,12 +623,12 @@ test("the thumb drags the page; a click on the track brings the page there", asy
   await ui?.renderOnce();
   expect(cell(BAR_X, 10).char).toBe("█");
   expect(cell(BAR_X, 0).char).toBe(" ");
-  expect(text(0)).toBe("line 21");
+  expect(await text(0)).toBe("line 21");
   // A click at the end of the track: the thumb comes there, the page to its end.
   await ui?.mockMouse.click(BAR_X, HEIGHT - 1);
   await ui?.renderOnce();
   expect(cell(BAR_X, HEIGHT - 1).char).toBe("█");
-  expect(bottom()).toMatchObject({ text: "line 59", empty: 7 });
+  expect(await bottom()).toMatchObject({ text: "line 59", empty: 7 });
   // A click on the bar never moves the cursor into the text.
   expect(ui?.renderer.currentFocusedRenderable?.id).toBeDefined();
 });
@@ -650,11 +649,7 @@ test("with a reading width, the bar stands in the margin and the text keeps its 
   );
   await ui.renderOnce();
   // A 40-column page centered in 60: the text starts at column 10, the bar is column 59.
-  expect(
-    rows()[0]
-      ?.slice(0, WIDTH - 1)
-      .trimEnd(),
-  ).toBe(`${" ".repeat(10)}line 0`);
+  expect((await rows())[0]?.slice(0, WIDTH - 1).trimEnd()).toBe(`${" ".repeat(10)}line 0`);
   expect(cell(WIDTH - 1, 0).char).toBe("█");
   expect(same(cell(WIDTH - 1, 0).fg, FAINT)).toBe(true);
   // Without the bar, the same page.
@@ -673,7 +668,7 @@ test("with a reading width, the bar stands in the margin and the text keeps its 
     { width: WIDTH, height: HEIGHT },
   );
   await ui.renderOnce();
-  expect(rows()[0]).toBe(`${" ".repeat(10)}line 0`);
+  expect((await rows())[0]).toBe(`${" ".repeat(10)}line 0`);
   expect(cell(WIDTH - 1, 0).char).toBe(" ");
 });
 
@@ -786,14 +781,14 @@ for (const top of [0, 4]) {
     );
     await ui.renderOnce();
     if (!editor) throw new Error("Missing editor");
-    expect(ui.captureCharFrame().split("\n")[top + 4]?.slice(2, 8)).toBe("line 2");
+    expect((await renderFrame(ui)).split("\n")[top + 4]?.slice(2, 8)).toBe("line 2");
     await act(async () => {
       await ui?.mockMouse.click(5, top + 4);
     });
     expect(editor.controller.state.selection.head).toEqual({ block: 2, offset: 3 });
     editor.scrollableViewport.set(2);
     await ui.renderOnce();
-    expect(ui.captureCharFrame().split("\n")[top + 4]?.slice(2, 8)).toBe("line 3");
+    expect((await renderFrame(ui)).split("\n")[top + 4]?.slice(2, 8)).toBe("line 3");
     await act(async () => {
       await ui?.mockMouse.click(6, top + 4);
     });

@@ -1,4 +1,5 @@
 /** @jsxImportSource @opentui/react */
+import { renderFrame } from "../packages/core/src/test/frame";
 import { expect, test } from "bun:test";
 import { act, StrictMode, useEffect, useState } from "react";
 import { createRootRoute } from "@tanstack/react-router";
@@ -67,21 +68,21 @@ test("a component publishes an upstream down beside Connected, updates and withd
   const ui = await testRender(<Shell app={app} />, { width: 110, height: 8 });
   try {
     await untilFrame(ui, "Connected · Supervisor: down (refused)");
-    expect(ui.captureCharFrame()).toContain(
+    expect(await renderFrame(ui)).toContain(
       'app: [{"label":"Supervisor","state":"down","detail":"refused"}]',
     );
     expect(app.status).toBe("Connected");
     await act(async () => change({ label: "Supervisor", state: "degraded" }));
     await untilFrame(ui, "Supervisor: degraded");
-    expect(ui.captureCharFrame()).not.toContain("refused");
+    expect(await renderFrame(ui)).not.toContain("refused");
     await act(async () => change(null));
     await untilFrame(ui, "app: []");
-    expect(ui.captureCharFrame()).not.toContain("Supervisor:");
+    expect(await renderFrame(ui)).not.toContain("Supervisor:");
     await act(async () => change({ label: "Supervisor", state: "ok" }));
     await untilFrame(ui, "Supervisor: ok");
     await act(async () => mount(false));
     await untilFrame(ui, "app: []");
-    expect(ui.captureCharFrame()).not.toContain("Supervisor:");
+    expect(await renderFrame(ui)).not.toContain("Supervisor:");
   } finally {
     await destroy(ui);
     app.dispose();
@@ -112,10 +113,10 @@ test("providers isolate apps and one publisher leaving preserves the others", as
   const ui = await testRender(<Screen />, { width: 120, height: 8 });
   try {
     await untilFrame(ui, 'first: [{"label":"A","state":"down"},{"label":"B","state":"unknown"}]');
-    expect(ui.captureCharFrame()).toContain('second: [{"label":"A","state":"ok"}]');
+    expect(await renderFrame(ui)).toContain('second: [{"label":"A","state":"ok"}]');
     await act(async () => hide());
     await untilFrame(ui, 'first: [{"label":"B","state":"unknown"}]');
-    expect(ui.captureCharFrame()).toContain('second: [{"label":"A","state":"ok"}]');
+    expect(await renderFrame(ui)).toContain('second: [{"label":"A","state":"ok"}]');
   } finally {
     await destroy(ui);
   }

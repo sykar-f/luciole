@@ -1,4 +1,5 @@
 /** @jsxImportSource @opentui/react */
+import { renderFrame } from "../packages/core/src/test/frame";
 import { expect, test } from "bun:test";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -376,7 +377,7 @@ test("the new pull request form validates locally, then survives a Client restar
     restarted = again;
     const shown = async () => {
       await again.renderOnce();
-      return again.captureCharFrame();
+      return await renderFrame(again);
     };
     await act(async () => {
       await until(() => renderable(again, "new-pull-title", InputRenderable).value !== "");

@@ -1,4 +1,5 @@
 /** @jsxImportSource @opentui/react */
+import { renderFrame } from "../packages/core/src/test/frame";
 import { afterAll, expect, test } from "bun:test";
 import { act } from "react";
 import { Renderable } from "@opentui/core";
@@ -77,8 +78,7 @@ test("help is generated from the keymap layers mounted right now", async () => {
     const text = async (id: string) => {
       await ui.renderOnce();
       const { x, y, width } = renderable(ui, id, Renderable);
-      return ui
-        .captureCharFrame()
+      return (await renderFrame(ui))
         .split("\n")
         [y].slice(x, x + width)
         .trim();
@@ -98,7 +98,7 @@ test("help is generated from the keymap layers mounted right now", async () => {
     expect(app.router.state.resolvedLocation?.pathname).toBe("/");
     // Its layer left with it: Ctrl+S is no longer bound anywhere.
     expect(await text("footer")).toBe("ctrl+c quit · ctrl+r reconnect · ctrl+t requests");
-    expect(ui.captureCharFrame()).not.toContain("ctrl+s");
+    expect(await renderFrame(ui)).not.toContain("ctrl+s");
   } finally {
     await destroy(rendered);
     await server.stop();
@@ -118,8 +118,7 @@ test("a desktop window leaves Ctrl+C to the application", async () => {
     rendered = ui;
     await ui.renderOnce();
     const { x, y, width } = renderable(ui, "footer", Renderable);
-    const footer = ui
-      .captureCharFrame()
+    const footer = (await renderFrame(ui))
       .split("\n")
       [y].slice(x, x + width)
       .trim();

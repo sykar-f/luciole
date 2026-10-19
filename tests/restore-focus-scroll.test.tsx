@@ -1,4 +1,5 @@
 /** @jsxImportSource @opentui/react */
+import { renderFrame } from "../packages/core/src/test/frame";
 import { expect, test } from "bun:test";
 import { act, useEffect, useState } from "react";
 import { ScrollBoxRenderable } from "@opentui/core";
@@ -68,12 +69,7 @@ async function mount(app: Application, late = false) {
   });
   if (!ui) throw new Error("not rendered");
   const shown = ui;
-  const frame = async () => {
-    await act(async () => {
-      await shown.renderOnce();
-    });
-    return shown.captureCharFrame();
-  };
+  const frame = () => renderFrame(shown);
   return { ui: shown, frame, list: () => renderable(shown, "list", ScrollBoxRenderable) };
 }
 

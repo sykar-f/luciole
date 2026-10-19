@@ -1,4 +1,5 @@
 /** @jsxImportSource @opentui/react */
+import { renderFrame } from "../packages/core/src/test/frame";
 import { act } from "react";
 import { testRender } from "@opentui/react/test-utils";
 import { mkdtemp, rm } from "node:fs/promises";
@@ -48,10 +49,7 @@ async function openClient(built: PrivateBuild, url: string, options: ClientOptio
     width: options.width ?? 120,
     height: options.height ?? 36,
   });
-  const frame = async () => {
-    await ui.renderOnce();
-    return ui.captureCharFrame();
-  };
+  const frame = () => renderFrame(ui);
   /** One React batch per call: a real terminal delivers separate reads. */
   const step = (work: () => unknown) =>
     act(async () => {

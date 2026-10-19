@@ -1,4 +1,5 @@
 /** @jsxImportSource @opentui/react */
+import { renderFrame } from "../packages/core/src/test/frame";
 import { expect, spyOn, test } from "bun:test";
 import { chmod, mkdir, mkdtemp, readdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -108,7 +109,7 @@ if [ -n "$FAKE_EDIT" ]; then chmod u+w "$last"; echo "local change" >> "$last"; 
     });
     expect(await Bun.file(marker).exists()).toBe(true);
     await ui.renderOnce();
-    expect(ui.captureCharFrame()).not.toContain("Viewed settlement@r1.ts in");
+    expect(await renderFrame(ui)).not.toContain("Viewed settlement@r1.ts in");
     resumed.resolve();
     await waitFor("Viewed settlement@r1.ts in");
 

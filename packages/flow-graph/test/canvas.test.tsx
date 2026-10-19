@@ -2,6 +2,7 @@
  * `<Flow>` rendered by OpenTUI: the mouse and the keyboard change the application's
  * nodes and edges through `onNodesChange`/`onEdgesChange`/`onConnect`, as React Flow's do.
  */
+import { renderFrame } from "../../core/src/test/frame";
 import { afterEach, expect, test } from "bun:test";
 import { act, useEffect, useState, type ReactNode } from "react";
 import { useRenderer } from "@opentui/react";
@@ -104,17 +105,17 @@ async function open({ provider = false }: { provider?: boolean } = {}) {
   };
   await settle();
   const selected = () => state.nodes.filter((n) => n.selected).map((n) => n.id);
-  return { ui, run, selected, frame: () => ui.captureCharFrame() };
+  return { ui, run, selected, frame: () => renderFrame(ui) };
 }
 
 test("nodes, edges and panels are drawn", async () => {
   const { frame } = await open();
-  expect(frame()).toContain("║ checkout ║");
-  expect(frame()).toContain("│ lint │");
-  expect(frame()).toContain("┃ build ┃");
-  expect(frame()).toContain("─▶│ test │");
-  expect(frame()).toContain(" go ");
-  expect(frame()).toContain(" +   -   fit  full");
+  expect(await frame()).toContain("║ checkout ║");
+  expect(await frame()).toContain("│ lint │");
+  expect(await frame()).toContain("┃ build ┃");
+  expect(await frame()).toContain("─▶│ test │");
+  expect(await frame()).toContain(" go ");
+  expect(await frame()).toContain(" +   -   fit  full");
 });
 
 test("a click selects a node, a drag moves it, and a click on the pane deselects", async () => {
@@ -133,15 +134,11 @@ test("a click selects a node, a drag moves it, and a click on the pane deselects
 
 test("dragging the pane pans the view", async () => {
   const { ui, run, frame } = await open();
-  const before = frame()
-    .split("\n")
-    .findIndex((line) => line.includes("checkout"));
+  const before = (await frame()).split("\n").findIndex((line) => line.includes("checkout"));
   await run(() => ui.mockMouse.drag(50, 1, 50, 3));
-  expect(
-    frame()
-      .split("\n")
-      .findIndex((line) => line.includes("checkout")),
-  ).toBe(before + 2);
+  expect((await frame()).split("\n").findIndex((line) => line.includes("checkout"))).toBe(
+    before + 2,
+  );
 });
 
 test("the keyboard selects, follows edges, moves and deletes", async () => {
@@ -166,7 +163,7 @@ test("c, a target, then Enter connects two nodes with the keyboard", async () =>
   await run(() => ui.mockInput.pressTab()); // c: test
   await run(() => ui.mockInput.pressKey("c"));
   // The proposal is the nearest node to the right: build.
-  expect(frame()).toContain("○");
+  expect(await frame()).toContain("○");
   await run(() => ui.mockInput.pressEnter());
   expect(state.edges.at(-1)).toMatchObject({ source: "c", target: "d" });
 });
@@ -175,15 +172,15 @@ test("zooming out draws labels only, then dots", async () => {
   const { ui, run, frame } = await open();
   await run(() => ui.mockInput.pressKey("-"));
   // Clipped to its full width, halved: labels do not spill over their neighbours.
-  expect(frame()).toContain(" chec");
-  expect(frame()).not.toContain("checkout");
-  expect(frame()).not.toContain("║");
-  expect(frame()).toContain("compact");
+  expect(await frame()).toContain(" chec");
+  expect(await frame()).not.toContain("checkout");
+  expect(await frame()).not.toContain("║");
+  expect(await frame()).toContain("compact");
   await run(() => ui.mockInput.pressKey("-"));
-  expect(frame()).toContain("●");
-  expect(frame()).not.toContain("checkout");
+  expect(await frame()).toContain("●");
+  expect(await frame()).not.toContain("checkout");
   await run(() => ui.mockInput.pressKey("0"));
-  expect(frame()).toContain("║ checkout ║");
+  expect(await frame()).toContain("║ checkout ║");
 });
 
 test("inside the application's keymap, the canvas's keys join it and its help", async () => {

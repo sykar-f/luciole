@@ -1,4 +1,5 @@
 /** @jsxImportSource @opentui/react */
+import { renderFrame } from "../packages/core/src/test/frame";
 import { expect, test } from "bun:test";
 import { act } from "react";
 import { Renderable } from "@opentui/core";
@@ -55,12 +56,7 @@ test(
       rendered = ui;
       const overlay = async () => {
         await ui.renderOnce();
-        return (
-          ui
-            .captureCharFrame()
-            .split("\n")
-            .find((l) => l.includes("requests ")) ?? ""
-        );
+        return (await renderFrame(ui)).split("\n").find((l) => l.includes("requests ")) ?? "";
       };
       // The sidebar reads its list once mounted: counted before the overlay opens.
       await untilFrame(ui, "Shopping list");
@@ -96,7 +92,7 @@ test(
       expect(line).toMatch(/requests 3 · open 0 · \d+B · rtt \d+ms/);
       expect(Number(/rtt (\d+)ms/.exec(line)?.[1])).toBeGreaterThanOrEqual(40);
       // Its last lines: the list read again after the save.
-      expect(ui.captureCharFrame()).toContain("← action listNotes 200");
+      expect(await renderFrame(ui)).toContain("← action listNotes 200");
       const listing = (s: (typeof spans)[number]) =>
         String(s.attributes["luciole.target"]).endsWith("#listNotes");
       expect(spans.filter(listing).map((s) => s.ended)).toEqual([true, true]);
