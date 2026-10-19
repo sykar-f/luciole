@@ -69,9 +69,37 @@ INTERPOSE(scheduled_spawn, posix_spawn)
 INTERPOSE(scheduled_read, read)
 `;
 
-test.skipIf(process.platform !== "darwin")(
-  "a session leader cannot exit before its PTY process watcher is installed",
-  async () => {
+const scenarios = [
+  {
+    name: "a session leader cannot exit before its PTY process watcher is installed",
+    program: `
+import {spawnPty} from ${JSON.stringify(resolve("packages/core/src/vt/pty.ts"))};
+let output = "";
+spawnPty({command:["/bin/sh", "-c", "printf '[last-byte]'"], cols:80, rows:24,
+ onData(bytes){output += new TextDecoder().decode(bytes)},
+ onExit(code){console.log(JSON.stringify({code, output}))}});
+console.error("spawn returned");
+`,
+    output: "[last-byte]",
+  },
+  {
+    name: "the desktop environment probe cannot block in spawn's synchronous reap",
+    program: `
+import {createWindowSession} from ${JSON.stringify(resolve("packages/desktop/src/host/session.ts"))};
+let output = "";
+const session = createWindowSession({
+ command:["/bin/sh", "-c", 'echo "[\${BUN_BE_BUN-unset}]"'], env:{BUN_BE_BUN:"1"},
+ send(data){output += data},
+ onExit(code){console.log(JSON.stringify({code, output}))}});
+session.open({cols:40, rows:10});
+console.error("spawn returned");
+`,
+    output: "[unset]\r\n",
+  },
+];
+
+for (const scenario of scenarios)
+  test.skipIf(process.platform !== "darwin")(scenario.name, async () => {
     const directory = await mkdtemp(join(tmpdir(), "pty-spawn-order-"));
     try {
       const source = join(directory, "schedule.c");
@@ -90,17 +118,7 @@ test.skipIf(process.platform !== "darwin")(
       expect(build.stderr.toString()).toBe("");
       expect(build.exitCode).toBe(0);
       const entry = join(directory, "entry.ts");
-      await writeFile(
-        entry,
-        `
-import {spawnPty} from ${JSON.stringify(resolve("packages/core/src/vt/pty.ts"))};
-let output = "";
-spawnPty({command:["/bin/sh", "-c", "printf '[last-byte]'"], cols:80, rows:24,
- onData(bytes){output += new TextDecoder().decode(bytes)},
- onExit(code){console.log(JSON.stringify({code, output}))}});
-console.error("spawn returned");
-`,
-      );
+      await writeFile(entry, scenario.program);
       const child = Bun.spawn([process.execPath, entry], {
         env: {
           ...process.env,
@@ -117,7 +135,7 @@ console.error("spawn returned");
         // blocks in wait4. The existing test wait bounds the observation.
         await until(() => child.exitCode !== null);
         expect(await child.exited).toBe(0);
-        expect(JSON.parse((await stdout).trim())).toEqual({ code: 0, output: "[last-byte]" });
+        expect(JSON.parse((await stdout).trim())).toEqual({ code: 0, output: scenario.output });
         expect(await stderr).toContain("scheduled: startup read");
         expect(await stderr).toContain("spawn returned");
       } finally {
@@ -132,5 +150,4 @@ console.error("spawn returned");
     } finally {
       await rm(directory, { recursive: true, force: true });
     }
-  },
-);
+  });
