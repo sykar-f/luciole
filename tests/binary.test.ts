@@ -6,6 +6,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { createInterface } from "node:readline";
 import { z } from "zod";
+import { drive } from "../scripts/pty/driver";
 import { compileApp, hostTarget } from "../packages/core/src/compile";
 import { connect, keepAlive, socketDirectory } from "../packages/core/src/connect";
 import { messageOf } from "../packages/core/src/guards";
@@ -445,3 +446,38 @@ test("--on hands the application's arguments over stdin, never on a command line
     await host.remove();
   }
 }, 90000);
+
+test("a compiled desktop Client leaves its managed Server on SIGHUP after drawing", async () => {
+  const runtime = await mkdtemp("/tmp/luciole-compiled-desktop-");
+  const state = await mkdtemp(join(tmpdir(), "luciole-compiled-desktop-"));
+  try {
+    await using window = await drive({
+      command: [binary],
+      cwd: state,
+      cols: 100,
+      rows: 28,
+      env: { HOME: state, XDG_RUNTIME_DIR: runtime, XDG_STATE_HOME: state, LUCIOLE_DESKTOP: "1" },
+    });
+    await window.waitFor("Welcome to Notes");
+    const sockets = () =>
+      readdirSync(join(runtime, "luciole")).filter((entry) => entry.endsWith(".sock"));
+    expect(sockets()).toHaveLength(1);
+    process.kill(window.pid, "SIGHUP");
+    expect(await window.exited()).toBe(0);
+    await until(() => sockets().length === 0, WAIT_MS);
+    const log = await Bun.file(join(state, "luciole/notes/server.log")).text();
+    expect(log).toContain("stopping: the last Client left");
+  } finally {
+    const directory = join(runtime, "luciole");
+    if (existsSync(directory)) {
+      for (const socket of readdirSync(directory).filter((entry) => entry.endsWith(".sock"))) {
+        await fetch("http://localhost/lifetime/stop", {
+          method: "POST",
+          unix: join(directory, socket),
+        }).catch(() => {});
+      }
+    }
+    await rm(runtime, { recursive: true, force: true });
+    await rm(state, { recursive: true, force: true });
+  }
+}, 60_000);
