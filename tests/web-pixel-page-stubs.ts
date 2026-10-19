@@ -74,10 +74,14 @@ export const stage = () => {};
 export const tellEvent = () => {};
 export const Shell = () => null;
 export const createRoot = () => ({ render() {} });
-// eslint-disable-next-line typescript/consistent-type-assertions -- Only the page lifecycle is exercised; no application shell is mounted.
+/* eslint-disable typescript/consistent-type-assertions -- Only the page lifecycle is exercised; no application shell is mounted. */
 export const createApp = () =>
   ({ onEvent() {}, restoration: { persistTo() {} } }) as unknown as Application;
-export function attachPixelScroll(_renderer: unknown, options: { write(commands: string): void }) {
+/* eslint-enable typescript/consistent-type-assertions */
+export function attachPixelScroll(
+  _renderer: unknown,
+  options: { write(this: void, commands: string): void },
+) {
   state.write = options.write;
   return { ordinary() {} };
 }
