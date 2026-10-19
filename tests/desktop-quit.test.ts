@@ -34,8 +34,14 @@ for (const { mode, desktop } of cases) {
       },
       terminal: { cols: 80, rows: 24, data() {} },
       stderr: "pipe",
-      ipc(message) {
-        if (message?.ready) ready.resolve();
+      ipc(message: unknown) {
+        if (
+          typeof message === "object" &&
+          message !== null &&
+          "ready" in message &&
+          message.ready === true
+        )
+          ready.resolve();
       },
       onExit() {
         ready.reject(new Error("Client exited before renderer readiness"));
