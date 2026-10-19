@@ -321,7 +321,9 @@ Apps installed from the npm registry live in `$XDG_DATA_HOME/luciole/apps/`.
 
 A compiled app accepts `--pixel-scroll`, including `<app> serve --pixel-scroll`.
 Pixel scrolling is off by default in web and desktop hosts. `LUCIOLE_PIXEL_SCROLL=1`
-enables it without a command-line flag. The desktop host relays its setting to the
+enables it without a command-line flag.
+
+The desktop host relays its setting to the
 Client; the Server redirects its web page to include `?pixel-scroll`. Add that
 parameter directly for a static site (`luciole build --web-local`). An explicit
 `pixelScroll: true | false` in `run` or `runInPage` takes precedence.

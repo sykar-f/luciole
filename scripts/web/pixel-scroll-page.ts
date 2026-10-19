@@ -21,7 +21,7 @@ const terminal = new Terminal({
   theme: { background: "#112233" },
 });
 terminal.open(document.body);
-const view = attachTerminalView(terminal, { fallbackWheel: () => true });
+const view = attachTerminalView(terminal, { fallbackWheel: () => true, pixelScroll: true });
 const pixels = view.presentation;
 if (!pixels) throw new Error("Fixture requires WebGL2");
 const reports: unknown[] = [];

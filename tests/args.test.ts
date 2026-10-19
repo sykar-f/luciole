@@ -165,7 +165,7 @@ test("a launcher takes its own flags out, and leaves the rest to the application
 });
 
 test("pixel-scroll is reserved for the runtime", () => {
-  expect(() => defineArgs({ options: z.object({ pixelScroll: z.boolean().optional() }) })).toThrow(
-    "--pixel-scroll is reserved by luciole",
-  );
+  expect(() =>
+    defineArgs({ options: z.object({ pixelScroll: z.boolean().optional() }) }).flags(),
+  ).toThrow("--pixel-scroll is reserved by luciole");
 });
