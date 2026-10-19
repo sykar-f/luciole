@@ -3,6 +3,7 @@ import { act } from "react";
 import type { Renderable } from "@opentui/core";
 import type { testRender } from "@opentui/react/test-utils";
 import { messageOf } from "../guards";
+import { renderFrame } from "./frame";
 
 /**
  * The budget, in milliseconds, of a test that starts a Server and drives its Client. Pass it
@@ -138,10 +139,7 @@ export async function untilFrame(ui: TestUI, text: string, timeout = WAIT_MS) {
   try {
     for (;;) {
       if (wait.ended) return abandoned();
-      await act(async () => {
-        await ui.renderOnce();
-      });
-      frame = ui.captureCharFrame();
+      frame = await renderFrame(ui);
       if (frame.includes(text)) return frame;
       if (performance.now() - wait.start > timeout) throw new Error(timedOut(() => frame));
       await pollTurn();
@@ -174,11 +172,8 @@ export async function untilDrawn(ui: TestUI, text = "") {
   try {
     for (;;) {
       if (wait.ended) return abandoned();
-      await act(async () => {
-        await ui.renderOnce();
-      });
+      frame = await renderFrame(ui);
       pending = answering(ui.renderer.root);
-      frame = ui.captureCharFrame();
       if (!pending.length && frame === drawn) return frame;
       drawn = pending.length || !frame.includes(text) ? undefined : frame;
       const left = deadline - performance.now();
