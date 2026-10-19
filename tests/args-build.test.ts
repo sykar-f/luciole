@@ -122,6 +122,9 @@ test("app/args.ts stays out of Server-only code and away from the runtime's flag
     }),
   ).toContain("cannot import ../server/secret");
   expect(await refused(ARGS.replace("dir:", "url:"))).toContain("--url is reserved by luciole");
+  expect(await refused(ARGS.replace("dir:", "pixelScroll:"))).toContain(
+    "--pixel-scroll is reserved by luciole",
+  );
   expect(await refused(`export default 1;`)).toContain("export default defineArgs");
 }, 60000);
 

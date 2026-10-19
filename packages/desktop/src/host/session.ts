@@ -52,7 +52,11 @@ export function createWindowSession(options: WindowSessionOptions): WindowSessio
         cols: size.cols,
         rows: size.rows,
         cwd: options.cwd,
-        env: { ...options.env, LUCIOLE_DESKTOP: "1", BUN_BE_BUN: undefined },
+        env: {
+          ...options.env,
+          LUCIOLE_DESKTOP: "1",
+          BUN_BE_BUN: undefined,
+        },
         onData: (bytes) => {
           pending += decoder.decode(bytes, { stream: true });
           if (scheduled) return;

@@ -57,3 +57,52 @@ test("closing the window hangs the program up", async () => {
   await until(() => window.exit() !== undefined);
   expect(window.exit()).toBe(7);
 });
+
+for (const source of ["environment", "absent"] as const) {
+  test(`desktop host relays pixel scroll from ${source}`, async () => {
+    let output = "";
+    let exit: number | null | undefined;
+    const session = createWindowSession({
+      command: ["/bin/sh", "-c", 'echo "pixel=[${LUCIOLE_PIXEL_SCROLL-unset}]"'],
+      env: { LUCIOLE_PIXEL_SCROLL: source === "environment" ? "1" : undefined },
+      send: (data) => {
+        output += data;
+      },
+      onExit: (code) => {
+        exit = code;
+      },
+    });
+    session.open({ cols: 40, rows: 10 });
+    await until(() => exit !== undefined);
+    expect(output).toContain(source === "absent" ? "pixel=[unset]" : "pixel=[1]");
+  });
+}
+
+test("the host's inherited pixel environment reaches the PTY without session options", async () => {
+  const source = new URL("../packages/desktop/src/host/session.ts", import.meta.url).pathname;
+  const child = Bun.spawn(
+    [
+      process.execPath,
+      "-e",
+      `import { createWindowSession } from ${JSON.stringify(source)};
+const session = createWindowSession({
+  command: ["/bin/sh", "-c", 'echo "pixel=[$LUCIOLE_PIXEL_SCROLL]"'],
+  send: (data) => process.stdout.write(data),
+  onExit: (code) => process.exit(code ?? 1),
+});
+session.open({ cols: 40, rows: 10 });`,
+    ],
+    {
+      env: { ...process.env, LUCIOLE_PIXEL_SCROLL: "1" },
+      stdout: "pipe",
+      stderr: "pipe",
+    },
+  );
+  const [output, errors, code] = await Promise.all([
+    new Response(child.stdout).text(),
+    new Response(child.stderr).text(),
+    child.exited,
+  ]);
+  expect(code, errors).toBe(0);
+  expect(output).toContain("pixel=[1]");
+});

@@ -10,7 +10,7 @@ import "./setup";
 import { applicationOf, loadAppBundle } from "./platform/app-bundle";
 import { runInPage } from "./platform/run";
 import { connectServer } from "./server/page";
-import { lookOf, pathOf, restoreOf, stage } from "./embed";
+import { lookOf, pathOf, pixelScrollOf, restoreOf, stage } from "./embed";
 import { messageOf } from "../guards";
 
 const element = document.getElementById("luciole");
@@ -37,6 +37,7 @@ try {
     ...(fetch === undefined ? {} : { fetch }),
     name,
     restore: restoreOf(location.search),
+    pixelScroll: pixelScrollOf(location.search),
     ...definedProperties({ path: pathOf(location.search) }),
     ...look,
   });

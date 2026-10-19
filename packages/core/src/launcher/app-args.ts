@@ -85,6 +85,11 @@ export const runtimeHelp = (flags: readonly RuntimeFlag[]): HelpOptions["runtime
     description: f.description,
   }));
 
+export const PIXEL_SCROLL_FLAG: RuntimeFlag = {
+  name: "pixel-scroll",
+  description: "Enable pixel scrolling in web and desktop hosts",
+};
+
 export const HELP_FLAG: RuntimeFlag = { name: "help", short: "h", description: "Show this help" };
 export const NEW_FLAG: RuntimeFlag = {
   name: "new",

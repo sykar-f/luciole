@@ -13,6 +13,16 @@ and marked **Breaking**.
 
 ## [Unreleased]
 
+### Changed
+
+- **Breaking:** Pixel scrolling is now off by default on the web and desktop. Compiled
+  app binaries and `serve` accept `--pixel-scroll`; the desktop host accepts only
+  `LUCIOLE_PIXEL_SCROLL=1` (on macOS: `open --env LUCIOLE_PIXEL_SCROLL=1 Notes.app`).
+  The environment variable also works for binaries and the web Server. Add
+  `?pixel-scroll` to a web page URL to enable it there (also for `--web-local`). An explicit `pixelScroll: true | false` in
+  `run` or `runInPage` takes precedence. Applications can no longer declare the
+  `pixel-scroll` argument: it is reserved for the runtime.
+
 ### Added
 
 - `TestClient.spans()` captures text, cell widths, RGBA colors and attributes after

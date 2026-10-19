@@ -394,10 +394,13 @@ page soit encadrée ou non : les parcours `scripts/web/` lisent l'écran par ell
 
 ## 4. Rendu et entrée
 
-Le runtime active par défaut le défilement fractionnaire des `ScrollBox` après
-négociation avec l'hôte. La vue reste à la fraction où le geste s'arrête ; elle
+Le runtime conserve par défaut le défilement par lignes. `?pixel-scroll` dans
+l'URL active le défilement fractionnaire des `ScrollBox` après négociation avec
+l'hôte, y compris sur un site `--web-local`. Le Server transmet aussi
+`LUCIOLE_PIXEL_SCROLL=1` ou `<app> serve --pixel-scroll` à la page par ce paramètre. La vue reste à la fraction où le geste s'arrête ; elle
 n'ajoute pas d'inertie. `run(create, { pixelScroll: false })`, ou l'option
-`pixelScroll: false` de `runInPage`, conserve le défilement par lignes. Cette
+`pixelScroll: false` de `runInPage`, conserve le défilement par lignes. Une
+option explicite `pixelScroll: true | false` prime sur le flag de lancement. Cette
 option s’applique aussi à l’hôte desktop ; elle n’a aucun effet dans un terminal natif ordinaire. La réduction des mouvements,
 le mode lecteur d'écran et l'absence d'addon compatible gardent aussi les lignes.
 

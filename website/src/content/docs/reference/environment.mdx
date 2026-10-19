@@ -44,6 +44,7 @@ message and its fix.
 | `LUCIOLE_CHUNK_DELAY_MS` | `0`                                                  | A delay before each chunk of a response reaches the decoder.                                                                           |
 | `LUCIOLE_FAULT`          | none                                                 | Simulated faults with probabilities, such as `refuse:0.1,drop:0.05,cut:0.05` ([latency and faults](/docs/guides/latency-and-faults/)). |
 | `LUCIOLE_PING_MS`        | `10000`                                              | How often a Client pings a Server the launcher manages.                                                                                |
+| `LUCIOLE_PIXEL_SCROLL`   | unset                                                | `1`: opt in to pixel scrolling in web and desktop hosts. Explicit `pixelScroll` code options take precedence.                          |
 | `LUCIOLE_DESKTOP`        | unset                                                | `1`: the Client fills a desktop window. <kbd>Ctrl+C</kbd> goes to the app, and closing the window quits.                               |
 | `LUCIOLE_DEVTOOLS`       | unset                                                | In development, the address of `luciole devtools` ([DevTools](/docs/guides/devtools/)).                                                |
 

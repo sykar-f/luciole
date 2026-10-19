@@ -105,5 +105,9 @@ await run(
         throw new Error("No modules in desktop pixel fixture");
       },
     })),
-  { name: "desktop-pixel", sessionKey: "desktop-pixel", pixelScroll: mode !== "disabled" },
+  {
+    name: "desktop-pixel",
+    sessionKey: "desktop-pixel",
+    ...(mode?.startsWith("launch-") ? {} : { pixelScroll: mode !== "disabled" }),
+  },
 );

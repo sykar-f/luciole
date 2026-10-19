@@ -37,6 +37,7 @@ import {
   definitionOf,
   HELP_FLAG,
   NEW_FLAG,
+  PIXEL_SCROLL_FLAG,
   refuseArgs,
   runtimeHelp,
   splitArgs,
@@ -87,11 +88,13 @@ const RUNTIME_FLAGS: readonly RuntimeFlag[] = [
   { name: "target", value: "binary", description: "This app built for the host of --on" },
   { name: "url", value: "url", description: "Join a running Server (no application options)" },
   NEW_FLAG,
+  PIXEL_SCROLL_FLAG,
   HELP_FLAG,
   { name: "version", description: "Name, build and target" },
 ];
 /** What `serve` takes before `--`; internal to launchers, so left out of the help. */
 const SERVE_FLAGS: readonly RuntimeFlag[] = [
+  PIXEL_SCROLL_FLAG,
   { name: "http", value: "[host]:port", description: "" },
   { name: "socket", value: "path", description: "" },
   { name: "detach", description: "" },
@@ -139,6 +142,7 @@ async function serve(identity: BinaryIdentity, args: readonly string[], roles: R
     SERVE_FLAGS,
   );
   const app = end < 0 ? [] : args.slice(end + 1);
+  if (options.has("pixel-scroll")) process.env["LUCIOLE_PIXEL_SCROLL"] = "1";
   if (unknown.length)
     throw new ArgsError(
       `Unknown argument ${unknown[0]}: serve takes ${SERVE_FLAGS.map((f) => `--${f.name}`).join(" ")}, then -- and the application's options`,
@@ -216,6 +220,7 @@ async function start(text: string, roles: Roles) {
   if (first === "serve") return serve(identity, rest, roles);
   const args = first === undefined ? [] : [first, ...rest];
   const { flags: options, app } = splitArgs(args, RUNTIME_FLAGS);
+  if (options.has("pixel-scroll")) process.env["LUCIOLE_PIXEL_SCROLL"] = "1";
   const definition = await definitionIn(roles);
   if (options.has("help"))
     return console.log(

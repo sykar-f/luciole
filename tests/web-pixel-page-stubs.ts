@@ -18,6 +18,7 @@ const chunks: string[] = [];
 const initialSession: PatchedSession | undefined = undefined;
 export const state: {
   chunks: string[];
+  attached: number;
   write: (this: void, commands: string) => void;
   session: PatchedSession | undefined;
   missing: boolean;
@@ -27,6 +28,7 @@ export const state: {
   reached: () => void;
 } = {
   chunks,
+  attached: 0,
   write: (_commands: string) => {},
   session: initialSession,
   missing: false,
@@ -61,6 +63,7 @@ export const attachTerminalView = () => ({});
 export const wheelReports = () => () => false;
 export const cellAt = () => undefined;
 export const wheelRoom = () => ({ up: false, down: false });
+export { pixelScrollOf } from "../packages/core/src/web/embed";
 export const embedded = false;
 export const controlledNetwork = () => undefined;
 export const onInput = () => {};
@@ -82,6 +85,7 @@ export function attachPixelScroll(
   _renderer: unknown,
   options: { write(this: void, commands: string): void },
 ) {
+  state.attached++;
   state.write = options.write;
   return { ordinary() {} };
 }

@@ -35,6 +35,7 @@ const ClientEnvironment = z.object({
    * the window quits; Ctrl+C belongs to the application.
    */
   LUCIOLE_DESKTOP: z.optional(z.literal("1")),
+  LUCIOLE_PIXEL_SCROLL: z.optional(z.string()),
 });
 /** What `luciole dev` sends the Client it supervises (src/commands/dev.ts). */
 const DevMessage = z.union([
@@ -78,7 +79,7 @@ export async function run(
   {
     name = "luciole",
     sessionKey,
-    pixelScroll = true,
+    pixelScroll,
   }: {
     name?: string;
     /**
@@ -86,7 +87,7 @@ export async function run(
      * gives one per app and target, since its local socket changes on every launch.
      */
     sessionKey?: string;
-    /** Web and desktop hosts: `false` keeps row scrolling. Plain terminals ignore it. */
+    /** Web and desktop hosts: overrides the launch flag; off by default. */
     pixelScroll?: boolean;
   } = {},
 ) {
@@ -250,11 +251,12 @@ export async function run(
     renderer = await creating;
     void renderer.closed.then(interrupted, failed);
     if (ending || renderer.isDestroyed) return;
-    if (desktop && pixelScroll) {
+    if (desktop && (pixelScroll ?? env.data.LUCIOLE_PIXEL_SCROLL === "1")) {
       const writer = detectOpenTuiControlWriter(renderer);
       const observer = detectOpenTuiMouseObserver(renderer);
       if (writer.available && observer.available)
         attachPixelScroll(renderer, {
+          pixelScroll: true,
           write: (commands) => {
             // The shared controller does not await writes. Observe failures here,
             // including a rejected final release while the renderer is closing.

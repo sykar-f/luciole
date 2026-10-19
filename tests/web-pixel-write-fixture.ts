@@ -18,6 +18,7 @@ async function page() {
     server: new URL("http://localhost"),
     name: "pixel-write",
     restore: false,
+    pixelScroll: true,
   });
   const session = state.session;
   if (!session) throw new Error("No page output session");
@@ -88,3 +89,29 @@ test("page keeps terminal.write when the ordered writer is absent", async () => 
     await session.close();
   }
 });
+
+for (const [search, option, attached] of [
+  ["", undefined, false],
+  ["?pixel-scroll", undefined, true],
+  ["?pixel-scroll", false, false],
+  ["", true, true],
+] as const) {
+  test(`web pixel precedence: ${search || "no flag"}, code ${String(option)}`, async () => {
+    location.search = search;
+    const before = state.attached;
+    await runInPage(createApp, {
+      // eslint-disable-next-line typescript/consistent-type-assertions -- UI substitutes never inspect the element.
+      element: {} as HTMLElement,
+      server: new URL("http://localhost"),
+      name: "pixel-precedence",
+      restore: false,
+      ...(option === undefined ? {} : { pixelScroll: option }),
+    });
+    try {
+      expect(state.attached - before).toBe(attached ? 1 : 0);
+    } finally {
+      await state.session?.close();
+      location.search = "";
+    }
+  });
+}

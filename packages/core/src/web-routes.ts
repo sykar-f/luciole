@@ -47,7 +47,11 @@ const closed: WebAccess = {
  * What the Server lets browsers do. `origin` is only honored with a runtime built for this
  * Server's ABI: a page that cannot open the application is refused at startup, not in it.
  */
-export function webAccess(directory: string | undefined, origin: string | undefined): WebAccess {
+export function webAccess(
+  directory: string | undefined,
+  origin: string | undefined,
+  pixelScroll = false,
+): WebAccess {
   if (!origin) return closed;
   if (!directory || !existsSync(join(directory, "web-runtime.json")))
     throw new Error(
@@ -68,8 +72,27 @@ export function webAccess(directory: string | undefined, origin: string | undefi
       (req.headers.get("origin") === origin && req.headers.get("host") === host),
     serve(req, url) {
       if (req.method !== "GET") return undefined;
-      if (url.pathname === "/" || url.pathname === WEB_PATH.slice(0, -1))
-        return new Response(null, { status: STATUS.found, headers: { location: WEB_PATH } });
+      if (url.pathname === "/" || url.pathname === WEB_PATH.slice(0, -1)) {
+        const search = new URLSearchParams(url.search);
+        if (pixelScroll) search.set("pixel-scroll", "");
+        const query = search.toString();
+        return new Response(null, {
+          status: STATUS.found,
+          headers: { location: WEB_PATH + (query ? `?${query}` : "") },
+        });
+      }
+      if (
+        pixelScroll &&
+        (url.pathname === WEB_PATH || url.pathname === `${WEB_PATH}index.html`) &&
+        !url.searchParams.has("pixel-scroll")
+      ) {
+        const target = new URL(url);
+        target.searchParams.set("pixel-scroll", "");
+        return new Response(null, {
+          status: STATUS.found,
+          headers: { location: target.pathname + target.search },
+        });
+      }
       if (!url.pathname.startsWith(WEB_PATH)) return undefined;
       const name = url.pathname.slice(WEB_PATH.length) || "index.html";
       const type = FILES[name];
