@@ -376,21 +376,23 @@ le rendu et les gestes. Il s'agit d'une interprétation interne de cette idée,
 pas d'un protocole adopté par kitty ni de groupes persistants de cellules.
 
 Plusieurs régions simultanées (disjointes ou imbriquées), images sur d'autres
-couches, terminaux natifs et hôte desktop sont hors périmètre actuel. Une région
+couches et terminaux natifs ordinaires sont hors périmètre actuel. Une région
 contenant des images non composées dans le même snapshot doit être refusée.
-Le transport en bande reste compatible avec un PTY futur, sans certifier ces
-intégrations. Les formes non rectangulaires, l'occlusion arbitraire, le scroll
+L’hôte desktop transporte ce protocole en bande sur son PTY. Les formes non rectangulaires, l'occlusion arbitraire, le scroll
 horizontal graphique et les garanties de performance ne sont pas spécifiés.
 La fraction peut rester au repos ; ce contrat n'impose ni délai ni animation
 de recalage, sauf le retour canonique nécessaire à la libération.
 
-## Comportement du contrôleur web
+## Comportement du contrôleur web et desktop
 
 `runInPage` installe le contrôleur par défaut via `attachPixelScroll(renderer, options)` ; `pixelScroll: false` (également
 accepté par `run`) désactive son installation. La découverte ne bloque jamais
 le démarrage. Sans réponse compatible, avec la réduction des mouvements ou le
-lecteur d'écran, le chemin ordinaire par lignes reste actif. Le terminal natif
-n'installe pas ce contrôleur.
+lecteur d'écran, le chemin ordinaire par lignes reste actif. Avec
+`LUCIOLE_DESKTOP=1`, `run` installe aussi ce contrôleur par défaut si le runtime
+fournit les capacités du patch, le writer de contrôle ordonné et l’observateur
+souris. Sur OpenTUI stock, ou dans un terminal natif ordinaire, le défilement
+reste par lignes.
 
 Le module `pixel-scroll/attach.ts` reçoit le writer ordonné `write`, les options
 `pixelScroll` et `settle`, et éventuellement `observeOrdinary(receive)`, qui
@@ -399,8 +401,11 @@ retourne une fonction de désabonnement. Le résultat expose `ordinary` et
 `undefined`. La destruction du renderer désabonne aussi l'observateur.
 Dans le web, `write` appelle toujours `terminal.write` et le writer stdin appelle
 `ordinary(data)` avant `stdin.write(data)`, au même endroit après le contrôle
-réseau. Un hôte desktop peut injecter le writer de contrôle ordonné du renderer
-et un observateur `input:mouse` qui transmet le SGR brut avant le dispatch.
+réseau. Le chemin desktop injecte `writeControl` du renderer et son abonnement
+`observeMouseInput` à `input:mouse`, qui transmet le SGR brut avant le dispatch.
+Un rejet du writer passe par la sortie en erreur du Client ; il ne devient pas
+un rejet de promesse non traité. La destruction désabonne l’observateur et
+détache le contrôleur.
 Le helper ne dépend ni du transport web ni du transport natif.
 Une vue déclarant `scrollKeys: false` garde ses flèches et touches Page ; Ctrl+Page conserve le chemin de défilement existant.
 

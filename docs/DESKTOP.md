@@ -44,6 +44,15 @@ Côté code, `run()` lit la variable et crée l'Application avec `quitOnCtrlC: f
 générée ne l'affiche plus. Un hôte qui ouvre des panes (`openApplication`) leur passe la
 même option.
 
+Le Client attache aussi le contrôleur partagé de [défilement pixel](PIXEL-SCROLL.md)
+quand le runtime OpenTUI fournit les capacités du patch, `writeControl` et
+`observeMouseInput`. Le writer ordonne les commandes avec les frames, et
+l’observateur reçoit les rapports souris avant leur dispatch ordinaire.
+`run(create, { pixelScroll: false })` désactive cet attachement. Sans ces capacités,
+ou sans réponse compatible de la vue, le défilement reste par lignes ; un terminal
+natif ordinaire n’attache pas le contrôleur. Quitter détruit le renderer et détache
+le contrôleur avec son abonnement souris.
+
 ## Préparer le runtime natif OpenTUI
 
 ```sh

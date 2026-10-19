@@ -398,7 +398,7 @@ Le runtime active par défaut le défilement fractionnaire des `ScrollBox` aprè
 négociation avec l'hôte. La vue reste à la fraction où le geste s'arrête ; elle
 n'ajoute pas d'inertie. `run(create, { pixelScroll: false })`, ou l'option
 `pixelScroll: false` de `runInPage`, conserve le défilement par lignes. Cette
-option n'a aucun effet dans un terminal natif. La réduction des mouvements,
+option s’applique aussi à l’hôte desktop ; elle n’a aucun effet dans un terminal natif ordinaire. La réduction des mouvements,
 le mode lecteur d'écran et l'absence d'addon compatible gardent aussi les lignes.
 
 Avec le défilement au pixel, `typed` porte l'équivalent SGR ordinaire des entrées
