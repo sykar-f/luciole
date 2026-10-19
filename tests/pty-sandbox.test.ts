@@ -1,6 +1,6 @@
 /** The native launcher must exec before Seatbelt and keep Bun's IPC descriptors. */
 import { expect, test } from "bun:test";
-import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, realpathSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Capabilities } from "../packages/core/src/capabilities";
