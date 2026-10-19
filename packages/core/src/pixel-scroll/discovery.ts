@@ -1,11 +1,4 @@
-import {
-  decode,
-  encode,
-  MODE,
-  VERSION,
-  PRESENTATION_VERSION,
-  type PixelReport,
-} from "./protocol";
+import { decode, encode, MODE, VERSION, PRESENTATION_VERSION, type PixelReport } from "./protocol";
 
 /** Nonblocking negotiation. A revoked nonce can never enable private input again. */
 export class PixelDiscovery {
