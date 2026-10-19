@@ -219,7 +219,7 @@ async function compileEntry(
   const prepared = findNativeRuntime(target, options.cache);
   if (!prepared)
     console.warn(
-      `luciole compile: stock OpenTUI; row scroll (no complete native runtime for ${target}). ` +
+      `Warning: luciole compile: stock OpenTUI; row scroll (no complete native runtime for ${target}). ` +
         `Prepare with: luciole native-runtime --target ${target}`,
     );
   const result = await Bun.build({
