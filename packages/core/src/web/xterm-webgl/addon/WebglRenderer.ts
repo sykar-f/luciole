@@ -90,7 +90,8 @@ export class WebglRenderer extends Disposable implements IRenderer {
     const contextAttributes = {
       antialias: false,
       depth: false,
-      preserveDrawingBuffer
+      // PixelCompositor presents with blits; WKWebView can show blank frames without preservation.
+      preserveDrawingBuffer: preserveDrawingBuffer ?? true
     };
     this._gl = this._canvas.getContext('webgl2', contextAttributes) as IWebGL2RenderingContext;
     if (!this._gl) {

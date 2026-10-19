@@ -15,6 +15,9 @@ and marked **Breaking**.
 
 ### Fixed
 
+- Pixel scroll in the web runtime no longer flickers in Safari and other WKWebView
+  hosts on a Retina screen.
+
 - Desktop apps on macOS redraw after a window resize. Programs in a `<Terminal>`
   receive Ctrl+C and SIGWINCH from the kernel through their controlling terminal.
 

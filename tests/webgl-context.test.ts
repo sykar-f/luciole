@@ -14,6 +14,8 @@ for (const preserve of [undefined, false, true]) {
         throw stop;
       },
     };
+    // Only the terminal internals read before getContext are needed here.
+    // oxlint-disable-next-line typescript/consistent-type-assertions
     const terminal = {
       element: {},
       _core: {
