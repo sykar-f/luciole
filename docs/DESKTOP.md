@@ -44,6 +44,37 @@ Côté code, `run()` lit la variable et crée l'Application avec `quitOnCtrlC: f
 générée ne l'affiche plus. Un hôte qui ouvre des panes (`openApplication`) leur passe la
 même option.
 
+## Préparer le runtime natif OpenTUI
+
+```sh
+luciole native-runtime                              # cible de la machine
+luciole native-runtime --target bun-linux-x64-musl    # autre cible
+```
+
+La commande prépare un couple JavaScript et bibliothèque native OpenTUI v0.6.6 avec
+le patch partagé du défilement en pixels. Elle demande git, le réseau et Zig 0.16.0
+au premier lancement ; `ZIG=/chemin/vers/zig` choisit l'exécutable. Sur macOS, le SDK
+des Command Line Tools est utilisé par défaut lorsqu'il est installé ; `DEVELOPER_DIR`
+permet de choisir un autre SDK.
+
+Les six cibles sont `bun-darwin-arm64`, `bun-darwin-x64`, `bun-linux-x64`,
+`bun-linux-arm64`, `bun-linux-x64-musl` et `bun-linux-arm64-musl`. Les bibliothèques
+macOS visent macOS 13, celles de Linux glibc visent glibc 2.17 ; les deux autres
+emploient musl. Une compilation croisée vers macOS demande aussi son SDK.
+
+Le cache se trouve dans `$XDG_CACHE_HOME/luciole/native/` (ou
+`~/.cache/luciole/native/`). Sa clé dépend du tag OpenTUI, des octets des patches
+dans leur ordre, de la version de Zig, de la cible et de la version du format.
+Une modification du framework seule ne l'invalide pas. Le manifeste
+`native-runtime.json` conserve ces données, l'arbre source et les empreintes SHA-256
+de chaque fichier, y compris les métadonnées ABI générées. Chaque réutilisation
+vérifie ces empreintes, sans Zig ni checkout source. Une entrée manquante ou altérée
+est reconstruite par cette commande ; deux préparations concurrentes partagent un verrou
+et l'entrée complète devient visible par un renommage atomique.
+
+Cette commande prépare seulement le cache. Les builds ne consomment pas encore ces
+entrées ; leur intégration à `luciole build --compile` est une étape suivante.
+
 ## L'hôte Electrobun : `packages/desktop`
 
 Un prototype d'hôte : une fenêtre [Electrobun](https://framework.blackboard.sh/electrobun/)

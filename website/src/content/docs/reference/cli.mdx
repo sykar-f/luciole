@@ -211,6 +211,20 @@ time.
 Prepares this framework version's web runtime ahead of `luciole build --web` (it needs git,
 the network and Zig 0.16.0).
 
+### `luciole native-runtime [--target <target>]`
+
+Prepares patched OpenTUI v0.6.6 JavaScript, its native library and ABI metadata in
+`$XDG_CACHE_HOME/luciole/native/` (default: `~/.cache/luciole/native/`). The default target
+is the host; `--target` accepts `bun-darwin-arm64`, `bun-darwin-x64`, `bun-linux-x64`,
+`bun-linux-arm64`, `bun-linux-x64-musl` or `bun-linux-arm64-musl`.
+
+The first preparation needs git, the network and Zig 0.16.0 (`ZIG` selects its executable).
+macOS targets also need a macOS SDK. Subsequent runs validate the manifest and file
+digests and reuse the entry without Zig or sources. A framework-only change keeps the
+entry; a patch change gives it a new key. Concurrent preparations share a lock.
+
+This command prepares the cache; builds do not consume these entries yet.
+
 ### `luciole keys [generate]`
 
 Prints the publisher key that signs app bundles (its file, `SHA256:` fingerprint and public

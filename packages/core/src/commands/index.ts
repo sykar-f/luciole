@@ -13,6 +13,7 @@ import { skills } from "./skills";
 import { trust } from "./trust";
 import { connect, start } from "./start";
 import { webRuntime } from "./web";
+import { nativeRuntime } from "./native";
 /**
  * Every `luciole` subcommand, by name, refusing the flags it does not declare. A new one is
  * a module in this directory and one line here; the order is the usage line's.
@@ -28,6 +29,7 @@ export const commands: ReadonlyMap<string, Command> = new Map(
       ["trust", trust],
       ["runtime", runtime],
       ["web-runtime", webRuntime],
+      ["native-runtime", nativeRuntime],
       ["start", start],
       ["connect", connect],
       ["search", search],

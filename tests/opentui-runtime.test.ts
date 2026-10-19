@@ -4,6 +4,41 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { buildOpenTuiLibrary, publishRuntimeEntry } from "../packages/core/src/opentui-runtime";
 
+test("optional reuse validation rebuilds rejected entries under the publication lock", async () => {
+  const root = mkdtempSync(join(process.env["TMPDIR"] ?? tmpdir(), "runtime-validation-"));
+  const directory = join(root, "runtime");
+  let builds = 0;
+  const options = {
+    directory,
+    checkout: join(root, "checkout"),
+    marker: "manifest",
+    complete: () => true,
+    async build(temporary: string) {
+      builds++;
+      writeFileSync(join(temporary, "manifest"), "valid");
+    },
+  };
+  try {
+    await publishRuntimeEntry(options);
+    writeFileSync(join(directory, "manifest"), "invalid");
+    // Existing callers keep marker-only reuse.
+    await publishRuntimeEntry(options);
+    expect(builds).toBe(1);
+    expect(readFileSync(join(directory, "manifest"), "utf8")).toBe("invalid");
+    const validated = {
+      ...options,
+      validateReuse: (path: string) => readFileSync(join(path, "manifest"), "utf8") === "valid",
+    };
+    await publishRuntimeEntry(validated);
+    expect(builds).toBe(2);
+    await publishRuntimeEntry(validated);
+    expect(builds).toBe(2);
+    expect(readFileSync(join(directory, "manifest"), "utf8")).toBe("valid");
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test("runtime publication uses the product marker and completeness check", async () => {
   const root = mkdtempSync(join(process.env["TMPDIR"] ?? tmpdir(), "runtime-entry-"));
   const directory = join(root, "runtime");
