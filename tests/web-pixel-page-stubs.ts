@@ -3,10 +3,21 @@ import { NativeSession } from "@opentui/core";
 import type { Application } from "../packages/core/src/client";
 import type { terminalOutput } from "../packages/core/src/web/streams";
 
+interface PatchedSession extends NativeSession {
+  beginFrameOutput(): Promise<void>;
+  endFrameOutput(commit: boolean): Promise<void>;
+  writeControl(bytes: Uint8Array): Promise<void>;
+}
+function patched(session: NativeSession): session is PatchedSession {
+  return ["beginFrameOutput", "endFrameOutput", "writeControl"].every(
+    (key) => typeof Reflect.get(session, key) === "function",
+  );
+}
+
 export const state = {
   chunks: [] as string[],
   write: (_commands: string) => {},
-  session: undefined as NativeSession | undefined,
+  session: undefined as PatchedSession | undefined,
   missing: false,
   reject: false,
   hold: false,
@@ -22,6 +33,7 @@ export class Terminal {
   onData() {}
   onResize() {}
   onWriteParsed() {}
+  onRender() {}
   write(chunk: string | Uint8Array, done?: () => void) {
     state.chunks.push(typeof chunk === "string" ? chunk : new TextDecoder().decode(chunk));
     if (state.hold && done) {
@@ -62,6 +74,7 @@ export function createCliRenderer(options: { stdout: ReturnType<typeof terminalO
     output: { chunkSize: 256, spanCapacity: 32, maxBytes: 8192n, controlCapacity: 128 },
     outputBufferSize: 17,
   });
+  if (!patched(session)) throw new Error("Missing patched Wasm session methods");
   state.session = session;
   return {
     closed: Promise.resolve(),
