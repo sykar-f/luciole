@@ -1,10 +1,22 @@
 import { expect, test } from "bun:test";
 import { spawn } from "node:child_process";
+import { existsSync, watch } from "node:fs";
 import { mkdtemp, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { z } from "zod";
 import { serverStatus } from "../packages/core/src/launcher/managed";
-import { eventually, until, WAIT_MS } from "./helpers";
+
+/** Subscribe before checking: shutdown is observed through filesystem events, not polls. */
+function observe(path: string, condition: () => Promise<boolean>) {
+  const result = Promise.withResolvers<void>();
+  const inspect = () =>
+    void condition().then((ready) => {
+      if (ready) result.resolve();
+    }, result.reject);
+  const watcher = watch(path, inspect);
+  inspect();
+  return { promise: result.promise, [Symbol.dispose]: () => watcher.close() };
+}
 
 const Ready = z.object({ socket: z.string(), pid: z.number() });
 for (const desktop of [true, false]) {
@@ -36,6 +48,12 @@ for (const desktop of [true, false]) {
       });
       server = ready;
       expect((await serverStatus(ready.socket))?.clients).toBe(1);
+      const logFile = Bun.file(join(state, "startup/server.log"));
+      using changed = observe(desktop ? join(work, "luciole") : join(state, "startup"), async () =>
+        desktop
+          ? !existsSync(ready.socket)
+          : (await logFile.text()).includes("waiting 900 s for a Client"),
+      );
       child.kill("SIGHUP");
       expect(await exited).toEqual(
         desktop ? { code: 0, signal: null } : { code: null, signal: "SIGHUP" },
@@ -44,20 +62,14 @@ for (const desktop of [true, false]) {
         !desktop,
       );
       if (desktop) {
-        await until(() => {
-          try {
-            process.kill(ready.pid, 0);
-            return false;
-          } catch {
-            return true;
-          }
-        }, WAIT_MS);
+        await changed.promise;
         const log = await Bun.file(join(state, "startup/server.log")).text();
         expect(log).toContain("the last Client left");
         expect(log).not.toContain("waiting 900 s for a Client");
         expect(await serverStatus(server.socket)).toBeUndefined();
       } else {
-        await eventually(async () => (await serverStatus(ready.socket))?.graceUntil !== undefined);
+        await changed.promise;
+        expect((await serverStatus(ready.socket))?.graceUntil).toBeDefined();
         expect(await serverStatus(server.socket)).toMatchObject({ clients: 0 });
       }
     } finally {
@@ -127,6 +139,8 @@ test("a desktop hangup while its managed Server starts waits to leave voluntaril
     server = await arrived.promise;
     // The desktop coordinator's listener is already installed. A second listener
     // acknowledges delivery so releasing readiness cannot race the first signal.
+    const ready = server;
+    using stopped = observe(join(work, "luciole"), async () => !existsSync(ready.socket));
     child.kill("SIGHUP");
     await new Promise<void>((done) => child.once("message", () => done()));
     // A second hangup must not take the default action during asynchronous cleanup.
@@ -134,15 +148,7 @@ test("a desktop hangup while its managed Server starts waits to leave voluntaril
     await new Promise<void>((done) => child.once("message", () => done()));
     release.resolve();
     expect(await exited).toEqual({ code: 0, signal: null });
-    const ready = server;
-    await until(() => {
-      try {
-        process.kill(ready.pid, 0);
-        return false;
-      } catch {
-        return true;
-      }
-    }, WAIT_MS);
+    await stopped.promise;
     const log = await Bun.file(join(work, "state/startup/server.log")).text();
     expect(log).toContain("stopping: the last Client left");
     expect(log).not.toContain("waiting 900 s for a Client");
