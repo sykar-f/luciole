@@ -1,7 +1,9 @@
-import { expect, test } from "bun:test";
+import { expect, spyOn, test } from "bun:test";
 import { TextRenderable } from "@opentui/core";
 import { createTestRenderer } from "@opentui/core/testing";
 import { cellOf, clickOn } from "../packages/core/src/test/client";
+import * as frames from "../packages/core/src/test/frame";
+import { buildApp, openClient, startServer, TEST_TIMEOUT_MS } from "../packages/core/src/test";
 import { renderFrame } from "../packages/core/src/test/frame";
 import { untilDrawn, untilFrame } from "../packages/core/src/test/wait";
 
@@ -131,3 +133,132 @@ test("frame propagates a later capture failure after an earlier frame succeeded"
     await ui.dispose();
   }
 });
+
+// These guards let the regression run against the parent, before the added API exists.
+function hasSpans<T extends object>(
+  client: T,
+): client is T & {
+  spans(): Promise<ReturnType<Parameters<typeof renderFrame>[0]["captureSpans"]>>;
+} {
+  return typeof Reflect.get(client, "spans") === "function";
+}
+function hasNoAct<T extends object>(
+  module: T,
+): module is T & {
+  renderCaptureWithoutAct<R>(ui: Parameters<typeof renderFrame>[0], capture: () => R): Promise<R>;
+} {
+  return typeof Reflect.get(module, "renderCaptureWithoutAct") === "function";
+}
+
+/** Start another native presentation before a renderOnce caller resumes. */
+function overlap(ui: Parameters<typeof renderFrame>[0], change: () => void) {
+  const renderOnce = ui.renderOnce;
+  let concurrent: Promise<void> | undefined;
+  let forced = false;
+  ui.renderOnce = async () => {
+    await renderOnce();
+    if (forced) return;
+    forced = true;
+    change();
+    concurrent = renderOnce();
+    expect(ui.renderer.getSchedulerState().isRendering).toBe(true);
+  };
+  return { finished: () => concurrent, forced: () => forced };
+}
+
+test(
+  "public client.spans captures during overlapping native presentation",
+  async () => {
+    const app = await buildApp("examples/notes");
+    await using server = await startServer(app, { NOTES_DB: ":memory:" });
+    await using client = await openClient(app, server);
+    const text = new TextRenderable(client.ui.renderer, { content: "snapshot before" });
+    client.ui.renderer.root.add(text);
+    const concurrent = overlap(client.ui, () => {
+      text.content = "snapshot after";
+    });
+    try {
+      if (!hasSpans(client)) throw new Error("TestClient.spans is missing");
+      const snapshot = await client.spans();
+      expect(concurrent.forced()).toBe(true);
+      expect(snapshot.cols).toBe(110);
+      expect(snapshot.rows).toBe(32);
+      expect(
+        snapshot.lines
+          .flatMap((line) => line.spans)
+          .map((span) => span.text)
+          .join(""),
+      ).toContain("snapshot");
+      const saved = snapshot.lines.map((line) =>
+        line.spans.map((span) => ({
+          ...span,
+          fg: span.fg.toInts(),
+          bg: span.bg.toInts(),
+        })),
+      );
+      await concurrent.finished();
+      text.content = "another frame";
+      await client.spans();
+      expect(
+        snapshot.lines.map((line) =>
+          line.spans.map((span) => ({
+            ...span,
+            fg: span.fg.toInts(),
+            bg: span.bg.toInts(),
+          })),
+        ),
+      ).toEqual(saved);
+    } finally {
+      await concurrent.finished();
+    }
+  },
+  TEST_TIMEOUT_MS,
+);
+
+test("no-act span capture fences overlapping native presentation", async () => {
+  const ui = await createTestRenderer({ width: 20, height: 3 });
+  const text = new TextRenderable(ui.renderer, { content: "before" });
+  ui.renderer.root.add(text);
+  const concurrent = overlap(ui, () => {
+    text.content = "after";
+  });
+  try {
+    if (!hasNoAct(frames)) throw new Error("renderCaptureWithoutAct is missing");
+    const snapshot = await frames.renderCaptureWithoutAct(ui, ui.captureSpans);
+    expect(snapshot.lines[0]?.spans.map((span) => span.text).join("")).toContain("before");
+    expect(concurrent.forced()).toBe(true);
+    expect(ui.renderer.listenerCount("frame")).toBe(0);
+    expect(ui.renderer.listenerCount("render:error")).toBe(0);
+  } finally {
+    await concurrent.finished();
+    await ui.dispose();
+  }
+});
+
+for (const status of ["failed", "blocked", "stopped"] as const) {
+  test(`frame rejects when a ${status} pass neither presents nor schedules`, async () => {
+    const ui = await createTestRenderer({ width: 20, height: 3 });
+    ui.renderer.root.add(new TextRenderable(ui.renderer, { content: "before" }));
+    const presentation = spyOn(ui.renderer.nativeScene, "commit").mockReturnValue(3);
+    const log = spyOn(console, "error").mockImplementation(() => {});
+    if (status === "blocked") Reflect.set(ui.renderer, "isSplitCursorSeedFrameBlocked", () => true);
+    if (status === "stopped") ui.renderer.suspend();
+    let result: unknown;
+    const pending = renderFrame(ui).catch((error) => {
+      result = error;
+    });
+    try {
+      // A loop turn lets act complete; no presentation or retry can happen in this fixture.
+      await new Promise<void>((resolve) => setImmediate(resolve));
+      expect(result).toBeInstanceOf(Error);
+      expect(String(result)).toContain("without presenting a frame");
+      expect(String(result)).toContain("hasScheduledRender");
+      expect(ui.renderer.listenerCount("frame")).toBe(0);
+    } finally {
+      presentation.mockRestore();
+      log.mockRestore();
+      await ui.dispose();
+      await pending;
+    }
+  });
+}
