@@ -6,6 +6,13 @@ l'hôte xterm. Le codec interne est
 Il n'est pas exporté par `@luciole-sh/core`. Ce contrat et son codec n'activent
 aucun comportement à eux seuls ; les intégrations app et hôte sont distinctes.
 
+`packages/core/src/pixel-scroll/` regroupe le contrôleur applicatif, les frames,
+l'historique, la découverte et la conversion des entrées ordinaires, ainsi que
+la session et les interfaces de présentation indépendantes du navigateur.
+Les capacités optionnelles d'OpenTUI sont dans `packages/core/src/opentui-seams.ts`.
+L'addon xterm et le compositeur WebGL restent dans
+`packages/core/src/web/pixel-scroll/` ; ils utilisent ces modules communs.
+
 L'application possède la position logique `p = n + f`, en lignes de contenu,
 avec `n = floor(p)` et `0 ≤ f < 1`. L'hôte possède les métriques, le DPR et la
 quantification au pixel physique. Il n'ajoute ni inertie ni animation. La phase

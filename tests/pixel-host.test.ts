@@ -6,8 +6,8 @@ import type { PixelOperation, PixelReport } from "../packages/core/src/pixel-scr
 import type {
   PixelRenderer,
   Presentation,
-} from "../packages/core/src/web/pixel-scroll/presentation";
-import { PixelSession } from "../packages/core/src/web/pixel-scroll/session";
+} from "../packages/core/src/pixel-scroll/presentation";
+import { PixelSession } from "../packages/core/src/pixel-scroll/session";
 
 function fixture(
   reason: Extract<PixelReport, { op: "capability" }>["reason"] = "ready",

@@ -1,5 +1,5 @@
 import { MouseParser, Renderable, type CliRenderer, type KeyEvent } from "@opentui/core";
-import { decode, encode, type PixelReport, type Rect } from "../../pixel-scroll/protocol";
+import { decode, encode, type PixelReport, type Rect } from "./protocol";
 import {
   detectOpenTuiSeams,
   detectScrollableViewport,

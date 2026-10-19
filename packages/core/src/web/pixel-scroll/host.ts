@@ -9,8 +9,8 @@ import {
   VERSION,
   type PixelReport,
 } from "../../pixel-scroll/protocol";
-import type { PixelRenderer } from "./presentation";
-import { PixelSession } from "./session";
+import type { PixelRenderer } from "../../pixel-scroll/presentation";
+import { PixelSession } from "../../pixel-scroll/session";
 
 const SHIFT = 1;
 const ALT = 2;

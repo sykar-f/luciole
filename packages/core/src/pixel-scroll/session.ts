@@ -4,7 +4,7 @@ import {
   type PixelOperation,
   type PixelReport,
   type Rect,
-} from "../../pixel-scroll/protocol";
+} from "./protocol";
 import type { PixelRenderer, Presentation } from "./presentation";
 
 const HALF_PIXEL = 0.5;

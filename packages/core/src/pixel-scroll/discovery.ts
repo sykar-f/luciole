@@ -5,7 +5,7 @@ import {
   VERSION,
   PRESENTATION_VERSION,
   type PixelReport,
-} from "../../pixel-scroll/protocol";
+} from "./protocol";
 
 /** Nonblocking negotiation. A revoked nonce can never enable private input again. */
 export class PixelDiscovery {

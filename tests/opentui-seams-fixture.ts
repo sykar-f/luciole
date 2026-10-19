@@ -16,9 +16,9 @@ import {
   type RawMouseEvent,
 } from "@opentui/core";
 import { createTestRenderer } from "@opentui/core/testing";
-import { detectOpenTuiSeams, type RenderHitMap } from "../packages/core/src/web/opentui-seams";
-import { detectScrollableViewport } from "../packages/core/src/web/opentui-seams";
-import { PixelController } from "../packages/core/src/web/pixel-scroll/controller";
+import { detectOpenTuiSeams, type RenderHitMap } from "../packages/core/src/opentui-seams";
+import { detectScrollableViewport } from "../packages/core/src/opentui-seams";
+import { PixelController } from "../packages/core/src/pixel-scroll/controller";
 import { decode, decodePayload, encode, OSC } from "../packages/core/src/pixel-scroll/protocol";
 import { MarkdownEditorRenderable } from "../packages/markdown-editor/src/view/EditorRenderable";
 
@@ -676,7 +676,7 @@ async function scrollScene() {
   fixture.r.root.add(parent);
   await fixture.renderOnce();
   await fixture.renderOnce();
-  const { detectScrollableViewport } = await import("../packages/core/src/web/opentui-seams");
+  const { detectScrollableViewport } = await import("../packages/core/src/opentui-seams");
   const outer = detectScrollableViewport(parent);
   const inner = detectScrollableViewport(child);
   if (!outer || !inner) throw new Error("Missing scrollable viewport");
@@ -801,7 +801,7 @@ test("precise row deltas bypass acceleration and bubble only the remainder; chai
         reset() {},
       };
     const precise = (delta: number) => {
-      const attributes: import("../packages/core/src/web/opentui-seams").PresentedMouseEvent = {
+      const attributes: import("../packages/core/src/opentui-seams").PresentedMouseEvent = {
         ...input("scroll"),
         scroll: { direction: delta < 0 ? "up" : "down", delta: Math.abs(delta), precise: true },
       };
