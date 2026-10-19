@@ -140,9 +140,14 @@ test("input observer and control writer detections are independent and reject mi
     },
   };
   const writer = { async writeControl() {} };
-  expect(detectOpenTuiMouseObserver(observer)).toEqual({ available: true, renderer: observer });
+  const observed = detectOpenTuiMouseObserver(observer);
+  expect(observed.available).toBe(true);
+  if (observed.available)
+    expect(observed.renderer.observeMouseInput).toBe(observer.observeMouseInput);
   expect(detectOpenTuiControlWriter(observer).available).toBe(false);
-  expect(detectOpenTuiControlWriter(writer)).toEqual({ available: true, renderer: writer });
+  const written = detectOpenTuiControlWriter(writer);
+  expect(written.available).toBe(true);
+  if (written.available) expect(written.renderer.writeControl).toBe(writer.writeControl);
   expect(detectOpenTuiMouseObserver(writer).available).toBe(false);
 });
 

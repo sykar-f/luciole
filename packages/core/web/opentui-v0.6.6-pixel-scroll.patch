@@ -127,6 +127,52 @@ index 9048978..7f1a005 100644
        if (!this.stopped && ready) this.blocked = false
      } catch (error) {
        this.output = null
+diff --git a/packages/core/src/ScrollableViewport.ts b/packages/core/src/ScrollableViewport.ts
+new file mode 100644
+index 0000000..d93908e
+--- /dev/null
++++ b/packages/core/src/ScrollableViewport.ts
+@@ -0,0 +1,40 @@
++import type { Renderable } from "./Renderable.js"
++
++/** A content-only vertical scroll surface. Positions and deltas are in rows. */
++export interface ScrollableViewport {
++  readonly owner: Renderable
++  readonly position: number
++  readonly origin: number
++  readonly max: number
++  readonly rect: Readonly<{ x: number; y: number; width: number; height: number }>
++  set(position: number): void
++  /** Consume a precise delta without acceleration; return the unconsumed remainder. */
++  scroll(delta: number): number
++  /** Describe a paint pass, without changing logical state or scheduling work. */
++  project(origin: number): { renderable: Renderable; translateX: number; translateY: number }
++}
++
++export function getScrollableViewport(value: unknown): ScrollableViewport | undefined {
++  if (!value || typeof value !== "object") return undefined
++  const viewport = Reflect.get(value, "scrollableViewport")
++  if (!viewport || typeof viewport !== "object") return undefined
++  return ["set", "scroll", "project"].every((key) => typeof Reflect.get(viewport, key) === "function")
++    ? (viewport as ScrollableViewport)
++    : undefined
++}
++
++/** Only one member of an ancestor/descendant chain may carry a fraction. */
++export function settleScrollableChain(owner: Renderable): void {
++  const settle = (node: unknown) => {
++    const viewport = getScrollableViewport(node)
++    if (viewport && !Number.isInteger(viewport.position)) viewport.set(Math.round(viewport.position))
++  }
++  for (let parent = owner.parent; parent; parent = parent.parent) settle(parent)
++  const visit = (node: Renderable) => {
++    for (const child of node.getChildren()) {
++      settle(child)
++      visit(child)
++    }
++  }
++  visit(owner)
++}
 diff --git a/packages/core/src/index.ts b/packages/core/src/index.ts
 index 6f776f6..ffc034b 100644
 --- a/packages/core/src/index.ts
