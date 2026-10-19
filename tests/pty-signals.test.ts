@@ -29,7 +29,11 @@ test("a direct Bun program gets SIGWINCH and the new PTY size", async () => {
   try {
     await until(() => output.includes("READY 80x24"));
     pty.resize(120, 40);
-    await until(() => output.includes("SIGWINCH 120x40"));
+    await until(
+      () => output.includes("SIGWINCH 120x40"),
+      3000,
+      () => output,
+    );
     expect(output).toContain("SIGWINCH 120x40");
   } finally {
     pty.kill();
@@ -90,7 +94,11 @@ test("a desktop session sends kernel SIGWINCH to a direct Bun program", async ()
   try {
     await until(() => output.includes("READY 80x24"));
     session.resize({ cols: 120, rows: 40 });
-    await until(() => output.includes("SIGWINCH 120x40"));
+    await until(
+      () => output.includes("SIGWINCH 120x40"),
+      3000,
+      () => output,
+    );
     expect(output).toContain("SIGWINCH 120x40");
   } finally {
     session.hangUp();

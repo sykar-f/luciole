@@ -6,8 +6,12 @@
  * Otherwise a shell warns "job control turned off", Ctrl+C reaches no foreground process
  * group and `sleep 30` survives it. A terminal emulator or tmux does the same; closing
  * the PTY then hangs the whole session up.
- * - macOS: `detached: true` is enough. Bun calls setsid() and the PTY becomes the
- *   controlling terminal of the new session.
+ * - macOS: Bun 1.4.x does not attach a preallocated Bun.Terminal to the new session.
+ *   `detached: true` creates the session. The native luciole-pty launcher calls
+ *   TIOCSCTTY, then execs the program with the same pid and file descriptors.
+ *   A check before spawn keeps missing-command errors synchronous. If exec fails
+ *   after that check, the launcher writes the error to the PTY and exits with 127
+ *   for a missing file, or 126 for another error.
  * - Linux: Bun 1.4.2 calls setsid() too but never TIOCSCTTY, so the session has no
  *   terminal (`ps` shows TPGID -1). `setsid -c` (util-linux, busybox) does both and
  *   then execs the program, which keeps the pid Bun returns. It is spawned in the
@@ -16,6 +20,7 @@
  *   the program still runs, without job control.
  */
 import { fstatSync, readdirSync, readSync, realpathSync } from "node:fs";
+import { ptyLauncher } from "./pty-launcher";
 export type PtyOptions = {
   /**
    * The program and its arguments; a function receives the exact path of the PTY's
@@ -159,36 +164,61 @@ export function spawnPty(options: PtyOptions): Pty {
     data: (_terminal, bytes) => options.onData(bytes),
   });
   const master = linux && before ? masterOf(before) : undefined;
+  const own = options.environment === "replace" ? {} : process.env;
+  const env: Record<string, string | undefined> = {
+    ...own,
+    TERM: "xterm-256color",
+    COLORTERM: "truecolor",
+    ...options.env,
+  };
   let command: readonly string[];
+  let launcher: string | undefined;
   try {
     command =
       typeof options.command === "function"
         ? options.command(newSlave(before ?? new Map()))
         : options.command;
     if (!command[0]) throw new Error("A terminal needs a command");
+    if (process.platform === "darwin") {
+      launcher = ptyLauncher();
+      const executable = Bun.which(command[0], {
+        PATH: env["PATH"] ?? "/usr/bin:/bin",
+        cwd: options.cwd ?? process.cwd(),
+      });
+      if (!executable) throw new Error(`Terminal command not found: ${command[0]}`);
+      command = [executable, ...command.slice(1)];
+    }
   } catch (error: unknown) {
     terminal.close();
     throw error;
   }
-  const own = options.environment === "replace" ? {} : process.env;
-  const child = Bun.spawn(SETSID ? [SETSID, "-c", ...command] : [...command], {
-    terminal,
-    detached: !SETSID,
-    ...(options.cwd === undefined ? {} : { cwd: options.cwd }),
-    // TERM names what the emulator answers to (terminfo, DA); COLORTERM advertises the
-    // truecolor it renders.
-    env: { ...own, TERM: "xterm-256color", COLORTERM: "truecolor", ...options.env },
-    ...(options.ipc && {
-      ipc: (message: unknown) => options.ipc?.(message),
-      serialization: "json",
-    }),
-    onExit: (child, code) => {
-      live.delete(child.pid);
-      if (master !== undefined && !terminal.closed) drain(master, options.onData);
-      terminal.close();
-      options.onExit(code);
-    },
-  });
+  let child: ReturnType<typeof Bun.spawn>;
+  try {
+    child = Bun.spawn(
+      SETSID ? [SETSID, "-c", ...command] : launcher ? [launcher, ...command] : [...command],
+      {
+        terminal,
+        detached: !SETSID,
+        ...(options.cwd === undefined ? {} : { cwd: options.cwd }),
+        // TERM names what the emulator answers to (terminfo, DA); COLORTERM advertises the
+        // truecolor it renders.
+        env,
+        ...(options.ipc && {
+          ipc: (message: unknown) => options.ipc?.(message),
+          serialization: "json",
+        }),
+        onExit: (child, code) => {
+          live.delete(child.pid);
+          if (master !== undefined && !terminal.closed) drain(master, options.onData);
+          terminal.close();
+          options.onExit(code);
+        },
+      },
+    );
+  } catch (error: unknown) {
+    terminal.close();
+    throw error;
+  }
   live.set(child.pid, terminal);
   if (!exitHooked) {
     exitHooked = true;

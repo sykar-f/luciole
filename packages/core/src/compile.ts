@@ -19,6 +19,7 @@ import {
   nativePackage,
   nativeTarget,
 } from "./native";
+import { PTY_LAUNCHER, sourcePtyLauncher } from "./vt/pty-launcher";
 import { readJsonFile } from "./package-json";
 import { readAppMetadata } from "./app-metadata";
 import { matchesDist, publishedDist } from "./registry/npm";
@@ -170,7 +171,7 @@ export async function compileApp(
   if (!server.success) throw new Error(logMessages(server.logs));
   const nativeDirectory = join(dirname(outfile), NATIVE_DIRECTORY);
   const previous = nativeTarget(nativeDirectory);
-  if (natives.size && previous && previous !== target)
+  if ((natives.size || target.startsWith("bun-darwin-")) && previous && previous !== target)
     throw new Error(
       `${nativeDirectory} holds native packages for ${previous}: compile ${target} into ` +
         "another directory (--outfile)",
@@ -197,7 +198,11 @@ export async function compileApp(
   );
   try {
     const compiled = await compileEntry(entry, { ...options, outfile });
-    return { ...compiled, identity, ...(natives.size ? { native: nativeDirectory } : {}) };
+    return {
+      ...compiled,
+      identity,
+      ...(natives.size || target.startsWith("bun-darwin-") ? { native: nativeDirectory } : {}),
+    };
   } finally {
     await rm(staging, { recursive: true, force: true });
   }
@@ -254,6 +259,18 @@ async function compileEntry(
     throw new Error(messages);
   });
   if (!result.success) throw new Error(logMessages(result.logs));
+  if (os === "darwin") {
+    const directory = join(dirname(outfile), NATIVE_DIRECTORY);
+    const previous = nativeTarget(directory);
+    if (previous && previous !== target)
+      throw new Error(`${directory} is for ${previous}, not ${target}: use another --outfile`);
+    await mkdir(directory, { recursive: true });
+    const helper = join(directory, PTY_LAUNCHER);
+    await cp(sourcePtyLauncher(), helper);
+    await Bun.write(join(directory, "TARGET"), `${target}\n`);
+    if (options.sign !== undefined) await signClient(helper, options.sign);
+    if (options.notarize !== undefined) await notarizeClient(helper, options.notarize);
+  }
   if (options.sign !== undefined) await signClient(outfile, options.sign);
   return definedProperties({
     outfile,
