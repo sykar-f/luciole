@@ -18,6 +18,9 @@ and marked **Breaking**.
 - Pixel scroll in the web runtime no longer flickers in Safari and other WKWebView
   hosts on a Retina screen.
 
+- Closing a desktop window during startup now quits voluntarily and stops its
+  managed server, instead of leaving it in crash grace.
+
 - Desktop apps on macOS redraw after a window resize. Programs in a `<Terminal>`
   receive Ctrl+C and SIGWINCH from the kernel through their controlling terminal.
 

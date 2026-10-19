@@ -5,6 +5,7 @@
  * file, the TTY renderer); the Application itself (src/client.tsx) does not know it. The
  * web runtime replaces this module (docs/WEB.md, W1).
  */
+import { desktopHangup } from "./desktop-hangup";
 import { definedProperties } from "./defined-properties";
 import { constants } from "node:os";
 import * as z from "zod/mini";
@@ -86,35 +87,52 @@ export async function run(
     pixelScroll?: boolean;
   } = {},
 ) {
+  const hangup = desktopHangup();
   const env = ClientEnvironment.safeParse(process.env);
   if (!env.success) throw new Error(`Invalid Client environment: ${z.prettifyError(env.error)}`);
   const desktop = env.data.LUCIOLE_DESKTOP === "1";
+  const openStore = (server: string) =>
+    openSession({
+      name,
+      server,
+      ...(env.data.LUCIOLE_SESSION === undefined ? {} : { id: env.data.LUCIOLE_SESSION }),
+    });
+  const key = sessionKey ?? env.data.LUCIOLE_SESSION_KEY;
+  // A launcher may already have claimed a session. Own it before URL resolution
+  // (which can wait for configuration or SSH authentication).
+  const earlySession = desktop && key ? openStore(key) : undefined;
+  if (earlySession) hangup?.add(() => earlySession.remove());
   // Resolved before the renderer takes the terminal: ssh may prompt for a passphrase.
   const url = await serverUrl({ name }).catch((error: unknown) => {
     console.error(messageOf(error));
     process.exit(1);
   });
+  if (hangup?.quitting) return;
   const connection = await connect(url).catch((error: unknown) => {
     console.error(messageOf(error));
     process.exit(1);
   });
+  hangup?.add(async () => {
+    await connection.managed?.leave();
+    connection.close();
+  });
+  if (hangup?.quitting) return;
   const supervised =
     env.data.LUCIOLE_SESSION !== undefined && process.send
       ? (message: unknown) => void process.send?.(message)
       : undefined;
   const handed = supervised ? await bearerFromSupervisor(supervised) : undefined;
+  if (hangup?.quitting) return;
   // Keyed by the address the user gave: a tunnel's local port changes on every start.
-  const session = openSession({
-    name,
-    server: sessionKey ?? env.data.LUCIOLE_SESSION_KEY ?? url,
-    ...(env.data.LUCIOLE_SESSION === undefined ? {} : { id: env.data.LUCIOLE_SESSION }),
-  });
+  const session = earlySession ?? openStore(key ?? url);
+  if (!earlySession) hangup?.add(() => session.remove());
   const devtools = env.data.LUCIOLE_DEVTOOLS
     ? (await import("./devtools/client-agent")).startClientAgent({
         address: env.data.LUCIOLE_DEVTOOLS,
         name,
       })
     : undefined;
+  if (hangup?.quitting) return;
   const app = create({
     url: connection.url,
     ...(connection.fetch === undefined ? {} : { fetch: connection.fetch }),
@@ -199,7 +217,8 @@ export async function run(
   process.on("SIGTERM", interrupted);
   process.on("SIGINT", interrupted);
   // Closing a desktop window is a voluntary quit; a terminal hangup keeps the session.
-  process.on("SIGHUP", desktop ? quit : interrupted);
+  if (hangup) hangup.handle(quit);
+  else process.on("SIGHUP", interrupted);
   // Keep OpenTUI's other terminating signals, with their conventional exit codes.
   // SIGBREAK exists on Windows only; SIGPIPE keeps Bun's ignored default.
   for (const signal of ["SIGQUIT", "SIGABRT", "SIGBUS", "SIGBREAK"] as const) {

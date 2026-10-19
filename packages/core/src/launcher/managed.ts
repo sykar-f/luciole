@@ -8,6 +8,7 @@
  * The Server is detached (its own session, output to its log): it outlives the launcher,
  * a closed terminal or ssh, and ends by its own lifetime rules.
  */
+import { desktopHangup } from "../desktop-hangup";
 import { createHash } from "node:crypto";
 import { closeSync, lstatSync, mkdirSync, openSync, readFileSync, rmSync, statSync } from "node:fs";
 import { join } from "node:path";
@@ -108,7 +109,9 @@ export type EnsuredServer = {
 export async function ensureServer(options: EnsureOptions): Promise<EnsuredServer> {
   const env = options.env ?? process.env;
   const socket = serverSocket(options.id, env);
+  const hangup = options.attach ? desktopHangup() : undefined;
   const found = await serverStatus(socket);
+  if (hangup?.quitting) throw new Error("Desktop window closed");
   const done = (pid: number, reattached: boolean, release = () => {}) => ({
     socket,
     url: `unix:${socket}`,
@@ -118,8 +121,22 @@ export async function ensureServer(options: EnsureOptions): Promise<EnsuredServe
   });
   const same = (status: typeof found) =>
     status?.buildId === options.buildId && status.args === options.fingerprint;
-  if (found && same(found)) return done(found.pid, true);
+  const leave = () =>
+    fetch("http://localhost/lifetime/leave", {
+      method: "POST",
+      unix: socket,
+      headers: { "x-luciole-client": options.client ?? "" },
+      signal: AbortSignal.timeout(STATUS_TIMEOUT_MS),
+    }).then(
+      () => undefined,
+      () => undefined,
+    );
+  if (found && same(found)) {
+    if (options.client) hangup?.add(leave);
+    return done(found.pid, true);
+  }
   if (found) await stopServer(socket);
+  if (hangup?.quitting) throw new Error("Desktop window closed");
   // Nobody answers: whatever file is there is left by a Server that died.
   rmSync(socket, { force: true });
   const logFile = join(options.directories.state, options.name, "server.log");
@@ -145,6 +162,13 @@ export async function ensureServer(options: EnsureOptions): Promise<EnsuredServe
       ...(options.client ? { LUCIOLE_LIFETIME_STARTER: options.client } : {}),
     },
   });
+  // The pipe is held until a voluntary leave, even if the window closes while
+  // the Server is still starting. Never abandon a newly spawned Server in grace.
+  const ready = Promise.withResolvers<boolean>();
+  if (options.client)
+    hangup?.add(async () => {
+      if (await ready.promise) await leave();
+    });
   closeSync(log);
   child.unref();
   let exited: string | undefined;
@@ -153,14 +177,20 @@ export async function ensureServer(options: EnsureOptions): Promise<EnsuredServe
   const deadline = performance.now() + STARTUP_MS;
   for (;;) {
     const status = await serverStatus(socket);
-    if (status && same(status))
+    if (status && same(status)) {
+      ready.resolve(true);
       // Started here (its pid may be a child of `command`: an app binary with native
       // packages runs its Server as a child).
       return done(status.pid, false, () => child.stdin?.destroy());
+    }
     if (exited !== undefined || performance.now() > deadline) {
       // Two launches at once: the other one's Server may have taken the socket.
       const other = await serverStatus(socket);
-      if (other && same(other)) return done(other.pid, true);
+      if (other && same(other)) {
+        ready.resolve(true);
+        return done(other.pid, true);
+      }
+      ready.resolve(false);
       const text = readFileSync(logFile, "utf8").slice(start).trim();
       throw new Error(
         `${options.name}: the Server ${exited ?? `did not start in ${STARTUP_MS} ms`}` +

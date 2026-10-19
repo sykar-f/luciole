@@ -17,6 +17,8 @@
  * Application options are those `app/args.ts` declares (src/args.ts): anything that is
  * not a runtime flag. `--help` lists both.
  */
+import { openSession } from "../session";
+import { desktopHangup } from "../desktop-hangup";
 import { definedProperties } from "../defined-properties";
 import { spawn } from "node:child_process";
 import { dirname, join, resolve } from "node:path";
@@ -121,6 +123,7 @@ async function stdinLine() {
 
 async function runClient(identity: BinaryIdentity, roles: Roles, sessionKey?: string) {
   const client = await roles.client();
+  if (desktopHangup()?.quitting) return;
   if (!isClientModule(client)) throw new Error("This binary holds no luciole Client");
   await client.run(client.createApp, {
     name: identity.name,
@@ -254,6 +257,11 @@ async function start(text: string, roles: Roles) {
     // A crashed launch's Server there is asked by the remote serve, not from here.
     ...(destination === undefined ? {} : { running: async () => true }),
   });
+  if (desktopHangup()?.quitting) return;
+  if (plan.session) {
+    const session = openSession({ name: identity.name, server: plan.key, id: plan.session });
+    desktopHangup()?.add(() => session.remove());
+  }
   const client = newClientId();
   const server =
     destination === undefined
@@ -281,6 +289,7 @@ async function start(text: string, roles: Roles) {
           },
           log: (message) => console.error(message),
         });
+  if (desktopHangup()?.quitting) return;
   // Handed to the Client like a user's own --url; it pings the Server as this Client.
   process.argv.push("--url", server.url);
   process.env["LUCIOLE_LIFETIME_CLIENT"] = client;
@@ -292,6 +301,7 @@ export async function main(identity: string, roles: Roles) {
   try {
     await start(identity, roles);
   } catch (error: unknown) {
+    if (desktopHangup()?.quitting) return;
     console.error(messageOf(error));
     process.exit(isUsageError(error) ? USAGE_EXIT_CODE : 1);
   }
