@@ -21,10 +21,20 @@ let work: string, fakeSsh: string, server: ReturnType<typeof Bun.serve>;
 // Stands for OpenSSH: logs its arguments, then forwards the -L socket to host:port, or
 // fails like a refused key, or never finishes authenticating.
 const FAKE_SSH = `
-import { appendFileSync } from "node:fs";
+import { appendFileSync, existsSync, writeFileSync } from "node:fs";
 import { connect, createServer } from "node:net";
 const args = process.argv.slice(2);
-appendFileSync(import.meta.dir + "/calls.jsonl", JSON.stringify({ pid: process.pid, args }) + "\\n");
+const log = import.meta.dir + "/calls.jsonl";
+const record = JSON.stringify({ pid: process.pid, args }) + "\\n";
+const gate = process.env.LUCIOLE_TEST_SSH_APPEND_GATE;
+if (gate) {
+  const middle = Math.floor(record.length / 2);
+  appendFileSync(log, record.slice(0, middle));
+  writeFileSync(gate + ".writing", "");
+  const wait = new Int32Array(new SharedArrayBuffer(4));
+  while (!existsSync(gate + ".continue")) Atomics.wait(wait, 0, 0, 10);
+  appendFileSync(log, record.slice(middle));
+} else appendFileSync(log, record);
 const destination = args[args.length - 1];
 if (destination.endsWith("refused.example")) {
   console.error(destination + ": Permission denied (publickey).");
@@ -55,8 +65,14 @@ afterAll(async () => {
   await rm(work, { recursive: true, force: true });
 });
 
-async function lastCall() {
-  const lines = (await Bun.file(join(work, "calls.jsonl")).text()).trim().split("\n");
+function callLog(directory = work) {
+  const path = join(directory, "calls.jsonl");
+  const text = existsSync(path) ? readFileSync(path, "utf8") : "";
+  // A newline commits one record; a concurrently appended suffix is not ready.
+  return text.slice(0, text.lastIndexOf("\n") + 1);
+}
+async function lastCall(directory = work) {
+  const lines = callLog(directory).trim().split("\n");
   const call: unknown = JSON.parse(lines[lines.length - 1]);
   const pid = typeof call === "object" && call && "pid" in call ? call.pid : undefined;
   const args = typeof call === "object" && call && "args" in call ? call.args : undefined;
@@ -71,6 +87,36 @@ const alive = (pid: number) => {
     return false;
   }
 };
+
+for (const previous of [false, true]) {
+  test(`SSH log readiness excludes a paused append, previous record: ${previous}`, async () => {
+    const directory = await mkdtemp(join(work, "append-"));
+    const script = join(directory, "ssh.ts");
+    const gate = join(directory, "gate");
+    await Bun.write(script, FAKE_SSH);
+    if (previous)
+      await Bun.write(join(directory, "calls.jsonl"), JSON.stringify({ pid: 0, args: [] }) + "\n");
+    const before = callLog(directory).length;
+    const child = Bun.spawn([process.execPath, script, "silent.example"], {
+      env: { ...process.env, LUCIOLE_TEST_SSH_APPEND_GATE: gate },
+      stdout: "ignore",
+      stderr: "ignore",
+    });
+    try {
+      await until(() => existsSync(`${gate}.writing`), WAIT_MS);
+      // The original byte-growth readiness check permits a partial JSON read.
+      if (callLog(directory).length > before) await lastCall(directory);
+      expect(callLog(directory).length).toBe(before);
+      if (previous) expect(await lastCall(directory)).toEqual({ pid: 0, args: [] });
+      await Bun.write(`${gate}.continue`, "");
+      await until(() => callLog(directory).length > before, WAIT_MS);
+      expect(await lastCall(directory)).toEqual({ pid: child.pid, args: ["silent.example"] });
+    } finally {
+      child.kill("SIGKILL");
+      await child.exited;
+    }
+  });
+}
 
 test("--url, then LUCIOLE_URL, then the user's config file, then the default", async () => {
   const env = { XDG_CONFIG_HOME: join(work, "config") };
@@ -219,10 +265,7 @@ mock.module("node:child_process", () => ({ spawn: (...args) => {
 const { openTunnel } = await import(${JSON.stringify(resolve("packages/core/src/connect.ts"))});
 await openTunnel("ssh://silent.example", { ssh: ${JSON.stringify(fakeSsh)} });`,
   );
-  const calls = () =>
-    existsSync(join(work, "calls.jsonl"))
-      ? readFileSync(join(work, "calls.jsonl"), "utf8").length
-      : 0;
+  const calls = () => callLog().length;
   const before = calls();
   const client = Bun.spawn([process.execPath, script], { stdout: "ignore", stderr: "ignore" });
   let call: Awaited<ReturnType<typeof lastCall>> | undefined;
