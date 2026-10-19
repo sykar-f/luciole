@@ -1,8 +1,13 @@
-import { expect, test } from "bun:test";
-import { cpSync, mkdirSync, mkdtempSync, symlinkSync, writeFileSync } from "node:fs";
+import { afterAll, expect, test } from "bun:test";
+import { cpSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { basename, join, resolve } from "node:path";
+import { join, resolve } from "node:path";
 import { checkCoreTypes } from "../scripts/pack-check";
+
+import { copyPackWorkspace } from "./pack-workspace";
+
+const temp = mkdtempSync(join(tmpdir(), "packed-declarations-"));
+afterAll(() => rmSync(temp, { recursive: true, force: true }));
 
 async function run(command: string[], cwd: string, env = process.env): Promise<string> {
   const child = Bun.spawn(command, { cwd, env, stdout: "pipe", stderr: "pipe" });
@@ -16,19 +21,10 @@ async function run(command: string[], cwd: string, env = process.env): Promise<s
 }
 
 test("packed core resolves every entry to declarations in a strict consumer", async () => {
-  const temp = mkdtempSync(join(tmpdir(), "packed-declarations-"));
   const tarball = join(temp, "core.tgz");
   const revision = (await run(["git", "rev-parse", "HEAD"], resolve("."))).trim();
   // Other tests pack core too. Give prepack/postpack their own output directory.
-  const workspace = join(temp, "workspace");
-  cpSync(resolve("."), workspace, {
-    recursive: true,
-    filter: (path) =>
-      ![".git", "node_modules", "dts", "target"].includes(basename(path)) &&
-      !basename(path).startsWith(".luciole") &&
-      !path.includes("/docs/missions"),
-  });
-  symlinkSync(resolve("node_modules"), join(workspace, "node_modules"), "dir");
+  const workspace = await copyPackWorkspace(join(temp, "workspace"));
   await run(
     [process.execPath, "pm", "pack", "--filename", tarball, "--quiet"],
     join(workspace, "packages/core"),
