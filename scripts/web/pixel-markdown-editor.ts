@@ -186,11 +186,16 @@ try {
     return result;
   })()`),
   ).toEqual({ head: { block: 2, offset: 7 }, origin: 0 });
+  // Drain the preceding wheel before resetting to a presentation seen earlier.
+  await wait(
+    "probe.state().presented?.origin===2 && probe.state().presented?.fraction===.75",
+    "wheel presentation before resetting the document",
+  );
   await browser.evaluate(
-    "probe.editor.controller.moveTo({block:0,offset:4});probe.editor.scrollableViewport.set(.75)",
+    "window.resetPresentationGeneration=probe.state().presented.generation;probe.editor.controller.moveTo({block:0,offset:4});probe.editor.scrollableViewport.set(.75)",
   );
   await wait(
-    "probe.state().presented?.origin===0 && probe.state().presented?.fraction===.75",
+    "probe.state().presented?.generation>window.resetPresentationGeneration && probe.state().presented?.origin===0 && probe.state().presented?.fraction===.75",
     "reset document presentation before the next drag",
   );
   // A distinct cell avoids the editor's multi-click selection gestures.
