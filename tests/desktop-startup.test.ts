@@ -54,7 +54,7 @@ for (const desktop of [true, false]) {
         }, WAIT_MS);
         const log = await Bun.file(join(state, "startup/server.log")).text();
         expect(log).toContain("the last Client left");
-        expect(log).not.toContain("grace");
+        expect(log).not.toContain("waiting 900 s for a Client");
         expect(await serverStatus(server.socket)).toBeUndefined();
       } else {
         await eventually(async () => (await serverStatus(ready.socket))?.graceUntil !== undefined);
@@ -72,3 +72,26 @@ for (const desktop of [true, false]) {
     }
   }, 15_000);
 }
+
+test("a desktop hangup before launch planning exits without creating a Server", async () => {
+  const work = await mkdtemp("/tmp/luciole-before-");
+  const child = spawn(process.execPath, ["tests/desktop-startup-before-server.ts"], {
+    env: { ...process.env, LUCIOLE_DESKTOP: "1", XDG_RUNTIME_DIR: work },
+    stdio: ["ignore", "ignore", "inherit", "ipc"],
+  });
+  const exited = new Promise((done) =>
+    child.once("exit", (code, signal) => done({ code, signal })),
+  );
+  try {
+    await new Promise<void>((done, fail) => {
+      child.once("message", () => done());
+      child.once("exit", () => fail(new Error("Launcher exited before barrier")));
+    });
+    child.kill("SIGHUP");
+    expect(await exited).toEqual({ code: 0, signal: null });
+    expect(await Bun.file(join(work, "luciole/startup.sock")).exists()).toBe(false);
+  } finally {
+    child.kill("SIGKILL");
+    await rm(work, { recursive: true, force: true });
+  }
+});

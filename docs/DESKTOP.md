@@ -22,6 +22,11 @@ onglet, l'app reprend où elle en était au prochain lancement. Une fenêtre des
 l'application : la fermer (ou Cmd+Q) raccroche son PTY, et c'est le quit de
 l'utilisateur. Le Server local s'arrête alors aussitôt au lieu d'attendre son délai de
 grâce (`POST /lifetime/leave`, `src/launcher/lifetime.ts`).
+Ce contrat vaut dès le démarrage, avant même le premier écran : le lanceur et le
+Client partagent le traitement du hangup. Si aucun Server n'a encore été lancé,
+la fermeture quitte sans en démarrer un. Si son lancement est en cours, le Client
+attend qu'il réponde pour lui envoyer le départ volontaire ; toute session déjà
+prise est supprimée. Un second hangup pendant ce départ est ignoré.
 
 Aucun protocole propre à l'hôte : un hangup de PTY est ce que tout émulateur fait en
 fermant une fenêtre, donc le contrat vaut pour n'importe quel hôte (Electrobun, WezTerm
