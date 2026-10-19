@@ -185,5 +185,6 @@ test.skipIf(process.env["LUCIOLE_OPENTUI_INTEGRATION"] !== "1")(
       await execute([zig, "build", "test", `-Dtest-filter=${group}`, "--summary", "all"], native);
     await execute([zig, "build", "test-abi", "--summary", "all"], native);
   },
-  INTEGRATION_MS,
+  // Each native filter compiles a separate test executable on a cold cache.
+  INTEGRATION_MS * 3,
 );
