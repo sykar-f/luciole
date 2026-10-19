@@ -75,7 +75,7 @@ luciole build --compile --client-only --target bun-darwin-arm64
 Without a prepared OpenTUI entry for the target, a foreign target needs `--native-dir`,
 `--client-only` included: `bun install` installs only your machine's OpenTUI library.
 Native Server packages still need `--native-dir` even with a prepared entry.
-Without `--native-dir`, the build stops and names the missing package.
+A missing native package stops the build, which names it.
 
 The first two lines install the Linux packages from the app's lockfile in a directory of their
 own. On another machine, repeat them for each target that is not its own
