@@ -27,6 +27,12 @@ output timeouts cannot publish half-prepared chrome or moved rectangles. A grid
 signature gates canonical recapture and release. These modules and their tests
 are the proposed upstream seam; the OSC protocol remains a separate consumer.
 
+The renderer preserves the drawing buffer by default. `PixelCompositor` presents
+retained images with framebuffer blits. Without buffer preservation, these
+presentations can show blank frames in Safari and other WKWebView hosts on
+Retina screens. An explicit `preserveDrawingBuffer` argument still overrides
+the default.
+
 To compare: remove the first line of each vendored file and normalize the
 relative import prefixes back to xterm's source aliases. All files other than
 the two named addon files then match the corresponding npm package sources.
