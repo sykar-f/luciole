@@ -13,7 +13,6 @@
   "dependencies": {
     "@luciole-sh/core": "workspace:*",
     "@xterm/addon-fit": "catalog:",
-    "@xterm/addon-webgl": "catalog:",
     "@xterm/xterm": "catalog:"
   },
   "devDependencies": {

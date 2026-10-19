@@ -33,7 +33,7 @@ Ajoutées au catalogue après ce contrôle, sans comparaison aux tags `latest` :
 | ---------------------------------------------- | ------------------------ | --------------------------------------- |
 | @sqlite.org/sqlite-wasm                        | 3.53.4-build2            | framework, runtime navigateur           |
 | @xterm/xterm / @xterm/addon-fit                | 6.0.0 / 0.11.0           | framework, runtime navigateur ; desktop |
-| @xterm/addon-webgl                             | 0.19.0                   | desktop                                 |
+| @xterm/addon-webgl                             | 0.19.0                   | source du renderer vendored du core     |
 | electrobun                                     | 2.0.2                    | desktop                                 |
 | marked                                         | 17.0.1                   | framework (`<Markdown>`), mdreader      |
 | sharp                                          | 0.35.5                   | files                                   |
