@@ -45,7 +45,7 @@ export type OpenTuiSeamDetection =
   | { available: true; renderer: CliRenderer & OpenTuiSeams }
   | { available: false; missing: readonly (typeof METHODS)[number][] };
 
-function hasMethod(renderer: unknown, name: (typeof METHODS)[number]): boolean {
+function hasMethod(renderer: unknown, name: string): boolean {
   if (typeof renderer !== "object" || renderer === null) return false;
   const method: unknown = Reflect.get(renderer, name);
   return typeof method === "function";
@@ -103,4 +103,43 @@ export function detectScrollableViewport(value: unknown): ScrollableViewport | u
   if (typeof value !== "object" || value === null) return undefined;
   const viewport: unknown = Reflect.get(value, "scrollableViewport");
   return isScrollableViewport(viewport) ? viewport : undefined;
+}
+
+/** Observe each assembled raw mouse sequence before ordinary OpenTUI dispatch. */
+export interface OpenTuiMouseObserver {
+  observeMouseInput(observer: (raw: string) => void): () => void;
+}
+
+/** Resolve once copied control bytes have drained after complete frame transactions. */
+export interface OpenTuiControlWriter {
+  writeControl(bytes: Uint8Array): Promise<void>;
+}
+
+function hasMouseObserver(renderer: unknown): renderer is CliRenderer & OpenTuiMouseObserver {
+  return hasMethod(renderer, "observeMouseInput");
+}
+
+function hasControlWriter(renderer: unknown): renderer is CliRenderer & OpenTuiControlWriter {
+  return hasMethod(renderer, "writeControl");
+}
+
+/** These independent capabilities keep existing frame-plan fallback decisions stable. */
+export function detectOpenTuiMouseObserver(
+  renderer: unknown,
+):
+  | { available: true; renderer: CliRenderer & OpenTuiMouseObserver }
+  | { available: false; missing: readonly ["observeMouseInput"] } {
+  return hasMouseObserver(renderer)
+    ? { available: true, renderer }
+    : { available: false, missing: ["observeMouseInput"] };
+}
+
+export function detectOpenTuiControlWriter(
+  renderer: unknown,
+):
+  | { available: true; renderer: CliRenderer & OpenTuiControlWriter }
+  | { available: false; missing: readonly ["writeControl"] } {
+  return hasControlWriter(renderer)
+    ? { available: true, renderer }
+    : { available: false, missing: ["writeControl"] };
 }

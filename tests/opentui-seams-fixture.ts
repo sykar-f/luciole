@@ -17,7 +17,12 @@ import {
   type RawMouseEvent,
 } from "@opentui/core";
 import { createTestRenderer } from "@opentui/core/testing";
-import { detectOpenTuiSeams, type RenderHitMap } from "../packages/core/src/opentui-seams";
+import {
+  detectOpenTuiSeams,
+  detectOpenTuiMouseObserver,
+  detectOpenTuiControlWriter,
+  type RenderHitMap,
+} from "../packages/core/src/opentui-seams";
 import { detectScrollableViewport } from "../packages/core/src/opentui-seams";
 import { PixelController } from "../packages/core/src/pixel-scroll/controller";
 import { decode, decodePayload, encode, OSC } from "../packages/core/src/pixel-scroll/protocol";
@@ -48,7 +53,7 @@ test("planned output keeps one envelope across partial sink writes and backpress
     outputBufferSize: 17,
   });
   function hasFrameOutput(value: NativeSession): value is NativeSession & {
-    beginFrameOutput(): void;
+    beginFrameOutput(): Promise<void>;
     endFrameOutput(commit: boolean): Promise<void>;
   } {
     return ["beginFrameOutput", "endFrameOutput"].every(
@@ -60,7 +65,7 @@ test("planned output keeps one envelope across partial sink writes and backpress
     const limit = Number(session.maxAtomicWriteBytes);
     expect(limit).toBeGreaterThan(0);
     const parts = [start, "A".repeat(limit), "B".repeat(limit), end];
-    session.beginFrameOutput();
+    await session.beginFrameOutput();
     for (const part of parts) {
       expect(session.write(bytes(part))).toBe(true);
       await session.idle();
@@ -1075,5 +1080,28 @@ test("a drag begun on the projected row keeps its source through paint and relea
   } finally {
     r.destroy();
     await r.closed;
+  }
+});
+
+test("patched renderer exposes the detectable input observer and ordered control writer", async () => {
+  const f = await setup();
+  try {
+    const observer = detectOpenTuiMouseObserver(f.r);
+    const writer = detectOpenTuiControlWriter(f.r);
+    expect(observer.available).toBe(true);
+    expect(writer.available).toBe(true);
+    if (!observer.available || !writer.available) throw new Error("Missing input/output seams");
+    const seen: string[] = [];
+    const unsubscribe = observer.renderer.observeMouseInput((raw) => seen.push(raw));
+    const raw = "\x1b[<0;1;1M";
+    f.r.stdin.emit("data", Buffer.from(raw));
+    expect(seen).toEqual([raw]);
+    unsubscribe();
+    await f.r.idle();
+    f.chunks.length = 0;
+    await writer.renderer.writeControl(bytes("control-probe"));
+    expect(f.chunks.join("")).toBe("control-probe");
+  } finally {
+    await f.dispose();
   }
 });

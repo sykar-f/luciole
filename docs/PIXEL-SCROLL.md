@@ -437,3 +437,33 @@ native ; après la libération, le clic Alt suivant suit le chemin ordinaire.
 Une popup intersectée libère la surface dans
 sa frame. Une invalidation abandonne les hit maps, repeint à l'origine entière
 et recommence la découverte lorsque l'hôte signale des métriques invalidées.
+
+## Points d’intégration natifs de l’entrée et de la sortie
+
+Le patch partagé expose `renderer.observeMouseInput(observer)`. Chaque séquence
+souris brute complète, assemblée par le parseur (SGR ou X10), est transmise à
+l’observateur avant le hit-test et la distribution ordinaires, y compris lorsque
+la souris est désactivée. La valeur est la chaîne brute, pas un événement de
+coordonnées projetées. L’abonnement retourne une fonction de désabonnement ;
+il écoute l’événement `input:mouse`. Il ne consomme pas l’entrée et ne change
+pas sa distribution. L’observateur doit rester synchrone et ne pas lever
+d’exception. `detectOpenTuiMouseObserver` vérifie cette capacité sans s’abonner.
+
+`renderer.writeControl(bytes): Promise<void>` copie les octets dès l’appel et
+les place dans une file ordonnée avec les autres commandes et les transactions
+de frame. Une commande attend la fin de toute frame déjà réservée, y compris
+ses fragments après `frame:plan:end` ; une frame suivante attend les commandes
+précédentes. Une commande dépassant la capacité d’écriture atomique est découpée
+sous la même réservation. La pression de sortie déclenche une attente via
+`NativeSession.idle()` puis une nouvelle admission des mêmes octets, sans
+exception de saturation. La promesse se résout après le drainage ; les erreurs
+du puits et de cycle de vie continuent de la rejeter. Il faut attendre la
+promesse après la transaction, jamais depuis un callback de capture de cette
+même frame. `detectOpenTuiControlWriter` vérifie cette capacité séparément des
+points d’intégration de rendu existants.
+
+Ces points d’intégration sont disponibles sans modifier le comportement des
+applications : aucun contrôleur ne les utilise encore. Le chemin web actuel
+écrit ses commandes directement avec `terminal.write`, hors de cette file.
+Il reste donc exposé à une commande insérée entre les fragments d’une frame
+pendant son drainage ; `frame:plan:end` n’est pas une barrière de sortie.
