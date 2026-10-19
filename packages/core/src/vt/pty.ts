@@ -20,7 +20,7 @@
  *   would then fork, and the pid would no longer be the program's. Without `setsid`
  *   the program still runs, without job control.
  */
-import { fstatSync, readdirSync, readSync, realpathSync } from "node:fs";
+import { closeSync, fstatSync, readdirSync, readSync, realpathSync, writeSync } from "node:fs";
 import { ptyLauncher } from "./pty-launcher";
 export type PtyOptions = {
   /**
@@ -196,10 +196,20 @@ export function spawnPty(options: PtyOptions): Pty {
   let child: ReturnType<typeof Bun.spawn>;
   try {
     child = Bun.spawn(
-      SETSID ? [SETSID, "-c", ...command] : launcher ? [launcher, ...command] : [...command],
+      SETSID
+        ? [SETSID, "-c", ...command]
+        : launcher
+          ? [launcher, "--wait-for-parent", ...command]
+          : [...command],
       {
         terminal,
         detached: !SETSID,
+        // Keep the launcher alive, without a controlling terminal, until Bun has
+        // installed its process watcher. On macOS an exiting session leader can
+        // be invisible to kqueue while still waiting for its PTY output to drain.
+        // Bun then blocks in wait4 inside spawn, preventing that very drain.
+        // IPC, when requested, gets the next fd; Bun supplies its number in env.
+        ...(launcher && { stdio: ["inherit", "inherit", "inherit", "pipe"] as const }),
         ...(options.cwd === undefined ? {} : { cwd: options.cwd }),
         // TERM names what the emulator answers to (terminfo, DA); COLORTERM advertises the
         // truecolor it renders.
@@ -216,6 +226,15 @@ export function spawnPty(options: PtyOptions): Pty {
         },
       },
     );
+    if (launcher) {
+      const gate = child.stdio[3];
+      if (typeof gate !== "number") throw new Error("The PTY startup pipe is missing");
+      try {
+        writeSync(gate, new Uint8Array([1]));
+      } finally {
+        closeSync(gate);
+      }
+    }
   } catch (error: unknown) {
     terminal.close();
     throw error;
