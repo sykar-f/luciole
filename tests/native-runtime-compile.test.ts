@@ -142,6 +142,7 @@ import {detectOpenTuiSeams} from ${JSON.stringify(resolve("packages/core/src/ope
             "host",
             "--outfile",
             binary,
+            ...(prepared ? ["--native-dir", join(root, "absent-native-packages")] : []),
           ],
           { env: { ...process.env, XDG_CACHE_HOME: xdg, ZIG: "/nonexistent/zig" } },
         );
@@ -157,6 +158,8 @@ import {detectOpenTuiSeams} from ${JSON.stringify(resolve("packages/core/src/ope
         expect(compiled.stderr.toString().includes("luciole native-runtime --target")).toBe(
           !prepared,
         );
+        // Neither cached JavaScript nor its library can be read at execution time.
+        if (prepared) await rm(join(root, "prepared"), { recursive: true, force: true });
         const report = join(root, prepared ? "pixel.json" : "stock.json");
         const cwd = join(root, prepared ? "run-pixel" : "run-stock");
         await Bun.write(join(cwd, ".keep"), "");
