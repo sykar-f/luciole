@@ -2,6 +2,7 @@ import { join } from "node:path";
 import { act, type ReactNode } from "react";
 import { KeyCodes, type MouseButton } from "@opentui/core/testing";
 import { testRender } from "@opentui/react/test-utils";
+import { renderFrame } from "./frame";
 import type { Application, ApplicationOptions, TransportEvent } from "../client";
 import { until, untilDrawn, untilFrame, WAIT_MS, type TestUI } from "./wait";
 
@@ -59,16 +60,19 @@ export async function destroy(ui: TestUI | undefined) {
 }
 
 /** Where `text` is drawn: its first cell, or undefined when the frame does not show it. */
-export function cellOf(ui: TestUI, text: string) {
-  const rows = ui.captureCharFrame().split("\n");
+export async function cellOf(ui: TestUI, text: string) {
+  return cellIn(await renderFrame(ui), text);
+}
+function cellIn(frame: string, text: string) {
+  const rows = frame.split("\n");
   const y = rows.findIndex((row) => row.includes(text));
   return y < 0 ? undefined : { x: rows[y]?.indexOf(text) ?? 0, y };
 }
 /** A left click on the first cell of `text`, as a user points at a label; fails if not shown. */
 export async function clickOn(ui: TestUI, text: string, button?: MouseButton) {
-  await ui.renderOnce();
-  const cell = cellOf(ui, text);
-  if (!cell) throw new Error(`Nothing to click: "${text}" is not shown\n${ui.captureCharFrame()}`);
+  const frame = await renderFrame(ui);
+  const cell = cellIn(frame, text);
+  if (!cell) throw new Error(`Nothing to click: "${text}" is not shown\n${frame}`);
   await ui.mockMouse.click(cell.x, cell.y, button);
 }
 
@@ -179,12 +183,7 @@ export async function openClient(
     requests,
     waitFor: (text, timeout) => untilFrame(ui, text, timeout),
     settled: (text) => untilDrawn(ui, text),
-    frame: async () => {
-      await act(async () => {
-        await ui.renderOnce();
-      });
-      return ui.captureCharFrame();
-    },
+    frame: () => renderFrame(ui),
     click: (text, button) => act(() => clickOn(ui, text, button)),
     press: (key, modifiers) =>
       act(async () => {
