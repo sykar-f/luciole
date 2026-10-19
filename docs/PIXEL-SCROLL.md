@@ -386,11 +386,22 @@ de recalage, sauf le retour canonique nécessaire à la libération.
 
 ## Comportement du contrôleur web
 
-`runInPage` installe le contrôleur par défaut ; `pixelScroll: false` (également
+`runInPage` installe le contrôleur par défaut via `attachPixelScroll(renderer, options)` ; `pixelScroll: false` (également
 accepté par `run`) désactive son installation. La découverte ne bloque jamais
 le démarrage. Sans réponse compatible, avec la réduction des mouvements ou le
 lecteur d'écran, le chemin ordinaire par lignes reste actif. Le terminal natif
 n'installe pas ce contrôleur.
+
+Le module `pixel-scroll/attach.ts` reçoit le writer ordonné `write`, les options
+`pixelScroll` et `settle`, et éventuellement `observeOrdinary(receive)`, qui
+retourne une fonction de désabonnement. Le résultat expose `ordinary` et
+`dispose` ; sans les capacités du patch, ou avec `pixelScroll: false`, il vaut
+`undefined`. La destruction du renderer désabonne aussi l'observateur.
+Dans le web, `write` appelle toujours `terminal.write` et le writer stdin appelle
+`ordinary(data)` avant `stdin.write(data)`, au même endroit après le contrôle
+réseau. Un hôte desktop peut injecter le writer de contrôle ordonné du renderer
+et un observateur `input:mouse` qui transmet le SGR brut avant le dispatch.
+Le helper ne dépend ni du transport web ni du transport natif.
 Une vue déclarant `scrollKeys: false` garde ses flèches et touches Page ; Ctrl+Page conserve le chemin de défilement existant.
 
 Le membre optionnel `input(origin, dispatch)` limite le hit test du peintre propriétaire à l'origine présentée, sans déplacer la position logique ni les coordonnées physiques.

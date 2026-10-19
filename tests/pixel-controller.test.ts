@@ -1,6 +1,7 @@
 /* eslint-disable typescript/consistent-type-assertions -- Partial renderer, viewport and immutable map doubles isolate controller lifecycle and frame encoding from a native renderer. */
 import { EventEmitter } from "node:events";
 import { Renderable, type CliRenderer } from "@opentui/core";
+import { attachPixelScroll } from "../packages/core/src/pixel-scroll/attach";
 import { PixelController } from "../packages/core/src/pixel-scroll/controller";
 import { OrdinaryPixelInput } from "../packages/core/src/pixel-scroll/ordinary-input";
 import { PixelHistory, RETAINED_GENERATIONS } from "../packages/core/src/pixel-scroll/history";
@@ -1037,5 +1038,108 @@ test("a throwing private report is logged and later deferred reports keep their 
       errors.mockRestore();
       f.close();
     }
+  }
+});
+
+function attachmentRenderer() {
+  const osc = new EventEmitter();
+  let hits = 0;
+  const renderer = Object.assign(new EventEmitter(), {
+    keyInput: new EventEmitter(),
+    setFramePlan: (_plan: (() => RenderFramePlan | null) | null) => {},
+    captureHitMap: () => {
+      throw new Error("Unexpected frame capture");
+    },
+    dispatchMouseEventFromHitMap: () => false,
+    subscribeOsc: (receive: (sequence: string) => void) => {
+      osc.on("sequence", receive);
+      return () => {
+        osc.off("sequence", receive);
+      };
+    },
+    hitTest: () => {
+      hits++;
+      return 0;
+    },
+    requestRender: () => {},
+  });
+  return { renderer, osc, hits: () => hits };
+}
+
+test("shared attachment injects discovery output and ordinary input with lifecycle cleanup", () => {
+  for (const destroy of [false, true]) {
+    const f = attachmentRenderer();
+    const writes: string[] = [];
+    let receive: ((sequence: string) => void) | undefined;
+    let unsubscribed = 0;
+    const attached = attachPixelScroll(f.renderer as unknown as CliRenderer, {
+      write: (commands) => {
+        writes.push(commands);
+      },
+      observeOrdinary: (observe) => {
+        receive = observe;
+        return () => {
+          unsubscribed++;
+        };
+      },
+    });
+    if (!attached || !receive) throw new Error("Missing attachment or input observer");
+    expect(writes).toHaveLength(1);
+    const discovery = writes[0];
+    if (!discovery) throw new Error("Missing discovery output");
+    const query = discoveryQuery(discovery);
+    if (query?.op !== "query") throw new Error("Missing discovery query");
+    f.osc.emit(
+      "sequence",
+      encode({
+        op: "capability",
+        version: 1,
+        nonce: query.nonce,
+        reason: "ready",
+        snapshot: true,
+        precise: true,
+      }),
+    );
+    receive("\x1b[<65;4;5M");
+    attached.ordinary("\x1b[<0;4;5M");
+    expect(f.hits()).toBe(2);
+    if (destroy) f.renderer.emit("destroy");
+    else attached.dispose();
+    attached.dispose();
+    receive("\x1b[<65;4;5M");
+    expect(f.hits()).toBe(2);
+    expect(unsubscribed).toBe(1);
+    expect(f.osc.listenerCount("sequence")).toBe(0);
+    expect(f.renderer.listenerCount("destroy")).toBe(0);
+    expect(f.renderer.keyInput.listenerCount("keypress")).toBe(0);
+  }
+});
+
+test("shared attachment leaves stock renderers and disabled pixel scroll untouched", () => {
+  for (const missing of [
+    "setFramePlan",
+    "captureHitMap",
+    "dispatchMouseEventFromHitMap",
+    "disabled",
+  ]) {
+    const f = attachmentRenderer();
+    if (missing !== "disabled") Reflect.deleteProperty(f.renderer, missing);
+    let writes = 0,
+      observers = 0;
+    expect(
+      attachPixelScroll(f.renderer as unknown as CliRenderer, {
+        pixelScroll: missing !== "disabled",
+        write: () => {
+          writes++;
+        },
+        observeOrdinary: () => {
+          observers++;
+          return () => {};
+        },
+      }),
+    ).toBeUndefined();
+    expect(writes).toBe(0);
+    expect(observers).toBe(0);
+    expect(f.renderer.listenerCount("destroy")).toBe(0);
   }
 });
