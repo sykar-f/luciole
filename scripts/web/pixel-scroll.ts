@@ -134,6 +134,28 @@ async function verify(dpr: number) {
       const canonical=++generation;
       await probe.write(probe.sync(probe.transaction(canonical,8,0)+probe.op({op:'release',version:1,id:1,generation:canonical})));
       inspect(8,0,0);
+      // Release is accepted before ordinary output advances the canonical grid,
+      // all in one parser task before the next presentation.
+      const advanced=++generation;
+      await probe.write(probe.sync(probe.transaction(advanced,9,0)+
+        probe.op({op:'release',version:1,id:1,generation:advanced})+probe.paint(10)));
+      if (!probe.frames.length) errors.push('advanced release did not render');
+      inspect(10,0,0);
+      if (probe.pixels.present()) errors.push('advanced release retained a frame');
+      probe.redraw(); await probe.write('');
+      inspect(10,0,0);
+      // A new incomplete transaction after an accepted release must still hold
+      // the prior image, including on a later ordinary redraw.
+      const held=++generation, incomplete=++generation;
+      await probe.write(probe.sync(probe.transaction(held,11,0)+
+        probe.op({op:'release',version:1,id:1,generation:held})+
+        probe.transaction(incomplete,12,.25,false)));
+      if (!probe.frames.length) errors.push('incomplete transaction did not render');
+      inspect(11,0,held);
+      probe.redraw(); await probe.write('');
+      inspect(11,0,held);
+      await probe.write(probe.sync(probe.op({op:'commit',version:1,generation:incomplete})));
+      inspect(12,.25,incomplete);
       return {errors,checked,glError:probe.glError(),H,W};
     })()`);
     expect(proof).toMatchObject({ errors: [], glError: 0 });
