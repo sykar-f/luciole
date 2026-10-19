@@ -1,3 +1,4 @@
+import { renderSpans } from "../packages/core/src/test/frame";
 /** @jsxImportSource @opentui/react */
 import { afterEach, expect, test } from "bun:test";
 import { testRender } from "@opentui/react/test-utils";
@@ -53,9 +54,8 @@ test.each(Object.entries(SNIPPETS))("%s code is highlighted", async (filetype, c
   });
   // Drawn once Tree-sitter has answered, highlighted or not: no time is given to it.
   await untilDrawn(opened);
-  const seen = opened
-    .captureSpans()
-    .lines.flatMap((line) => line.spans.filter((span) => span.text.trim()))
+  const seen = (await renderSpans(opened)).lines
+    .flatMap((line) => line.spans.filter((span) => span.text.trim()))
     .map((span) => [span.fg.r, span.fg.g, span.fg.b].join());
   expect(new Set(seen).size).toBeGreaterThanOrEqual(MIN_COLORS);
 });

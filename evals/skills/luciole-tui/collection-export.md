@@ -82,8 +82,8 @@ checks:
         await act(async () => { await c.ui.mockMouse.moveTo(x, y); });
         await c.frame();
       }
-      function paint(c) {
-        return c.ui.captureSpans().lines.map(line => line.spans.flatMap(span =>
+      async function paint(c) {
+        return (await c.spans()).lines.map(line => line.spans.flatMap(span =>
           Array.from({ length: span.width }, () => [span.text, span.fg.toInts(), span.bg.toInts(), span.attributes])
         ));
       }
@@ -103,7 +103,7 @@ checks:
         await see(c, "Export notes");
         await move(c, 59, 19);
         const idle = await c.frame();
-        const idlePaint = paint(c);
+        const idlePaint = (await paint(c));
         const anchors = [];
         for (const text of ["Collection export", "Orchard plan", "Packing list"]) anchors.push({ text, at: await cell(c, text) });
         const finished = c.requests.finished.length;
@@ -113,7 +113,7 @@ checks:
         // Await the visible wait, never visual-idle: an animation should not settle.
         for (let i = 0; i < 20; i++) {
           const frame = await c.frame();
-          if (JSON.stringify(paint(c)) !== JSON.stringify(idlePaint) && !frame.includes("Export ready (2 notes)")) { first = paint(c); break; }
+          if (JSON.stringify((await paint(c))) !== JSON.stringify(idlePaint) && !frame.includes("Export ready (2 notes)")) { first = (await paint(c)); break; }
           await act(async () => { await Bun.sleep(25); });
         }
         expect(first, "a visible waiting state").toBeDefined();
@@ -125,7 +125,7 @@ checks:
           await act(async () => { await Bun.sleep(100); });
           const frame = await c.frame();
           expect(frame).not.toContain("Export ready (2 notes)");
-          const next = paint(c);
+          const next = (await paint(c));
           for (const a of anchors) expect(await cell(c, a.text)).toEqual(a.at);
           for (let y = 0; y < next.length; y++) {
             if (region.includes(y)) {

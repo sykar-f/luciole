@@ -22,3 +22,5 @@ export {
   type TestClient,
 } from "./client";
 export { eventually, TEST_TIMEOUT_MS, until, WAIT_MS, type TestUI } from "./wait";
+
+export type { SpanFrame } from "./frame";

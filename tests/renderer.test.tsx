@@ -1,3 +1,4 @@
+import { renderCaptureWithoutAct } from "../packages/core/src/test/capture";
 /** @jsxImportSource @opentui/react */
 import { expect, test } from "bun:test";
 import { Suspense, startTransition, use, useEffect, useState } from "react";
@@ -16,10 +17,12 @@ declare global {
 test("OpenTUI commits React transitions with the pinned reconciler", async () => {
   const previous = globalThis.IS_REACT_ACT_ENVIRONMENT;
   globalThis.IS_REACT_ACT_ENVIRONMENT = false;
-  const { renderer, renderOnce, captureCharFrame } = await createTestRenderer({
+  const ui = await createTestRenderer({
     width: 20,
     height: 2,
   });
+  const { renderer } = ui;
+  const frame = () => renderCaptureWithoutAct(ui, ui.captureCharFrame);
   const root = createRoot(renderer);
   const handle: { update?: (value: Promise<string>) => void } = {};
   function Value() {
@@ -47,8 +50,7 @@ test("OpenTUI commits React transitions with the pinned reconciler", async () =>
     // Simulated time, not a wait: a value that resolves later suspends the transition.
     startTransition(() => update(Bun.sleep(30).then(() => "after")));
     const shows = async (text: string) => {
-      await renderOnce();
-      return captureCharFrame().includes(text);
+      return (await frame()).includes(text);
     };
     const deadline = performance.now() + WAIT_MS;
     while (!(await shows("after")) && !failures.length) {
@@ -57,7 +59,7 @@ test("OpenTUI commits React transitions with the pinned reconciler", async () =>
       await Bun.sleep(20);
     }
     expect(failures).toEqual([]);
-    expect(captureCharFrame()).toContain("after");
+    expect(await frame()).toContain("after");
   } finally {
     console.error = log;
     process.off("uncaughtException", onError);

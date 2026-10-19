@@ -13,6 +13,11 @@ and marked **Breaking**.
 
 ## [Unreleased]
 
+### Added
+
+- `TestClient.spans()` captures text, cell widths, RGBA colors and attributes after
+  native presentation for app tests. The returned snapshot survives later renders.
+
 ## [0.5.1] - 2026-10-19
 
 ### Fixed

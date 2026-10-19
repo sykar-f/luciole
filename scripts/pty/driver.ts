@@ -11,6 +11,7 @@
  * startup are answered, waits only succeed on a complete synchronized-output frame, and a
  * failed wait reports what the screen showed.
  */
+import { renderCaptureWithoutAct } from "../../packages/core/src/test/capture";
 import { afterEach } from "bun:test";
 import { createTestRenderer, type TestRendererSetup } from "@opentui/core/testing";
 import { messageOf } from "../../packages/core/src/guards";
@@ -149,6 +150,7 @@ const abandoned = () => new Promise<never>(() => {});
 /** The screen a terminal shows for the bytes it was given. */
 class Screen {
   private dirty = true;
+  private capturedSpans: Span[][] = [];
   private rendering = Promise.resolve();
   private readonly setup: TestRendererSetup;
   private readonly vt: VtTerminalRenderable;
@@ -183,7 +185,15 @@ class Screen {
     this.rendering = this.rendering.then(async () => {
       if (!this.dirty) return;
       this.dirty = false;
-      await this.setup.renderOnce();
+      this.capturedSpans = await renderCaptureWithoutAct(this.setup, () =>
+        this.setup.captureSpans().lines.map((line) =>
+          line.spans.map((span) => ({
+            text: span.text,
+            fg: hex(span.fg.toInts()),
+            bg: hex(span.bg.toInts()),
+          })),
+        ),
+      );
     });
     return this.rendering;
   }
@@ -204,14 +214,9 @@ class Screen {
     return { row: y, column: x, visible };
   }
   spans(): Span[][] {
-    return this.setup.captureSpans().lines.map((line) =>
-      line.spans.map((span) => ({
-        text: span.text,
-        fg: hex(span.fg.toInts()),
-        bg: hex(span.bg.toInts()),
-      })),
-    );
+    return this.capturedSpans;
   }
+
   destroy() {
     this.setup.renderer.destroy();
   }

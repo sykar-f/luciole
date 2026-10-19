@@ -1,5 +1,5 @@
 /** @jsxImportSource @opentui/react */
-import { renderFrame } from "../packages/core/src/test/frame";
+import { renderFrame, renderSpans, type SpanFrame } from "../packages/core/src/test/frame";
 import { afterEach, beforeEach, expect, spyOn, test } from "bun:test";
 import { act, type ComponentProps, type ReactNode, useEffect, useState } from "react";
 import { CliRenderer, RGBA } from "@opentui/core";
@@ -118,9 +118,9 @@ test("apart from headings and code blocks, a finished reply looks as OpenTUI's <
 });
 
 /** The background of the cell at `row`, `column` of the last frame. */
-const backgroundAt = (setup: Setup, row: number, column: number) => {
+const backgroundAt = (frame: SpanFrame, row: number, column: number) => {
   let start = 0;
-  for (const span of setup.captureSpans().lines[row]?.spans ?? []) {
+  for (const span of frame.lines[row]?.spans ?? []) {
     if (column < start + span.width) return span.bg;
     start += span.width;
   }
@@ -149,9 +149,10 @@ test("headings sit on bands, spaced by level", async () => {
     "",
     "End.",
   ]);
+  const spans = await renderSpans(setup);
   const band = RGBA.fromHex(color.accentDim);
   const full = (row: number, column: number) => {
-    const bg = backgroundAt(setup, row, column);
+    const bg = backgroundAt(spans, row, column);
     return bg !== undefined && bg.a === 1 && bg.equals(band);
   };
   // Full under the title and up to where the fade starts, on all three rows of the H1; the
@@ -175,9 +176,10 @@ test("a band fades out up to the right edge, which follows a resize", async () =
   try {
     const setup = await render(<StyledMarkdown content={HEADINGS} streaming={false} />, 100, 20);
     await settled(setup);
-    const painted = (column: number) => (backgroundAt(setup, 1, column)?.a ?? 0) > 0;
+    let spans = await renderSpans(setup);
+    const painted = (column: number) => (backgroundAt(spans, 1, column)?.a ?? 0) > 0;
     const light = (column: number) => {
-      const bg = backgroundAt(setup, 1, column);
+      const bg = backgroundAt(spans, 1, column);
       return bg ? bg.r + bg.g + bg.b : 0;
     };
     expect(light(60)).toBeGreaterThan(light(80));
@@ -187,6 +189,7 @@ test("a band fades out up to the right edge, which follows a resize", async () =
       setup.resize(60, 20);
     });
     await settled(setup);
+    spans = await renderSpans(setup);
     expect(painted(50)).toBe(true);
     expect(painted(59)).toBe(false);
   } finally {
@@ -211,13 +214,14 @@ test("with the terminal's background known, a band fades into it, not into black
   try {
     const setup = await render(<StyledMarkdown content="# Plan" streaming={false} />, 100, 5);
     await settled(setup);
+    const spans = await renderSpans(setup);
     const end = RGBA.fromHex(background);
-    const cell = backgroundAt(setup, 1, 93);
+    const cell = backgroundAt(spans, 1, 93);
     // Opaque, nearly the terminal's background, and never darker than it.
     expect(cell?.a).toBe(1);
     for (const channel of ["r", "g", "b"] as const)
       expect(cell?.[channel] ?? 0).toBeGreaterThanOrEqual(end[channel] - 0.01);
-    expect(backgroundAt(setup, 1, 99)?.a ?? 0).toBe(0);
+    expect(backgroundAt(spans, 1, 99)?.a ?? 0).toBe(0);
   } finally {
     palette.mockRestore();
   }
@@ -231,6 +235,7 @@ test("a code block sits on the style's panel, its language in a corner", async (
   );
   const rows = (await settled(setup)).split("\n");
   expect(rows.slice(0, 2)).toEqual([`${" ".repeat(57)}ts`, "  const x = 1;"]);
+  const spans = await renderSpans(setup);
   const panel = RGBA.fromHex(color.panel);
   for (const [row, column] of [
     [0, 0],
@@ -238,7 +243,7 @@ test("a code block sits on the style's panel, its language in a corner", async (
     [1, 50],
     [2, 59],
   ] as const)
-    expect(backgroundAt(setup, row, column)?.equals(panel)).toBe(true);
+    expect(backgroundAt(spans, row, column)?.equals(panel)).toBe(true);
 });
 
 test("a diff block is colored line by line, even before its closing fence", async () => {
@@ -246,9 +251,10 @@ test("a diff block is colored line by line, even before its closing fence", asyn
   for (const content of [diff, `${diff}\n\`\`\``]) {
     const setup = await render(<StyledMarkdown content={content} streaming />, 40, 12);
     const rows = (await settled(setup)).split("\n");
+    const spans = await renderSpans(setup);
     const colorOf = (text: string) => {
       const row = rows.findIndex((line) => line.includes(text));
-      return setup.captureSpans().lines[row]?.spans.find((span) => span.text.includes(text))?.fg;
+      return spans.lines[row]?.spans.find((span) => span.text.includes(text))?.fg;
     };
     expect(colorOf("+new")?.equals(RGBA.fromHex(color.ok))).toBe(true);
     expect(colorOf("-old")?.equals(RGBA.fromHex(color.danger))).toBe(true);
@@ -270,7 +276,9 @@ test("a click on a link opens it; a drag across it selects instead", async () =>
   expect(shown).toBe("See the docs (https://example.com/docs) now.");
   const label = shown.indexOf("the docs");
   // Styled as a link (markup.link), not as plain text.
-  const cell = setup.captureSpans().lines[0]?.spans.find((span) => span.text.includes("the docs"));
+  const cell = (await renderSpans(setup)).lines[0]?.spans.find((span) =>
+    span.text.includes("the docs"),
+  );
   expect(cell?.fg.equals(RGBA.fromHex(color.info))).toBe(true);
   await act(async () => {
     await setup.mockMouse.click(label + 2, 0);

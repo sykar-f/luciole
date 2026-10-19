@@ -82,8 +82,8 @@ checks:
         await act(async () => { await c.ui.mockMouse.moveTo(x, y); });
         await c.frame();
       }
-      function paint(c) {
-        return c.ui.captureSpans().lines.map(line => line.spans.flatMap(span =>
+      async function paint(c) {
+        return (await c.spans()).lines.map(line => line.spans.flatMap(span =>
           Array.from({ length: span.width }, () => [span.text, span.fg.toInts(), span.bg.toInts(), span.attributes])
         ));
       }
@@ -186,8 +186,8 @@ checks:
         await act(async () => { await c.ui.mockMouse.moveTo(x, y); });
         await c.frame();
       }
-      function paint(c) {
-        return c.ui.captureSpans().lines.map(line => line.spans.flatMap(span =>
+      async function paint(c) {
+        return (await c.spans()).lines.map(line => line.spans.flatMap(span =>
           Array.from({ length: span.width }, () => [span.text, span.fg.toInts(), span.bg.toInts(), span.attributes])
         ));
       }
@@ -298,8 +298,8 @@ checks:
         await act(async () => { await c.ui.mockMouse.moveTo(x, y); });
         await c.frame();
       }
-      function paint(c) {
-        return c.ui.captureSpans().lines.map(line => line.spans.flatMap(span =>
+      async function paint(c) {
+        return (await c.spans()).lines.map(line => line.spans.flatMap(span =>
           Array.from({ length: span.width }, () => [span.text, span.fg.toInts(), span.bg.toInts(), span.attributes])
         ));
       }
@@ -319,11 +319,11 @@ checks:
         await see(c, "Orchard plan");
         const p = (await cell(c, "Orchard plan"));
         await move(c, 59, 19);
-        const before = paint(c)[p.y];
+        const before = (await paint(c))[p.y];
         await move(c, p.x, p.y);
-        expect(paint(c)[p.y]).not.toEqual(before);
+        expect((await paint(c))[p.y]).not.toEqual(before);
         await move(c, 59, 19);
-        expect(paint(c)[p.y]).toEqual(before);
+        expect((await paint(c))[p.y]).toEqual(before);
       }, TEST_TIMEOUT_MS);
 
       TEST
@@ -364,8 +364,8 @@ checks:
         await act(async () => { await c.ui.mockMouse.moveTo(x, y); });
         await c.frame();
       }
-      function paint(c) {
-        return c.ui.captureSpans().lines.map(line => line.spans.flatMap(span =>
+      async function paint(c) {
+        return (await c.spans()).lines.map(line => line.spans.flatMap(span =>
           Array.from({ length: span.width }, () => [span.text, span.fg.toInts(), span.bg.toInts(), span.attributes])
         ));
       }
