@@ -13,22 +13,56 @@ and marked **Breaking**.
 
 ## [Unreleased]
 
-### Changed
-
-- **Breaking:** Pixel scrolling is now off by default on the web and desktop. Compiled
-  app binaries and `serve` accept `--pixel-scroll`; the desktop host accepts only
-  `LUCIOLE_PIXEL_SCROLL=1` (on macOS: `open --env LUCIOLE_PIXEL_SCROLL=1 Notes.app`).
-  The environment variable also works for binaries and the web Server. Add
-  `?pixel-scroll` to a web page URL to enable it there (also for `--web-local`). An explicit `pixelScroll: true | false` in
-  `run` or `runInPage` takes precedence. Applications can no longer declare the
-  `pixel-scroll` argument: it is reserved for the runtime.
-
 ### Added
 
 - `TestClient.spans()` captures text, cell widths, RGBA colors and attributes after
-  native presentation for app tests. The returned snapshot survives later renders.
+  native presentation. The snapshot keeps its data after later renders.
+- `luciole native-runtime` prepares a pixel-patched OpenTUI runtime for any of the
+  six compile targets. The first preparation needs git, network access and Zig 0.16.0.
+  `luciole build --compile` embeds the prepared JavaScript and native library for
+  its target. Without a valid cache entry, it uses stock OpenTUI and shows the
+  preparation command. Prepare the runtime, then rebuild the app to use it.
+- Desktop apps support pixel scroll with the prepared runtime. Enable it at launch
+  as described below. Plain terminals and stock OpenTUI keep row scroll.
+- `@luciole-sh/core/terminal-view` exports the shared web and desktop terminal view.
+  It includes the WebGL renderer, the DOM fallback and the pixel-scroll addon.
+
+### Changed
+
+- **Breaking:** Pixel scroll is now off by default on the web and desktop.
+  To enable it, launch a compiled app or `serve` with `--pixel-scroll`, or set
+  `LUCIOLE_PIXEL_SCROLL=1`. Add `?pixel-scroll` to a web page URL, also for
+  `--web-local`. For a macOS desktop bundle, use
+  `open --env LUCIOLE_PIXEL_SCROLL=1 Notes.app`; the desktop host accepts only the
+  environment variable. An explicit `pixelScroll: true` or `pixelScroll: false`
+  option in `run` or `runInPage` takes precedence over the launch choice.
+- **Breaking:** `pixel-scroll` is now a reserved runtime argument. Rename an app
+  argument with this name before you rebuild the app.
+
+### Fixed
+
+- Desktop apps on macOS redraw after a window resize. Programs in a `<Terminal>`
+  receive Ctrl+C and SIGWINCH through their controlling terminal. The core package,
+  compiled apps and desktop bundles include the native PTY helper.
+- Pixel scroll in the web runtime no longer flickers in Safari and other WKWebView
+  hosts on a Retina screen. The desktop view uses the same renderer to prevent
+  blank frames in WKWebView.
+- A desktop window closed during startup quits and stops its managed Server
+  without the crash grace period. A voluntary quit returns exit code 0 even if
+  the host closes the PTY before terminal restoration ends.
+- A PTY child that exits early no longer blocks the main thread when its
+  terminal output has not yet drained.
+- Web pixel scroll no longer freezes after an app update follows a return to row
+  scroll. The view releases its retained frame and shows the current grid.
+- Web pixel-scroll commands follow renderer output in order, so they cannot split
+  a frame that the renderer has not yet sent in full.
+- Frame captures from `@luciole-sh/core/test` wait for native presentation. App
+  tests no longer fail with `OutputBusy` when a render has not yet reached the
+  screen. A render that cannot present a frame fails with a diagnostic.
 
 ## [0.5.1] - 2026-10-19
+
+This version was not published to npm; 0.6.0 includes its fixes.
 
 ### Fixed
 
