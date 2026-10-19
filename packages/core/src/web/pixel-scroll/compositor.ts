@@ -295,8 +295,13 @@ export class PixelCompositor implements PixelRenderer {
       this.ready = undefined;
     }
     const frame = this.active;
-    if (this.releasing && !this.preparing && frame?.canonical === this.signature()) {
-      this.draw(frame);
+    if (this.releasing && !this.preparing && frame) {
+      // release() validated a canonical grid at ingress. Later ordinary output
+      // can advance it before RAF; publish that grid instead of retaining a
+      // snapshot whose signature can never match again. A new begin/abort still
+      // keeps preparing=true and protects an incomplete pixel transaction.
+      const source = this.raster(this.cursorVisible());
+      this.blit(source, undefined, 0, 0, source.width, source.height);
       this.invalidate();
       for (const listener of this.listeners) listener(undefined, frame.presentation);
       return true;
