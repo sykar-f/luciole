@@ -109,7 +109,16 @@ L'hôte lance directement `MacOS/<app>` sur macOS. `native/` est un vrai répert
 l'extracteur du bundle compacté d'Electrobun ne conserve pas les liens symboliques.
 Le bundle passe de 140 à 80 Mo (55 à 31 Mo en zip). En contrepartie, Electrobun tourne
 sur le Bun de l'app (1.4.2) plutôt que sur celui qu'il fixe (1.4.0) : `bun run smoke`
-le vérifie après chaque build. macOS seulement ; ailleurs le bundle garde ses deux Bun.
+le vérifie après chaque build. Le smoke lance une copie temporaire du bundle stable
+compacté (`Resources/<hash>.tar.zst`) : le lanceur Electrobun 2.0.2 l'extrait sur place,
+et le build reste intact. Avec un HOME privé et le seul PATH système, il vérifie le
+lanceur PTY signé dans `MacOS/native/luciole-pty`, le runtime de l'hôte et le groupe
+de premier plan du Client (TPGID = pid). Il attend le mode brut du PTY, activé par
+le renderer après l'installation des handlers de signaux, puis quitte par Cmd+Q
+(System Events doit autoriser l'automatisation). Le Server doit journaliser le départ
+volontaire du dernier Client ; tous les processus, la copie extraite et les données
+temporaires sont supprimés. `bun run smoke /chemin/Notes.app` choisit un autre bundle
+stable compacté. macOS seulement ; ailleurs le bundle garde ses deux Bun.
 
 Sur macOS, `luciole-pty` attache le PTY comme terminal de contrôle, puis remplace
 son processus par le programme. Le noyau envoie ainsi SIGWINCH après un redimensionnement
