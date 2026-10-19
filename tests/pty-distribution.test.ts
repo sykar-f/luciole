@@ -1,6 +1,6 @@
 /** Compiled programs use the helper beside the executable, including paths with spaces. */
 import { expect, test } from "bun:test";
-import { cp, mkdir, mkdtemp, rm } from "node:fs/promises";
+import { cp, mkdir, mkdtemp, realpath, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { compileClient } from "../packages/core/src/compile";
@@ -9,7 +9,7 @@ import { execute } from "./helpers";
 test.skipIf(process.platform !== "darwin")(
   "a relocated compiled program finds its signed PTY helper in a path with spaces",
   async () => {
-    const directory = await mkdtemp(join(tmpdir(), "pty-compiled-"));
+    const directory = await realpath(await mkdtemp(join(tmpdir(), "pty-compiled-")));
     try {
       const output = join(directory, "output");
       await mkdir(join(output, "client"), { recursive: true });
