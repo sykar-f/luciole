@@ -64,8 +64,8 @@ checks:
           return { server, client };
         } catch (error) { await server[Symbol.asyncDispose](); throw error; }
       }
-      function cell(c, text) {
-        const rows = c.ui.captureCharFrame().split("\n");
+      async function cell(c, text) {
+        const rows = (await c.frame()).split("\n");
         const y = rows.findIndex(row => row.includes(text));
         const p = y < 0 ? undefined : { x: rows[y].indexOf(text), y };
         expect(p, `visible ${text}`).toBeDefined();
@@ -74,7 +74,7 @@ checks:
       async function hidden(c, text) {
         for (let i = 0; i < 100; i++) {
           await act(async () => { await Bun.sleep(10); await c.ui.renderOnce(); });
-          if (!c.ui.captureCharFrame().includes(text)) return;
+          if (!(await c.frame()).includes(text)) return;
         }
         throw new Error(`Still shown: ${text}`);
       }
@@ -91,7 +91,7 @@ checks:
         let frame = "";
         for (let i = 0; i < 500; i++) {
           await act(async () => { await Bun.sleep(10); await c.ui.renderOnce(); });
-          frame = c.ui.captureCharFrame();
+          frame = await c.frame();
           if (frame.includes(text)) return frame;
         }
         throw new Error(`Not shown: ${text}\n${frame}`);
@@ -104,7 +104,8 @@ checks:
         await move(c, 59, 19);
         const idle = await c.frame();
         const idlePaint = paint(c);
-        const anchors = ["Collection export", "Orchard plan", "Packing list"].map(t => ({ text: t, at: cell(c, t) }));
+        const anchors = [];
+        for (const text of ["Collection export", "Orchard plan", "Packing list"]) anchors.push({ text, at: await cell(c, text) });
         const finished = c.requests.finished.length;
         await c.click("Export notes");
         await move(c, 59, 19);
@@ -125,7 +126,7 @@ checks:
           const frame = await c.frame();
           expect(frame).not.toContain("Export ready (2 notes)");
           const next = paint(c);
-          for (const a of anchors) expect(cell(c, a.text)).toEqual(a.at);
+          for (const a of anchors) expect(await cell(c, a.text)).toEqual(a.at);
           for (let y = 0; y < next.length; y++) {
             if (region.includes(y)) {
               if (JSON.stringify(next[y]) !== JSON.stringify(first[y])) changed = true;

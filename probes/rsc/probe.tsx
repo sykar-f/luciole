@@ -1,4 +1,5 @@
 /** @jsxImportSource @opentui/react */
+import { renderFrame } from "../../packages/core/src/test/frame";
 import { testRender } from "@opentui/react/test-utils";
 import { act, isValidElement, useState, useEffect } from "react";
 import { spawn } from "node:child_process";
@@ -65,14 +66,14 @@ try {
   });
   await ui.renderOnce();
   assert.equal(field?.value, "draft");
-  assert.ok(ui.captureCharFrame().includes("Server revision 1"));
+  assert.ok((await renderFrame(ui)).includes("Server revision 1"));
   const instance = field;
   const next = await load(2);
   await act(async () => {
     refresh(next);
   });
   await ui.renderOnce();
-  assert.ok(ui.captureCharFrame().includes("Server revision 2"));
+  assert.ok((await renderFrame(ui)).includes("Server revision 2"));
   assert.equal(field, instance);
   assert.equal(field?.value, "draft");
   await act(async () => {
@@ -86,7 +87,7 @@ try {
     localInstancePreserved: true,
     localDraftPreserved: true,
     typingAfterRefresh: true,
-    frame: ui.captureCharFrame(),
+    frame: await renderFrame(ui),
   });
 } finally {
   await act(async () => {
