@@ -9,7 +9,7 @@ import { desktopHangup } from "./desktop-hangup";
 import { definedProperties } from "./defined-properties";
 import { constants } from "node:os";
 import * as z from "zod/mini";
-import { createCliRenderer, type CliRenderer } from "@opentui/core";
+import { createCliRenderer, NativeError, NativeStatus, type CliRenderer } from "@opentui/core";
 import { createRoot } from "@opentui/react";
 import { Shell, type Application, type ApplicationOptions } from "./client";
 import { connect, serverUrl } from "./connect";
@@ -172,14 +172,24 @@ export async function run(
   let creating: Promise<CliRenderer> | undefined;
   // A hangup may reach the Client twice. Every exit waits for terminal restoration.
   let ending = false;
-  const stop = async (code: number) => {
+  const stop = async (code: number, voluntary = false) => {
     try {
       const active = renderer ?? (await creating);
       active?.destroy();
       await active?.closed;
     } catch (error) {
-      console.error(messageOf(error));
-      code = 1;
+      // OpenTUI drains terminal restoration through native stdout. A desktop
+      // host may already have closed the PTY after a successful voluntary leave.
+      const closedOutput =
+        desktop &&
+        voluntary &&
+        error instanceof NativeError &&
+        error.operation === "ot_session_drain_stdout" &&
+        error.status === NativeStatus.OutputFailed;
+      if (!closedOutput) {
+        console.error(messageOf(error));
+        code = 1;
+      }
     } finally {
       connection.close();
       process.exit(code);
@@ -212,7 +222,7 @@ export async function run(
   const quit = end(async () => {
     session.remove();
     await connection.managed?.leave();
-    await stop(0);
+    await stop(0, true);
   });
   process.on("SIGTERM", interrupted);
   process.on("SIGINT", interrupted);

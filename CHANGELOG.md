@@ -15,6 +15,9 @@ and marked **Breaking**.
 
 ### Fixed
 
+- Closing a desktop window now exits successfully when its PTY closes during
+  terminal restoration after a voluntary leave.
+
 - Pixel scroll in the web runtime no longer flickers in Safari and other WKWebView
   hosts on a Retina screen.
 
