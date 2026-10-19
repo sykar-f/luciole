@@ -23,7 +23,7 @@ luciole uses (`packages/core/src/compile.ts`). The core package requires Bun
 1.4.1 or later. Check the runtime with `otool -l <bun>`.
 
 The committed build uses Apple clang 21.0.0 (clang-2100.3.34.2), from the macOS
-27.0 SDK. The linker UUID is disabled. With this toolchain, fresh builds in
+27.0 SDK. The output name is fixed. With this toolchain, fresh builds in
 different directories have the same bytes, including the ad hoc signature.
 `--check` compares the SHA-256 of the full rebuilt binary and the committed
 binary with `dist/SHA256SUMS`. It does not strip or normalize either file.

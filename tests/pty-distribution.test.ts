@@ -50,3 +50,54 @@ setTimeout(()=>{pty.kill();process.exit(2)},5000);
   },
   60_000,
 );
+
+test.skipIf(process.platform !== "darwin")(
+  "an installed core package and a JS bundle find the helper in a path with spaces",
+  async () => {
+    const directory = await mkdtemp(join(tmpdir(), "pty installed "));
+    try {
+      const core = join(directory, "node_modules/@luciole-sh/core");
+      await mkdir(join(core, "src/vt"), { recursive: true });
+      for (const file of ["pty.ts", "pty-launcher.ts"])
+        await cp(resolve("packages/core/src/vt", file), join(core, "src/vt", file));
+      await cp(
+        resolve("packages/core/native/luciole-pty/dist"),
+        join(core, "native/luciole-pty/dist"),
+        { recursive: true },
+      );
+      await Bun.write(
+        join(core, "package.json"),
+        JSON.stringify({
+          name: "@luciole-sh/core",
+          type: "module",
+          exports: { "./pty": "./src/vt/pty.ts", "./package.json": "./package.json" },
+        }),
+      );
+      const script = join(directory, "entry.ts");
+      await Bun.write(
+        script,
+        `
+import {spawnPty} from '@luciole-sh/core/pty';
+spawnPty({command:[${JSON.stringify(process.execPath)},'-e','console.log("INSTALLED")'],cols:80,rows:24,
+ onData(bytes){process.stdout.write(bytes)},onExit(code){process.exit(code ?? 1)}});
+`,
+      );
+      expect(
+        (await execute([process.execPath, script], { cwd: directory })).stdout.toString(),
+      ).toContain("INSTALLED");
+      const build = await Bun.build({
+        entrypoints: [script],
+        outdir: join(directory, "bundle"),
+        target: "bun",
+      });
+      expect(build.success).toBe(true);
+      const bundled = await execute([process.execPath, join(directory, "bundle/entry.js")], {
+        cwd: directory,
+      });
+      expect(bundled.exitCode).toBe(0);
+      expect(bundled.stdout.toString()).toContain("INSTALLED");
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  },
+);

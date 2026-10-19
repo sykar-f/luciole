@@ -14,7 +14,7 @@ const dist = join(root, "dist");
 const temporary = await mkdtemp(join(tmpdir(), "luciole-pty-build-"));
 const binary = join(temporary, "luciole-pty");
 // macOS 13.0: LC_BUILD_VERSION of the official Bun 1.4.x runtime used by luciole.
-// A fixed output name and no UUID keep link metadata independent of the build path.
+// A fixed output name keeps the ad hoc signing identifier independent of the build path.
 const result = Bun.spawnSync(
   [
     "/usr/bin/clang",
@@ -27,7 +27,6 @@ const result = Bun.spawnSync(
     "-arch",
     "x86_64",
     "-mmacosx-version-min=13.0",
-    "-Wl,-no_uuid",
     join(root, "launcher.c"),
     "-o",
     binary,
