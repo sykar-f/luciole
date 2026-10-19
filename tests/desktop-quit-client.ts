@@ -1,6 +1,6 @@
 /** Isolated Client: real renderer, controlled connection and an IPC quit barrier. */
 import { mock } from "bun:test";
-import { closeSync } from "node:fs";
+import { closeSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import * as core from "@opentui/core";
 import { createRootRoute } from "@tanstack/react-router";
@@ -41,10 +41,13 @@ void mock.module("@opentui/core", () => ({
   createCliRenderer: async (options: core.CliRendererConfig) => {
     const renderer = await createRenderer(options);
     void renderer.closed.catch((error: unknown) => {
-      process.send?.({
-        failure: error instanceof core.NativeError ? error.status : "Error",
-        operation: error instanceof core.NativeError ? error.operation : undefined,
-      });
+      writeFileSync(
+        String(process.env.QUIT_RESULT),
+        JSON.stringify({
+          failure: error instanceof core.NativeError ? error.status : "Error",
+          operation: error instanceof core.NativeError ? error.operation : undefined,
+        }),
+      );
     });
     return renderer;
   },
@@ -58,19 +61,14 @@ void mock.module("@opentui/react", () => ({
 }));
 const { run } = await import("../packages/core/src/run");
 let app: Application;
-process.once("message", () => {
-  if (process.env.QUIT_INTERRUPTED) {
-    closeSync(1);
-    process.kill(process.pid, "SIGTERM");
-  } else app.quit?.();
-});
+process.once("message", () => app.quit?.());
 await run(
   (options) =>
     (app = new Application({
       ...options,
       buildId: "quit-test",
       routeTree: createRootRoute(),
-      resolveModule: async () => {
+      resolveModule: () => {
         throw new Error("No modules in quit fixture");
       },
     })),
