@@ -13,6 +13,8 @@ and marked **Breaking**.
 
 ## [Unreleased]
 
+## [0.5.1] - 2026-10-19
+
 ### Fixed
 
 - Desktop apps on macOS now redraw after a window resize. Programs in a
@@ -299,7 +301,8 @@ First public release, on npm. Five packages share this version: `luciole.sh`,
 - No multi-user load test and no public TLS proxy test. See
   <https://luciole.sh/status/>.
 
-[Unreleased]: https://github.com/sykar-f/luciole/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/sykar-f/luciole/compare/v0.5.1...HEAD
+[0.5.1]: https://github.com/sykar-f/luciole/releases/tag/v0.5.1
 [0.5.0]: https://github.com/sykar-f/luciole/releases/tag/v0.5.0
 [0.4.1]: https://github.com/sykar-f/luciole/releases/tag/v0.4.1
 [0.4.0]: https://github.com/sykar-f/luciole/releases/tag/v0.4.0
