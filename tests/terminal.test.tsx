@@ -1,4 +1,5 @@
 /** @jsxImportSource @opentui/react */
+import { renderFrame } from "../packages/core/src/test/frame";
 import { test, expect } from "bun:test";
 import { act, useState, useSyncExternalStore, type ReactNode } from "react";
 import { createTestRenderer } from "@opentui/core/testing";
@@ -114,8 +115,7 @@ test("<Terminal> runs a shell: keys, host prefix, Ctrl+C, resize, exit", async (
   let ui: TestUI | undefined;
   let lastFrame = "";
   const frame = async () => {
-    await ui?.renderOnce();
-    lastFrame = ui?.captureCharFrame() ?? "";
+    lastFrame = ui ? await renderFrame(ui) : "";
     return lastFrame;
   };
   const shows = (text: string) =>

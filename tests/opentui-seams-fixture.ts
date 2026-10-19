@@ -1,5 +1,6 @@
 // Bundled by opentui-seams.test.ts against the patched TypeScript and WASM sources.
 import { expect, spyOn, test } from "bun:test";
+import { renderFrame } from "../packages/core/src/test/frame";
 import { Writable } from "node:stream";
 import { Terminal } from "@xterm/xterm";
 import { createTestStdout } from "../node_modules/@opentui/core/testing/test-streams";
@@ -771,17 +772,18 @@ test("content-only ScrollBox projections preserve logical state, events and rend
 });
 
 test("thumb paint follows fractional rows while its logical value stays canonical", async () => {
-  const { r, child, inner, renderOnce, captureCharFrame } = await scrollScene();
+  const scene = await scrollScene();
+  const { r, child, inner, renderOnce } = scene;
   try {
     const slider = child.verticalScrollBar.slider;
     inner.set(0);
     await renderOnce();
-    const before = captureCharFrame();
+    const before = await renderFrame(scene);
     inner.set(0.875);
     await renderOnce();
     expect(child.scrollTop).toBe(0);
     expect(slider.value).toBe(0);
-    expect(captureCharFrame()).not.toBe(before);
+    expect(await renderFrame(scene)).not.toBe(before);
   } finally {
     r.destroy();
     await r.closed;

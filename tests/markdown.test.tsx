@@ -1,4 +1,5 @@
 /** @jsxImportSource @opentui/react */
+import { renderFrame } from "../packages/core/src/test/frame";
 import { afterEach, beforeEach, expect, spyOn, test } from "bun:test";
 import { act, type ComponentProps, type ReactNode, useEffect, useState } from "react";
 import { CliRenderer, RGBA } from "@opentui/core";
@@ -315,11 +316,8 @@ function prefixEnds(content: string) {
 }
 /** Where the paragraph that follows a table and its `---` starts. */
 const afterRule = (content: string) => content.indexOf("\n---\n\n") + "\n---\n\n".length;
-const heightOf = (setup: Setup) =>
-  setup
-    .captureCharFrame()
-    .split("\n")
-    .findLastIndex((row) => row.trim() !== "") + 1;
+const heightOf = async (setup: Setup) =>
+  (await renderFrame(setup)).split("\n").findLastIndex((row) => row.trim() !== "") + 1;
 
 test("while it streams, the reply only grows and never shows a marker it will hide", async () => {
   const content = MARKDOWN_REPLY;
@@ -339,7 +337,7 @@ test("while it streams, the reply only grows and never shows a marker it will hi
       show({ content: content.slice(0, end), streaming: true });
       await setup.renderOnce();
     });
-    const rows = setup.captureCharFrame().split("\n");
+    const rows = (await renderFrame(setup)).split("\n");
     expect(height(rows)).toBeGreaterThanOrEqual(previous);
     expect(rows.find((row) => /\*\*|`|^#{1,6} |\]\(/.test(row))).toBeUndefined();
     previous = height(rows);
@@ -383,7 +381,7 @@ test("a paragraph streamed after a table and a rule never shortens the reply", a
       show({ content: content.slice(0, end), streaming: true });
       await setup.renderOnce();
     });
-    const height = heightOf(setup);
+    const height = await heightOf(setup);
     if (height < previous) shrunk ??= end;
     previous = height;
   }

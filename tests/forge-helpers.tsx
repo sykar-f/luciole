@@ -1,4 +1,5 @@
 /** @jsxImportSource @opentui/react */
+import { renderFrame } from "../packages/core/src/test/frame";
 import { act } from "react";
 import { testRender } from "@opentui/react/test-utils";
 import { mkdtemp, rm } from "node:fs/promises";
@@ -81,10 +82,7 @@ export async function startForge(built: PrivateBuild, options: Options = {}) {
   });
   const db = openDatabase(database);
   const operator = createForge(db);
-  const frame = async () => {
-    await ui.renderOnce();
-    return ui.captureCharFrame();
-  };
+  const frame = () => renderFrame(ui);
   /** One React batch per call: a real terminal delivers separate reads. */
   const step = (work: () => unknown) =>
     act(async () => {

@@ -1,3 +1,4 @@
+import { renderFrame } from "../packages/core/src/test/frame";
 /** Drawer animations belong to one renderer and can be cleaned up after it closes. */
 import { expect, test } from "bun:test";
 import { act, useEffect, useState } from "react";
@@ -33,7 +34,7 @@ test("two Notes drawers animate independently and close safely mid-animation", a
     // OpenTUI test-utils clears this process-global flag when any renderer closes.
     Reflect.set(globalThis, "IS_REACT_ACT_ENVIRONMENT", true);
     await second.renderOnce();
-    expect(second.captureCharFrame()).toContain("Drawer content");
+    expect(await renderFrame(second)).toContain("Drawer content");
     await act(async () => {
       toggles[1]?.();
     });
@@ -41,8 +42,8 @@ test("two Notes drawers animate independently and close safely mid-animation", a
       getTimelineEngine(second.renderer).update(DURATION_MS);
     });
     await second.renderOnce();
-    expect(second.captureCharFrame()).toContain("R");
-    expect(second.captureCharFrame()).not.toContain("Drawer content");
+    expect(await renderFrame(second)).toContain("R");
+    expect(await renderFrame(second)).not.toContain("Drawer content");
   } finally {
     await act(async () => {
       await first.dispose();

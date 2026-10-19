@@ -1,4 +1,5 @@
 /** @jsxImportSource @opentui/react */
+import { renderFrame } from "../packages/core/src/test/frame";
 import { test, expect } from "bun:test";
 import { act, useSyncExternalStore } from "react";
 import { testRender } from "@opentui/react/test-utils";
@@ -52,12 +53,7 @@ async function mount(app: Application, children: React.ReactNode) {
       height: 4,
     });
   });
-  const frame = async () => {
-    await act(async () => {
-      await ui?.renderOnce();
-    });
-    return ui?.captureCharFrame() ?? "";
-  };
+  const frame = () => (ui ? renderFrame(ui) : Promise.resolve(""));
   return { ui, frame };
 }
 

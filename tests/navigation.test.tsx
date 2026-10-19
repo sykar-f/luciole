@@ -1,4 +1,5 @@
 /** @jsxImportSource @opentui/react */
+import { renderFrame } from "../packages/core/src/test/frame";
 import { test, expect } from "bun:test";
 import { act } from "react";
 import { Renderable } from "@opentui/core";
@@ -95,12 +96,12 @@ test(
       const loadingGeometry = geometry(ui);
       expect(resolved()).toBe("/");
       expect(pending()).toBe("/notes/1");
-      expect(ui.captureCharFrame()).toContain("Loading the note…");
+      expect(await renderFrame(ui)).toContain("Loading the note…");
       // The way back is a button, not a key to know.
-      expect(ui.captureCharFrame()).toContain("Cancel");
+      expect(await renderFrame(ui)).toContain("Cancel");
       // The page left is no longer shown (Suspense hides it until the new one commits).
       expect(ui.renderer.root.findDescendantById("no-note")?.visible ?? false).toBe(false);
-      expect(ui.captureCharFrame()).not.toContain("No note selected");
+      expect(await renderFrame(ui)).not.toContain("No note selected");
       expect(ui.renderer.root.findDescendantById("note-1")).toBeUndefined();
       // Refresh during a navigation restarts the destination, never the old page.
       const restarted = hold();
@@ -158,7 +159,7 @@ test(
       expect(geometry(ui)).toEqual(loadingGeometry);
       // A refresh is mentioned once it lasts (every save reads its note again), and after
       // what the page has to say: here, its unsaved text.
-      expect(ui.captureCharFrame()).not.toContain("Syncing…");
+      expect(await renderFrame(ui)).not.toContain("Syncing…");
       await act(async () => {
         // Simulated time, and a negative wait: past StatusLine's SYNC_QUIET_MS (1 s), when
         // "Syncing…" would be due, nothing but the unsaved text is said. No event marks a
@@ -166,9 +167,9 @@ test(
         await Bun.sleep(1100);
       });
       await ui.renderOnce();
-      expect(ui.captureCharFrame()).toContain("● Unsaved");
-      expect(ui.captureCharFrame()).not.toContain("Syncing…");
-      expect(ui.captureCharFrame()).not.toContain("Loading the note…");
+      expect(await renderFrame(ui)).toContain("● Unsaved");
+      expect(await renderFrame(ui)).not.toContain("Syncing…");
+      expect(await renderFrame(ui)).not.toContain("Loading the note…");
       expect(ui.renderer.root.findDescendantById("note-1")).toBe(field.node);
       expect(field.value).toBe(`${seed}draft!`);
       await act(async () => {
@@ -187,7 +188,7 @@ test(
         navigation = app.router.navigate({ to: "/notes/2" });
       });
       await ui.renderOnce();
-      expect(ui.captureCharFrame()).toContain("Loading the note…");
+      expect(await renderFrame(ui)).toContain("Loading the note…");
       await act(async () => {
         saving.resolve();
         await until(() => !draft.pending);
@@ -211,9 +212,9 @@ test(
       });
       await ui.renderOnce();
       expect(resolved()).toBe("/notes/1");
-      expect(ui.captureCharFrame()).toContain("offline");
+      expect(await renderFrame(ui)).toContain("offline");
       expect(ui.renderer.root.findDescendantById("toggle-sidebar")).toBeDefined();
-      expect(ui.captureCharFrame()).toContain("Try again");
+      expect(await renderFrame(ui)).toContain("Try again");
       expect(app.status).toBe("Disconnected");
       expect(draft.version).toBe(2);
       expect(draft.baseline).toBe(`${seed}draft!`);

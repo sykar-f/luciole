@@ -64,8 +64,8 @@ checks:
           return { server, client };
         } catch (error) { await server[Symbol.asyncDispose](); throw error; }
       }
-      function cell(c, text) {
-        const rows = c.ui.captureCharFrame().split("\n");
+      async function cell(c, text) {
+        const rows = (await c.frame()).split("\n");
         const y = rows.findIndex(row => row.includes(text));
         const p = y < 0 ? undefined : { x: rows[y].indexOf(text), y };
         expect(p, `visible ${text}`).toBeDefined();
@@ -74,7 +74,7 @@ checks:
       async function hidden(c, text) {
         for (let i = 0; i < 100; i++) {
           await act(async () => { await Bun.sleep(10); await c.ui.renderOnce(); });
-          if (!c.ui.captureCharFrame().includes(text)) return;
+          if (!(await c.frame()).includes(text)) return;
         }
         throw new Error(`Still shown: ${text}`);
       }
@@ -91,7 +91,7 @@ checks:
         let frame = "";
         for (let i = 0; i < 500; i++) {
           await act(async () => { await Bun.sleep(10); await c.ui.renderOnce(); });
-          frame = c.ui.captureCharFrame();
+          frame = await c.frame();
           if (frame.includes(text)) return frame;
         }
         throw new Error(`Not shown: ${text}\n${frame}`);
@@ -102,7 +102,7 @@ checks:
         for (const action of ["Duplicate", "Delete"]) expect(shownAction(before, action), "secondary actions appear only after opening the menu").toBe(false);
         if (right) await c.click(title, MouseButtons.RIGHT);
         else {
-          const at = cell(c, title);
+          const at = (await cell(c, title));
           await move(c, at.x, at.y);
           // Hover may reveal the entrance. Probe every visible cell, prioritizing
           // the target row; no label vocabulary determines whether it qualifies.
@@ -168,8 +168,8 @@ checks:
           return { server, client };
         } catch (error) { await server[Symbol.asyncDispose](); throw error; }
       }
-      function cell(c, text) {
-        const rows = c.ui.captureCharFrame().split("\n");
+      async function cell(c, text) {
+        const rows = (await c.frame()).split("\n");
         const y = rows.findIndex(row => row.includes(text));
         const p = y < 0 ? undefined : { x: rows[y].indexOf(text), y };
         expect(p, `visible ${text}`).toBeDefined();
@@ -178,7 +178,7 @@ checks:
       async function hidden(c, text) {
         for (let i = 0; i < 100; i++) {
           await act(async () => { await Bun.sleep(10); await c.ui.renderOnce(); });
-          if (!c.ui.captureCharFrame().includes(text)) return;
+          if (!(await c.frame()).includes(text)) return;
         }
         throw new Error(`Still shown: ${text}`);
       }
@@ -195,7 +195,7 @@ checks:
         let frame = "";
         for (let i = 0; i < 500; i++) {
           await act(async () => { await Bun.sleep(10); await c.ui.renderOnce(); });
-          frame = c.ui.captureCharFrame();
+          frame = await c.frame();
           if (frame.includes(text)) return frame;
         }
         throw new Error(`Not shown: ${text}\n${frame}`);
@@ -206,7 +206,7 @@ checks:
         for (const action of ["Duplicate", "Delete"]) expect(shownAction(before, action), "secondary actions appear only after opening the menu").toBe(false);
         if (right) await c.click(title, MouseButtons.RIGHT);
         else {
-          const at = cell(c, title);
+          const at = (await cell(c, title));
           await move(c, at.x, at.y);
           // Hover may reveal the entrance. Probe every visible cell, prioritizing
           // the target row; no label vocabulary determines whether it qualifies.
@@ -240,9 +240,9 @@ checks:
         await using s = server;
         await using client = c;
         await see(c, "Packing list");
-        const p = cell(c, "Packing list");
+        const p = (await cell(c, "Packing list"));
         await menu(c, "Packing list");
-        const action = cell(c, "Duplicate");
+        const action = (await cell(c, "Duplicate"));
         expect(Math.abs(action.x-p.x)).toBeLessThanOrEqual(24);
         expect(Math.abs(action.y-p.y)).toBeLessThanOrEqual(5);
         await c.press("escape");
@@ -280,8 +280,8 @@ checks:
           return { server, client };
         } catch (error) { await server[Symbol.asyncDispose](); throw error; }
       }
-      function cell(c, text) {
-        const rows = c.ui.captureCharFrame().split("\n");
+      async function cell(c, text) {
+        const rows = (await c.frame()).split("\n");
         const y = rows.findIndex(row => row.includes(text));
         const p = y < 0 ? undefined : { x: rows[y].indexOf(text), y };
         expect(p, `visible ${text}`).toBeDefined();
@@ -290,7 +290,7 @@ checks:
       async function hidden(c, text) {
         for (let i = 0; i < 100; i++) {
           await act(async () => { await Bun.sleep(10); await c.ui.renderOnce(); });
-          if (!c.ui.captureCharFrame().includes(text)) return;
+          if (!(await c.frame()).includes(text)) return;
         }
         throw new Error(`Still shown: ${text}`);
       }
@@ -307,7 +307,7 @@ checks:
         let frame = "";
         for (let i = 0; i < 500; i++) {
           await act(async () => { await Bun.sleep(10); await c.ui.renderOnce(); });
-          frame = c.ui.captureCharFrame();
+          frame = await c.frame();
           if (frame.includes(text)) return frame;
         }
         throw new Error(`Not shown: ${text}\n${frame}`);
@@ -317,7 +317,7 @@ checks:
         await using s = server;
         await using client = c;
         await see(c, "Orchard plan");
-        const p = cell(c, "Orchard plan");
+        const p = (await cell(c, "Orchard plan"));
         await move(c, 59, 19);
         const before = paint(c)[p.y];
         await move(c, p.x, p.y);
@@ -346,8 +346,8 @@ checks:
           return { server, client };
         } catch (error) { await server[Symbol.asyncDispose](); throw error; }
       }
-      function cell(c, text) {
-        const rows = c.ui.captureCharFrame().split("\n");
+      async function cell(c, text) {
+        const rows = (await c.frame()).split("\n");
         const y = rows.findIndex(row => row.includes(text));
         const p = y < 0 ? undefined : { x: rows[y].indexOf(text), y };
         expect(p, `visible ${text}`).toBeDefined();
@@ -356,7 +356,7 @@ checks:
       async function hidden(c, text) {
         for (let i = 0; i < 100; i++) {
           await act(async () => { await Bun.sleep(10); await c.ui.renderOnce(); });
-          if (!c.ui.captureCharFrame().includes(text)) return;
+          if (!(await c.frame()).includes(text)) return;
         }
         throw new Error(`Still shown: ${text}`);
       }
@@ -373,7 +373,7 @@ checks:
         let frame = "";
         for (let i = 0; i < 500; i++) {
           await act(async () => { await Bun.sleep(10); await c.ui.renderOnce(); });
-          frame = c.ui.captureCharFrame();
+          frame = await c.frame();
           if (frame.includes(text)) return frame;
         }
         throw new Error(`Not shown: ${text}\n${frame}`);

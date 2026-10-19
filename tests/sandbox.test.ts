@@ -1,3 +1,4 @@
+import { renderFrame } from "../packages/core/src/test/frame";
 /**
  * The `sandbox` mode (docs/EMBEDDING.md, steps 7 and 8), with the mechanism this system
  * has (src/sandbox/mechanism.ts): Seatbelt on macOS; on Linux luciole-sandbox with
@@ -605,10 +606,11 @@ test("grants: flags, what is declared beyond, and what cannot be enforced", () =
 });
 
 test("an OSC 52 written by a program never reaches the clipboard through the VT widget", async () => {
-  const { renderer, renderOnce, captureCharFrame } = await createTestRenderer({
+  const setup = await createTestRenderer({
     width: 40,
     height: 4,
   });
+  const { renderer } = setup;
   const copies: string[] = [];
   renderer.copyToClipboardOSC52 = (text: string) => {
     copies.push(text);
@@ -632,8 +634,7 @@ test("an OSC 52 written by a program never reaches the clipboard through the VT 
     terminal.write(
       new TextEncoder().encode(`\x1b]52;c;${btoa("pwned")}\x07\x1b]52;c;?\x07visible`),
     );
-    await renderOnce();
-    expect(captureCharFrame()).toContain("visible");
+    expect(await renderFrame(setup)).toContain("visible");
   } finally {
     process.stdout.write = write;
     renderer.destroy();

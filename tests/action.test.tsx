@@ -1,4 +1,5 @@
 /** @jsxImportSource @opentui/react */
+import { renderFrame } from "../packages/core/src/test/frame";
 import { test, expect } from "bun:test";
 import { act, useState, useEffect, type ReactNode } from "react";
 import { InputRenderable } from "@opentui/core";
@@ -96,7 +97,7 @@ test("milestone 1: Flight action via HTTP, local typing, refresh without remount
     expect(result).toEqual({ value: "abc", pid });
     expect(field).toBe(instance);
     expect(field?.value).toBe("abcd");
-    expect(ui.captureCharFrame()).toContain("Saved:abc");
+    expect(await renderFrame(ui)).toContain("Saved:abc");
   } finally {
     await destroy(rendered);
     child.kill();

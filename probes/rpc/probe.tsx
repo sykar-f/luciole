@@ -1,4 +1,5 @@
 /** @jsxImportSource @opentui/react */
+import { renderFrame } from "../../packages/core/src/test/frame";
 import { testRender } from "@opentui/react/test-utils";
 import { act, useState, useEffect } from "react";
 import { createInterface } from "node:readline";
@@ -76,7 +77,7 @@ try {
       const localMs = performance.now() - begin;
       assert.equal(field?.value, "abcd");
       assert.equal(field, instance);
-      assert.ok(ui.captureCharFrame().includes("abcd"));
+      assert.ok((await renderFrame(ui)).includes("abcd"));
       const response = await next();
       assert.notEqual(response.pid, process.pid);
       if (!guarded || revision === sentRevision) {

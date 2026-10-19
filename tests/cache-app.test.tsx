@@ -1,4 +1,5 @@
 /** @jsxImportSource @opentui/react */
+import { renderFrame } from "../packages/core/src/test/frame";
 import { expect, test } from "bun:test";
 import { act } from "react";
 import { testRender } from "@opentui/react/test-utils";
@@ -98,10 +99,7 @@ test(
       await app.router.load();
       const ui = await testRender(<Shell app={app} />, { width: 60, height: 8 });
       rendered = ui;
-      const frame = async () => {
-        await ui.renderOnce();
-        return ui.captureCharFrame();
-      };
+      const frame = () => renderFrame(ui);
       // Waits for the frame to show `text`, as untilFrame does, but polls with the pause inside
       // act(): Suspense content is revealed between act() scopes, not inside a pending one,
       // and untilFrame's pause outside one made React warn of the reveal. The 10 ms is the

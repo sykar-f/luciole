@@ -1,4 +1,5 @@
 /** @jsxImportSource @opentui/react */
+import { renderFrame } from "../packages/core/src/test/frame";
 /** The React caller must also pass terminal signals to a direct program. */
 import { expect, test } from "bun:test";
 import { act, useState, type ReactNode } from "react";
@@ -23,15 +24,16 @@ test("a direct program in Terminal receives kernel resize and Ctrl+C", async () 
     </Host>,
     { width: 80, height: 24 },
   );
+  let lastFrame = "";
   const shows = async (text: string) =>
     act(async () => {
       await eventually(
         async () => {
-          await ui.renderOnce();
-          return ui.captureCharFrame().includes(text);
+          lastFrame = await renderFrame(ui);
+          return lastFrame.includes(text);
         },
         WAIT_MS,
-        () => ui.captureCharFrame(),
+        () => lastFrame,
       );
     });
   try {
@@ -45,7 +47,7 @@ test("a direct program in Terminal receives kernel resize and Ctrl+C", async () 
       ui.mockInput.pressKey("c", { ctrl: true });
     });
     await shows("SIGINT");
-    expect(ui.captureCharFrame()).toContain("SIGINT");
+    expect(await renderFrame(ui)).toContain("SIGINT");
   } finally {
     await act(async () => {
       await ui.dispose();

@@ -1,4 +1,5 @@
 /** @jsxImportSource @opentui/react */
+import { renderFrame } from "../packages/core/src/test/frame";
 import { expect, test } from "bun:test";
 import { act } from "react";
 import { testRender } from "@opentui/react/test-utils";
@@ -71,10 +72,7 @@ test(
       await app.router.load();
       const ui = await testRender(<Shell app={app} />, { width: 80, height: 10 });
       rendered = ui;
-      const frame = async () => {
-        await ui.renderOnce();
-        return ui.captureCharFrame();
-      };
+      const frame = () => renderFrame(ui);
       // Navigates, then waits for the frame to show what the route renders.
       const go = async (href: string, shown: string) => {
         await act(async () => {

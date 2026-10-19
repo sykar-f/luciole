@@ -1,4 +1,5 @@
 /** @jsxImportSource @opentui/react */
+import { renderFrame } from "../packages/core/src/test/frame";
 /**
  * What the web runtime tells the embedding page of the wheel (src/web/wheel-room.ts): over
  * each part of a screen, whether a turn still scrolls something, each way. Checked against
@@ -75,7 +76,7 @@ async function screen() {
   });
   await ui?.renderOnce();
 }
-const screenShows = (text: string) => ui?.captureCharFrame().includes(text) === true;
+const screenShows = async (text: string) => (ui ? (await renderFrame(ui)).includes(text) : false);
 const room = (at: { x: number; y: number }) => {
   if (!ui) throw new Error("no screen");
   return wheelRoom(ui.renderer, at.x, at.y);
@@ -83,13 +84,13 @@ const room = (at: { x: number; y: number }) => {
 /** Turns the wheel `times` over `at`; says whether the screen changed. */
 async function turn(at: { x: number; y: number }, way: "up" | "down", times = 1) {
   if (!ui) throw new Error("no screen");
-  const before = ui.captureCharFrame();
+  const before = await renderFrame(ui);
   for (let i = 0; i < times; i++)
     await act(async () => {
       await ui?.mockMouse.scroll(at.x, at.y, way);
     });
   await ui.renderOnce();
-  return ui.captureCharFrame() !== before;
+  return (await renderFrame(ui)) !== before;
 }
 
 test("nothing under the pointer scrolls: no room either way, and a turn moves nothing", async () => {
@@ -121,7 +122,7 @@ test("the editor of @luciole-sh/markdown-editor says its own room, past its last
   // 59 rows through 8: the last line reaches the bottom row after 51; the editor keeps
   // the wheel for a tail of 2 more (a quarter of its height), and only then lets it go.
   await turn(EDITOR, "down", 16);
-  expect(screenShows("line 29")).toBe(true);
+  expect(await screenShows("line 29")).toBe(true);
   expect(room(EDITOR)).toEqual({ up: true, down: true });
   expect(await turn(EDITOR, "down")).toBe(true);
   expect(room(EDITOR)).toEqual({ up: true, down: false });

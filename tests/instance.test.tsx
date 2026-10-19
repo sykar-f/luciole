@@ -1,4 +1,5 @@
 /** @jsxImportSource @opentui/react */
+import { renderFrame } from "../packages/core/src/test/frame";
 import { test, expect } from "bun:test";
 import { act, useState, type ReactNode } from "react";
 import { useRenderer } from "@opentui/react";
@@ -121,7 +122,7 @@ async function panes(ui: TestUI, texts: string[]) {
   await act(async () => {
     await eventually(async () => {
       await ui.renderOnce();
-      const frame = ui.captureCharFrame();
+      const frame = await renderFrame(ui);
       return texts.every((t) => frame.includes(t));
     }, 15_000);
   });

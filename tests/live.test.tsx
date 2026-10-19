@@ -1,4 +1,5 @@
 /** @jsxImportSource @opentui/react */
+import { renderFrame } from "../packages/core/src/test/frame";
 import { expect, test } from "bun:test";
 import { act } from "react";
 import { testRender } from "@opentui/react/test-utils";
@@ -50,10 +51,7 @@ test(
       await app.router.load();
       const ui = await testRender(<Shell app={app} />, { width: 60, height: 5 });
       rendered = ui;
-      const frame = async () => {
-        await ui.renderOnce();
-        return ui.captureCharFrame();
-      };
+      const frame = () => renderFrame(ui);
       const stats = async () =>
         Stats.parse(await app.callServer(`${manifest.buildId}/actions/live.ts#stats`, []));
       // Waits for what the frame must show, one short `act()` at a time: the stream's state

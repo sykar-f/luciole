@@ -1,4 +1,5 @@
 /** @jsxImportSource @opentui/react */
+import { renderFrame } from "../packages/core/src/test/frame";
 import { test, expect } from "bun:test";
 import { act, useState, useSyncExternalStore, type ReactNode } from "react";
 import { InputRenderable } from "@opentui/core";
@@ -136,10 +137,7 @@ test("<Embed>: two applications, keys to the active pane, focus set aside, crash
       </Host>,
       { width: 200, height: 24 },
     );
-    const frame = async () => {
-      await ui?.renderOnce();
-      return ui?.captureCharFrame() ?? "";
-    };
+    const frame = () => (ui ? renderFrame(ui) : Promise.resolve(""));
     await act(async () => {
       await eventually(async () => {
         const shown = await frame();

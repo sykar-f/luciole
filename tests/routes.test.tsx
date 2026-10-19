@@ -1,4 +1,5 @@
 /** @jsxImportSource @opentui/react */
+import { renderFrame } from "../packages/core/src/test/frame";
 import { expect, test } from "bun:test";
 import { act } from "react";
 import { testRender } from "@opentui/react/test-utils";
@@ -106,7 +107,7 @@ test(
       );
       await ui.renderOnce();
       // The pathless group layout persisted across its two pages.
-      expect(ui.captureCharFrame()).toContain("SETTINGS LAYOUT 1");
+      expect(await renderFrame(ui)).toContain("SETTINGS LAYOUT 1");
       expect(requests.map(([id]) => id)).toEqual([
         "/",
         "/notes/new",
@@ -128,8 +129,8 @@ test(
       });
       expect(app.router.state.resolvedLocation?.pathname).toBe("/account/security");
       // The pending destination left the group, so its layout remounts on cancel.
-      expect(ui.captureCharFrame()).toContain("SETTINGS LAYOUT 0");
-      expect(ui.captureCharFrame()).toContain("PAGE /(settings)/account/[section]");
+      expect(await renderFrame(ui)).toContain("SETTINGS LAYOUT 0");
+      expect(await renderFrame(ui)).toContain("PAGE /(settings)/account/[section]");
       expect(requests.length).toBe(6);
       await act(async () => {
         await app.router.navigate({ to: "/profile" });

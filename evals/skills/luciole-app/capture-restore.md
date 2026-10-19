@@ -32,7 +32,7 @@ checks:
       const clickLast = (client: TestClient, text: string) =>
         act(async () => {
           await client.ui.renderOnce();
-          const rows = client.ui.captureCharFrame().split("\n");
+          const rows = (await client.frame()).split("\n");
           const y = rows.findLastIndex((row) => row.includes(text));
           if (y < 0) throw new Error(`"${text}" is not shown\n${rows.join("\n")}`);
           await client.ui.mockMouse.click(rows[y]?.lastIndexOf(text) ?? 0, y);

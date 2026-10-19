@@ -1,4 +1,5 @@
 /** @jsxImportSource @opentui/react */
+import { renderFrame } from "../packages/core/src/test/frame";
 import { expect, test } from "bun:test";
 import { act } from "react";
 import { testRender } from "@opentui/react/test-utils";
@@ -182,7 +183,7 @@ test(
       const ui = await testRender(<Shell app={app} />, { width: 60, height: 10 });
       rendered = ui;
       await ui.renderOnce();
-      expect(ui.captureCharFrame()).toContain("PRIVATE of alice");
+      expect(await renderFrame(ui)).toContain("PRIVATE of alice");
       await act(async () => {
         await app.router.navigate({ to: "/login" });
       });
@@ -202,13 +203,13 @@ test(
           await until(() => reached > before, WAIT_MS);
         });
         await ui.renderOnce();
-        expect(ui.captureCharFrame()).not.toContain("PRIVATE of alice");
+        expect(await renderFrame(ui)).not.toContain("PRIVATE of alice");
         await act(async () => {
           held.resolve();
           await navigation;
           await untilFrame(ui, expected);
         });
-        expect(ui.captureCharFrame()).not.toContain("PRIVATE of alice");
+        expect(await renderFrame(ui)).not.toContain("PRIVATE of alice");
         if (token) {
           await act(async () => {
             await app.router.navigate({ to: "/login" });
@@ -278,7 +279,7 @@ test(
       const ui = await testRender(<Shell app={app} />, { width: 60, height: 10 });
       rendered = ui;
       await ui.renderOnce();
-      expect(ui.captureCharFrame()).toContain("LOGIN");
+      expect(await renderFrame(ui)).toContain("LOGIN");
       // Alice starts opening a private screen; her bearer changes before the answer, once
       // after her request left and once in the same tick as the navigation.
       for (const [token, previous, expected, sentFirst] of [
@@ -305,7 +306,7 @@ test(
           await navigation;
           await untilFrame(ui, expected);
         });
-        expect(ui.captureCharFrame()).not.toContain(previous);
+        expect(await renderFrame(ui)).not.toContain(previous);
       }
     } finally {
       await act(async () => requests?.settled().catch(() => {}));
@@ -352,7 +353,7 @@ test(
       const ui = await testRender(<Shell app={app} />, { width: 60, height: 10 });
       rendered = ui;
       await ui.renderOnce();
-      expect(ui.captureCharFrame()).toContain("HOME");
+      expect(await renderFrame(ui)).toContain("HOME");
 
       // The navigation reaches the protected route; its page slot shows the refusal,
       // inside the layout that stays.
@@ -362,15 +363,15 @@ test(
       await ui.renderOnce();
       expect(app.router.state.resolvedLocation?.pathname).toBe("/private");
       expect(app.status).toBe("Authentication required");
-      expect(ui.captureCharFrame()).toContain("LAYOUT");
-      expect(ui.captureCharFrame()).toContain("Authentication required");
+      expect(await renderFrame(ui)).toContain("LAYOUT");
+      expect(await renderFrame(ui)).toContain("Authentication required");
 
       app.setToken("valid");
       await act(async () => {
         await app.router.navigate({ to: "/private" });
       });
       await ui.renderOnce();
-      expect(ui.captureCharFrame()).toContain("PRIVATE of alice");
+      expect(await renderFrame(ui)).toContain("PRIVATE of alice");
 
       // A refused refresh drops the mounted tree, unlike a network failure: signing out
       // takes the private page off screen, and its slot shows the refusal.
@@ -382,9 +383,9 @@ test(
       await ui.renderOnce();
       expect(app.status).toBe("Authentication required");
       expect(app.router.state.resolvedLocation?.pathname).toBe("/private");
-      expect(ui.captureCharFrame()).not.toContain("PRIVATE");
-      expect(ui.captureCharFrame()).toContain("LAYOUT");
-      expect(ui.captureCharFrame()).toContain("Authentication required");
+      expect(await renderFrame(ui)).not.toContain("PRIVATE");
+      expect(await renderFrame(ui)).toContain("LAYOUT");
+      expect(await renderFrame(ui)).toContain("Authentication required");
     } finally {
       await act(async () => requests?.settled().catch(() => {}));
       await destroy(rendered);
