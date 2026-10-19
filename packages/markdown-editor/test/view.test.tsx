@@ -2,7 +2,7 @@
  * What the editor draws, cell by cell: OpenTUI renders it, the test reads characters and
  * colors back. The heading bands are the ones luciole's <Markdown> draws.
  */
-import { renderFrame } from "../../core/src/test/frame";
+import { renderFrame, renderSpans, type SpanFrame } from "../../core/src/test/frame";
 import { afterEach, beforeEach, expect, test } from "bun:test";
 import { act, useState, type ComponentProps } from "react";
 import { MouseEvent, RGBA, SyntaxStyle, type CliRenderer } from "@opentui/core";
@@ -90,8 +90,8 @@ async function show(markdown: string, log?: string[]) {
 }
 
 type Cell = { char: string; fg: RGBA; bg: RGBA };
-function cell(x: number, y: number): Cell {
-  const line = ui?.captureSpans().lines[y];
+function cellIn(frame: SpanFrame, x: number, y: number): Cell {
+  const line = frame.lines[y];
   let col = 0;
   for (const span of line?.spans ?? []) {
     if (x < col + span.width)
@@ -99,6 +99,10 @@ function cell(x: number, y: number): Cell {
     col += span.width;
   }
   throw new Error(`No cell at ${x},${y}`);
+}
+async function cell(x: number, y: number): Promise<Cell> {
+  if (!ui) throw new Error("No test UI");
+  return cellIn(await renderSpans(ui), x, y);
 }
 const rows = async () =>
   ui ? (await renderFrame(ui)).split("\n").map((row) => row.trimEnd()) : [];
@@ -119,20 +123,20 @@ test("an H1 is three rows on its band, full up to column 28, fading out to the e
   for (const y of [0, 1, 2]) {
     // Full under the first 28 columns, the title's included (the title has no background
     // of its own: the band shows through).
-    for (const x of [0, 2, 6, 27]) expect(same(cell(x, y).bg, BAND)).toBe(true);
+    for (const x of [0, 2, 6, 27]) expect(same((await cell(x, y)).bg, BAND)).toBe(true);
     // Then fading into the terminal's background, column after column.
-    let last = distance(cell(27, y).bg, TERMINAL);
+    let last = distance((await cell(27, y)).bg, TERMINAL);
     for (let x = 28; x < 57; x++) {
-      const now = distance(cell(x, y).bg, TERMINAL);
+      const now = distance((await cell(x, y)).bg, TERMINAL);
       expect(now).toBeLessThan(last);
       last = now;
     }
     // Painted almost to the edge; the last columns are the terminal's own.
-    expect(same(cell(57, y).bg, TERMINAL)).toBe(false);
-    expect(same(cell(59, y).bg, BAND)).toBe(false);
+    expect(same((await cell(57, y)).bg, TERMINAL)).toBe(false);
+    expect(same((await cell(59, y)).bg, BAND)).toBe(false);
   }
-  expect(same(cell(2, 1).fg, RGBA.fromHex("#fbe7b5"))).toBe(true);
-  expect(same(cell(0, 3).bg, BAND)).toBe(false);
+  expect(same((await cell(2, 1)).fg, RGBA.fromHex("#fbe7b5"))).toBe(true);
+  expect(same((await cell(0, 3)).bg, BAND)).toBe(false);
 });
 
 test("each level reads apart: shorter bands down to H3, then a bar, then capitals", async () => {
@@ -150,17 +154,19 @@ test("each level reads apart: shorter bands down to H3, then a bar, then capital
     "SIX",
   ]);
   // Exactly the band up to its column, clearly fading a little further, gone before the edge.
-  expect(same(cell(17, 0).bg, BAND)).toBe(true);
-  expect(distance(cell(30, 0).bg, BAND)).toBeGreaterThan(distance(cell(17, 0).bg, BAND));
-  expect(same(cell(45, 0).bg, BAND)).toBe(false);
+  expect(same((await cell(17, 0)).bg, BAND)).toBe(true);
+  expect(distance((await cell(30, 0)).bg, BAND)).toBeGreaterThan(
+    distance((await cell(17, 0)).bg, BAND),
+  );
+  expect(same((await cell(45, 0)).bg, BAND)).toBe(false);
   // An H3's band is quieter, and shorter.
-  expect(same(cell(11, 2).bg, QUIET)).toBe(true);
-  expect(distance(cell(20, 2).bg, QUIET)).toBeGreaterThan(0);
-  expect(same(cell(30, 2).bg, QUIET)).toBe(false);
+  expect(same((await cell(11, 2)).bg, QUIET)).toBe(true);
+  expect(distance((await cell(20, 2)).bg, QUIET)).toBeGreaterThan(0);
+  expect(same((await cell(30, 2)).bg, QUIET)).toBe(false);
   // No band below H3.
-  for (const y of [4, 6, 8]) expect(same(cell(6, y).bg, QUIET)).toBe(false);
+  for (const y of [4, 6, 8]) expect(same((await cell(6, y)).bg, QUIET)).toBe(false);
   // Nothing between the bands: the gaps are the terminal's.
-  expect(same(cell(0, 1).bg, BAND) || same(cell(0, 1).bg, QUIET)).toBe(false);
+  expect(same((await cell(0, 1)).bg, BAND) || same((await cell(0, 1)).bg, QUIET)).toBe(false);
 });
 
 test("headings keep the reader's rhythm: two lines above an H1, one under an H3", async () => {
@@ -239,9 +245,9 @@ test("what an item holds lines up with its text", async () => {
   ]);
   // The code panel (a row of margin above and below the code) starts under the item's
   // text, not at the margin.
-  for (const y of [4, 5, 6]) expect(same(cell(3, y).bg, PANEL)).toBe(true);
-  expect(same(cell(2, 5).bg, PANEL)).toBe(false);
-  expect(same(cell(3, 7).bg, PANEL)).toBe(false);
+  for (const y of [4, 5, 6]) expect(same((await cell(3, y)).bg, PANEL)).toBe(true);
+  expect(same((await cell(2, 5)).bg, PANEL)).toBe(false);
+  expect(same((await cell(3, 7)).bg, PANEL)).toBe(false);
 });
 
 test("code sits on its panel, its language on the right, colored by Tree-sitter", async () => {
@@ -249,14 +255,14 @@ test("code sits on its panel, its language on the right, colored by Tree-sitter"
   // A row of panel above the code, holding its language, and one below.
   expect((await rows()).slice(0, 3)).toEqual([`${" ".repeat(WIDTH - 3)}ts`, "  const a = 1;", ""]);
   for (const y of [0, 1, 2])
-    for (const x of [0, 30, WIDTH - 1]) expect(same(cell(x, y).bg, PANEL)).toBe(true);
-  for (let i = 0; i < 50 && same(cell(2, 1).fg, cell(8, 1).fg); i++) {
+    for (const x of [0, 30, WIDTH - 1]) expect(same((await cell(x, y)).bg, PANEL)).toBe(true);
+  for (let i = 0; i < 50 && same((await cell(2, 1)).fg, (await cell(8, 1)).fg); i++) {
     await Bun.sleep(20);
     await ui?.renderOnce();
   }
   // `const` is a keyword, `a` is not.
-  expect(same(cell(2, 1).fg, RGBA.fromHex("#ff7b72"))).toBe(true);
-  expect(same(cell(8, 1).fg, cell(2, 1).fg)).toBe(false);
+  expect(same((await cell(2, 1)).fg, RGBA.fromHex("#ff7b72"))).toBe(true);
+  expect(same((await cell(8, 1)).fg, (await cell(2, 1)).fg)).toBe(false);
 });
 
 test("typing Markdown turns it into what it means on screen, and reports Markdown", async () => {
@@ -297,13 +303,13 @@ test("the page is centered at the reading width; bands and panels reach into its
   ]);
   expect((await rows())[6]).toBe(`${margin}code`);
   // The band and the panel start two columns into the margin; neither goes past the page.
-  expect(same(cell(18, 0).bg, BAND)).toBe(true);
-  expect(same(cell(17, 0).bg, BAND)).toBe(false);
-  expect(same(cell(45, 0).bg, BAND)).toBe(false);
+  expect(same((await cell(18, 0)).bg, BAND)).toBe(true);
+  expect(same((await cell(17, 0)).bg, BAND)).toBe(false);
+  expect(same((await cell(45, 0)).bg, BAND)).toBe(false);
   for (const y of [5, 6, 7]) {
-    expect(same(cell(18, y).bg, PANEL)).toBe(true);
-    expect(same(cell(39, y).bg, PANEL)).toBe(true);
-    expect(same(cell(40, y).bg, PANEL)).toBe(false);
+    expect(same((await cell(18, y)).bg, PANEL)).toBe(true);
+    expect(same((await cell(39, y)).bg, PANEL)).toBe(true);
+    expect(same((await cell(40, y)).bg, PANEL)).toBe(false);
   }
 });
 
@@ -325,7 +331,7 @@ test("a table is drawn as one: columns sized and aligned, the header over a rule
     "╰────────┴────────┴───────╯",
   ]);
   // Cells are Markdown too: `12` is code.
-  expect(same(cell(13, 6).fg, RGBA.fromHex("#a5d6ff"))).toBe(true);
+  expect(same((await cell(13, 6)).fg, RGBA.fromHex("#a5d6ff"))).toBe(true);
 });
 
 test("a table is edited as its Markdown: the cursor in it shows the pipes", async () => {
@@ -359,15 +365,15 @@ test("a table too wide for the page narrows its widest columns and wraps their t
 test("a task's box lights up under the pointer, and a click on it ticks it", async () => {
   const log: string[] = [];
   await show("- [ ] a task", log);
-  expect(same(cell(0, 0).bg, PANEL)).toBe(false);
+  expect(same((await cell(0, 0)).bg, PANEL)).toBe(false);
   await ui?.mockMouse.moveTo(1, 0);
   await ui?.renderOnce();
-  expect(same(cell(0, 0).bg, PANEL)).toBe(true);
-  expect(same(cell(1, 0).fg, RGBA.fromHex("#e8b84a"))).toBe(true);
+  expect(same((await cell(0, 0)).bg, PANEL)).toBe(true);
+  expect(same((await cell(1, 0)).fg, RGBA.fromHex("#e8b84a"))).toBe(true);
   // Off the box, back as it was.
   await ui?.mockMouse.moveTo(8, 0);
   await ui?.renderOnce();
-  expect(same(cell(0, 0).bg, PANEL)).toBe(false);
+  expect(same((await cell(0, 0)).bg, PANEL)).toBe(false);
   await act(async () => {
     await ui?.mockMouse.click(1, 0);
   });
@@ -393,7 +399,7 @@ test("link definitions and HTML comments step back; two lists in a row stand apa
     "",
     "• b",
   ]);
-  expect(same(cell(0, 2).fg, RGBA.fromHex("#4a5561"))).toBe(true);
+  expect(same((await cell(0, 2)).fg, RGBA.fromHex("#4a5561"))).toBe(true);
 });
 
 test("the numbers of an ordered list line up on the right", async () => {
@@ -544,8 +550,13 @@ const paragraphs = (count: number) =>
   Array.from({ length: count }, (_, i) => `line ${i}`).join("\n\n");
 /** Row `y` of the page, the bar's column left out. */
 const text = async (y: number) => ((await rows())[y] ?? "").slice(0, BAR_X).trimEnd();
-const thumbRows = () =>
-  Array.from({ length: HEIGHT }, (_, y) => cell(BAR_X, y).char).filter((c) => c !== " ");
+const thumbRows = async () => {
+  if (!ui) throw new Error("No test UI");
+  const frame = await renderSpans(ui);
+  return Array.from({ length: HEIGHT }, (_, y) => cellIn(frame, BAR_X, y).char).filter(
+    (c) => c !== " ",
+  );
+};
 /** The last row showing text, and the empty rows under it. */
 const bottom = async () => {
   const frame = (await rows()).slice(0, HEIGHT).map((row) => row.slice(0, BAR_X).trimEnd());
@@ -555,15 +566,15 @@ const bottom = async () => {
 
 test("a document that fits shows no scrollbar; one that does not, a faint thumb at the top", async () => {
   await show(paragraphs(5));
-  expect(thumbRows()).toEqual([]);
+  expect(await thumbRows()).toEqual([]);
   await show(paragraphs(60));
   // 119 rows through 30, and a 7-row tail past them: the thumb is 30/126 of 60 halves,
   // fourteen: seven full rows.
-  const thumb = thumbRows();
+  const thumb = await thumbRows();
   expect(thumb.length).toBe(7);
   expect(thumb).toEqual(["█", "█", "█", "█", "█", "█", "█"]);
-  expect(cell(BAR_X, 0).char).toBe("█");
-  expect(same(cell(BAR_X, 0).fg, FAINT)).toBe(true);
+  expect((await cell(BAR_X, 0)).char).toBe("█");
+  expect(same((await cell(BAR_X, 0)).fg, FAINT)).toBe(true);
   // The page keeps its sixty columns: nothing of the text reaches the bar's column.
   expect(await text(0)).toBe("line 0");
   expect((await rows()).every((row) => row.length <= WIDTH + BAR)).toBe(true);
@@ -577,14 +588,14 @@ test("the wheel scrolls past the last line by a quarter of the editor, the thumb
   await ui?.renderOnce();
   // The tail: seven empty rows under the last line, and no further.
   expect(await bottom()).toMatchObject({ last: HEIGHT - 1 - 7, empty: 7, text: "line 59" });
-  expect(cell(BAR_X, HEIGHT - 1).char).toBe("█");
-  expect(cell(BAR_X, 0).char).toBe(" ");
+  expect((await cell(BAR_X, HEIGHT - 1)).char).toBe("█");
+  expect((await cell(BAR_X, 0)).char).toBe(" ");
   // Not content: nothing was added to the Markdown.
   expect(log).toEqual([]);
   // Back up by three rows, the thumb follows: its end leaves the last row's lower half.
   await ui?.mockMouse.scroll(10, 10, "up");
   await ui?.renderOnce();
-  expect(cell(BAR_X, HEIGHT - 1).char).toBe("▀");
+  expect((await cell(BAR_X, HEIGHT - 1)).char).toBe("▀");
   expect((await bottom()).empty).toBe(4);
 });
 
@@ -597,8 +608,8 @@ test("the cursor stops at the last line: the keyboard brings it into view, never
   // The last line at the bottom row; the thumb near the end of its track, short of it by
   // the tail the wheel may still travel.
   expect(await bottom()).toMatchObject({ last: HEIGHT - 1, empty: 0, text: "line 59" });
-  expect(cell(BAR_X, HEIGHT - 4).char).toBe("█");
-  expect(cell(BAR_X, HEIGHT - 1).char).toBe(" ");
+  expect((await cell(BAR_X, HEIGHT - 4)).char).toBe("█");
+  expect((await cell(BAR_X, HEIGHT - 1)).char).toBe(" ");
   // Down again moves nothing: there is no line to go to.
   await act(async () => {
     ui?.mockInput.pressArrow("down");
@@ -612,7 +623,7 @@ test("the cursor stops at the last line: the keyboard brings it into view, never
   });
   await ui?.renderOnce();
   expect(await bottom()).toMatchObject({ last: HEIGHT - 1, text: "more" });
-  expect(cell(BAR_X, HEIGHT - 4).char).toBe("█");
+  expect((await cell(BAR_X, HEIGHT - 4)).char).toBe("█");
 });
 
 test("the thumb drags the page; a click on the track brings the page there", async () => {
@@ -621,13 +632,13 @@ test("the thumb drags the page; a click on the track brings the page there", asy
   // travel, 20/46 of the 96 rows the page may scroll: 42 rows, 21 paragraphs.
   await ui?.mockMouse.drag(BAR_X, 0, BAR_X, 10);
   await ui?.renderOnce();
-  expect(cell(BAR_X, 10).char).toBe("█");
-  expect(cell(BAR_X, 0).char).toBe(" ");
+  expect((await cell(BAR_X, 10)).char).toBe("█");
+  expect((await cell(BAR_X, 0)).char).toBe(" ");
   expect(await text(0)).toBe("line 21");
   // A click at the end of the track: the thumb comes there, the page to its end.
   await ui?.mockMouse.click(BAR_X, HEIGHT - 1);
   await ui?.renderOnce();
-  expect(cell(BAR_X, HEIGHT - 1).char).toBe("█");
+  expect((await cell(BAR_X, HEIGHT - 1)).char).toBe("█");
   expect(await bottom()).toMatchObject({ text: "line 59", empty: 7 });
   // A click on the bar never moves the cursor into the text.
   expect(ui?.renderer.currentFocusedRenderable?.id).toBeDefined();
@@ -650,8 +661,8 @@ test("with a reading width, the bar stands in the margin and the text keeps its 
   await ui.renderOnce();
   // A 40-column page centered in 60: the text starts at column 10, the bar is column 59.
   expect((await rows())[0]?.slice(0, WIDTH - 1).trimEnd()).toBe(`${" ".repeat(10)}line 0`);
-  expect(cell(WIDTH - 1, 0).char).toBe("█");
-  expect(same(cell(WIDTH - 1, 0).fg, FAINT)).toBe(true);
+  expect((await cell(WIDTH - 1, 0)).char).toBe("█");
+  expect(same((await cell(WIDTH - 1, 0)).fg, FAINT)).toBe(true);
   // Without the bar, the same page.
   ui.renderer.destroy();
   ui = await testRender(
@@ -669,7 +680,7 @@ test("with a reading width, the bar stands in the margin and the text keeps its 
   );
   await ui.renderOnce();
   expect((await rows())[0]).toBe(`${" ".repeat(10)}line 0`);
-  expect(cell(WIDTH - 1, 0).char).toBe(" ");
+  expect((await cell(WIDTH - 1, 0)).char).toBe(" ");
 });
 
 test("the optional viewport keeps native rows and projects without logical mutation", async () => {

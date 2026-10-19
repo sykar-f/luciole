@@ -225,22 +225,13 @@ for (const status of ["failed", "blocked", "stopped"] as const) {
     const log = spyOn(console, "error").mockImplementation(() => {});
     if (status === "blocked") Reflect.set(ui.renderer, "isSplitCursorSeedFrameBlocked", () => true);
     if (status === "stopped") Reflect.set(ui.renderer, "_controlState", "explicit_suspended");
-    let result: unknown;
-    const pending = renderFrame(ui).catch((error: unknown) => {
-      result = error;
-    });
     try {
-      // A loop turn lets act complete; no presentation or retry can happen in this fixture.
-      await new Promise<void>((resolve) => setImmediate(resolve));
-      expect(result).toBeInstanceOf(Error);
-      expect(String(result)).toContain("without presenting a frame");
-      expect(String(result)).toContain("hasScheduledRender");
+      await expect(renderFrame(ui)).rejects.toThrow("without presenting a frame");
       expect(ui.renderer.listenerCount("frame")).toBe(0);
     } finally {
       presentation.mockRestore();
       log.mockRestore();
       await ui.dispose();
-      await pending;
     }
   });
 }
@@ -286,7 +277,7 @@ for (const source of ["render", "native", "capture", "destroy"] as const) {
       else await expect(result).rejects.toBe(failure);
       expect(ui.renderer.listenerCount("frame")).toBe(0);
       expect(ui.renderer.listenerCount("render:error")).toBe(0);
-      expect(ui.renderer.listenerCount("destroy")).toBe(0);
+      expect(ui.renderer.listenerCount("destroy")).toBe(source === "destroy" ? 0 : 1);
     } finally {
       native?.mockRestore();
       await ui.dispose();

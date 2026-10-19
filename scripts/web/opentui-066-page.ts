@@ -1,5 +1,6 @@
 /* eslint-disable no-magic-numbers -- Fixed cell geometry, colors and a bounded memory-growth proof. */
 // This page exercises the pinned 0.6.6 sources and their WebAssembly port.
+import { renderCaptureWithoutAct } from "../../packages/core/src/test/capture";
 import { growMemory } from "./opentui-066-setup";
 import { BoxRenderable, TextRenderable, StyledText, fg } from "@opentui/core";
 import { createTestRenderer } from "@opentui/core/testing";
@@ -17,10 +18,11 @@ function hasScopedBuffers(value: unknown): value is {
 }
 
 async function check() {
-  const { renderer, renderOnce, captureCharFrame } = await createTestRenderer({
+  const ui = await createTestRenderer({
     width: 20,
     height: 5,
   });
+  const { renderer } = ui;
   try {
     const box = new BoxRenderable(renderer, {
       id: "box",
@@ -43,7 +45,7 @@ async function check() {
     const text = new TextRenderable(renderer, { id: "text", content: "hello" });
     box.add(text);
     renderer.root.add(box);
-    await renderOnce();
+    await renderCaptureWithoutAct(ui, () => undefined);
     const initialMeasurement = { width: measured.width, height: measured.height };
     if (initialMeasurement.width !== 7 || initialMeasurement.height !== 1)
       throw new Error(`Native measurement writes were lost: ${measured.width}x${measured.height}`);
@@ -64,19 +66,21 @@ async function check() {
     const frame = async (expected: string, color: number[]) => {
       // Transient FFI copies are released by a microtask before the next native read.
       await Promise.resolve();
-      await renderOnce();
-      const cells = read();
+      const { cells, shown } = await renderCaptureWithoutAct(ui, () => ({
+        cells: read(),
+        shown: ui.captureCharFrame(),
+      }));
       const expectedLines = ["┌──────────┐", `│${expected}     │`, "└──────────┘"].map((line) =>
         line.padEnd(20),
       );
-      const lines = captureCharFrame().split("\n");
+      const lines = shown.split("\n");
       const ok =
         expectedLines.every((line, i) => lines[i] === line) &&
         cells.cornerChar === "┌" &&
         cells.textChars === expected &&
         JSON.stringify(cells.cornerFg) === JSON.stringify([255, 0, 0, 255]) &&
         JSON.stringify(cells.textFg) === JSON.stringify(color);
-      if (!ok) throw new Error(`Incorrect frame for ${expected}: ${captureCharFrame()}`);
+      if (!ok) throw new Error(`Incorrect frame for ${expected}: ${shown}`);
       return {
         text: expected,
         corner: cells.cornerChar,
@@ -93,7 +97,7 @@ async function check() {
       text.content = new StyledText([fg("#00ff00")(value)]);
       changedText.push(await frame(value, [0, 255, 0, 255]));
     }
-    const before = read();
+    const before = await renderCaptureWithoutAct(ui, read);
     const bytesBefore = before.memory.byteLength;
     growMemory();
     measured.setMeasureProvider(() => ({ width: 9, height: 1 }));
@@ -101,7 +105,7 @@ async function check() {
     const cellsAfterGrowth = await frame("grown", [255, 255, 255, 255]);
     if (measured.width !== 9 || measured.height !== 1)
       throw new Error("Native measurement writes were lost after memory growth");
-    const bytesAfter = read().memory.byteLength;
+    const bytesAfter = (await renderCaptureWithoutAct(ui, read)).memory.byteLength;
     const detached = before.view.byteLength === 0;
     if (bytesAfter <= bytesBefore || !detached)
       throw new Error("The check did not grow WASM memory");

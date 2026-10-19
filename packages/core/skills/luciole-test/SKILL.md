@@ -59,6 +59,11 @@ test(
   after 3 s) and streamed chunks update the screen during these waits, which last up to
   30 s. Await the waits directly: the driver manages React’s `act()` scopes for each poll.
   Wrapping an entire wait in `act()` prevents updates from committing between polls.
+- Use `await client.spans()` to assert colors, styles or cell geometry. It returns a detached
+  snapshot at native presentation: `cols`, `rows`, zero-based `cursor: [x, y]`, and
+  `lines[].spans[]` with `text`, cell `width`, `fg`/`bg` RGBA colors (`toInts()`, `equals()`),
+  and numeric `attributes`. Later renders leave it unchanged. Use `await client.frame()`
+  for text snapshots; both methods manage `act()` and wait for native presentation.
 - Run every test file you write or change with `bun test <file>` and see it pass: a starter's `bun
 run verify` builds the app but runs no test.
 - Pass `TEST_TIMEOUT_MS` as the last argument of every `test()` that opens a Client.
