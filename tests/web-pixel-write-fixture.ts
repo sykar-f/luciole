@@ -13,6 +13,7 @@ Object.assign(globalThis, {
 async function page() {
   state.chunks.length = 0;
   await runInPage(createApp, {
+    // eslint-disable-next-line typescript/consistent-type-assertions -- UI substitutes never inspect the element.
     element: {} as HTMLElement,
     server: new URL("http://localhost"),
     name: "pixel-write",
@@ -28,6 +29,7 @@ test("page pixel commands wait for the complete split frame to drain", async () 
   const first = Promise.withResolvers<void>();
   const bytes = (text: string) => new TextEncoder().encode(text);
   const parts = ["\x1b[?2026h", "A".repeat(Number(session.maxAtomicWriteBytes)), "\x1b[?2026l"];
+  let draining: Promise<void> | undefined;
   try {
     await session.beginFrameOutput();
     for (const part of parts) {
@@ -37,12 +39,13 @@ test("page pixel commands wait for the complete split frame to drain", async () 
     state.hold = true;
     state.reached = first.resolve;
     const frame = session.endFrameOutput(true);
+    draining = frame;
     await first.promise;
     state.write("PIXEL-CONTROL");
     // The page attachment returns void; session.idle alone is not its reservation.
     // Queue a sentinel through the same ordered writer so completion is explicit.
-    const sentinel = session.writeControl(bytes("SENTINEL"));
     expect(state.chunks.join("")).not.toContain("PIXEL-CONTROL");
+    const sentinel = session.writeControl(bytes("SENTINEL"));
     state.resume();
     await Promise.all([frame, sentinel]);
     expect(state.chunks.length).toBeGreaterThan(3);
@@ -50,6 +53,7 @@ test("page pixel commands wait for the complete split frame to drain", async () 
   } finally {
     state.hold = false;
     state.resume();
+    await draining;
     await session.close();
   }
 });

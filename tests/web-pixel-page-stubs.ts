@@ -14,10 +14,21 @@ function patched(session: NativeSession): session is PatchedSession {
   );
 }
 
-export const state = {
-  chunks: [] as string[],
+const chunks: string[] = [];
+const initialSession: PatchedSession | undefined = undefined;
+export const state: {
+  chunks: string[];
+  write: (this: void, commands: string) => void;
+  session: PatchedSession | undefined;
+  missing: boolean;
+  reject: boolean;
+  hold: boolean;
+  resume: () => void;
+  reached: () => void;
+} = {
+  chunks,
   write: (_commands: string) => {},
-  session: undefined as PatchedSession | undefined,
+  session: initialSession,
   missing: false,
   reject: false,
   hold: false,
@@ -63,6 +74,7 @@ export const stage = () => {};
 export const tellEvent = () => {};
 export const Shell = () => null;
 export const createRoot = () => ({ render() {} });
+// eslint-disable-next-line typescript/consistent-type-assertions -- Only the page lifecycle is exercised; no application shell is mounted.
 export const createApp = () =>
   ({ onEvent() {}, restoration: { persistTo() {} } }) as unknown as Application;
 export function attachPixelScroll(_renderer: unknown, options: { write(commands: string): void }) {
