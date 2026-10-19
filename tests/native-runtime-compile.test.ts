@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import * as z from "zod/mini";
 import { compileClient } from "../packages/core/src/compile";
-import { nativeRuntimeDirectory, prepareNativeRuntime } from "../packages/core/src/native-runtime";
+import { nativeRuntimeDirectory } from "../packages/core/src/native-runtime";
 import { hostTarget } from "../packages/core/src/targets";
 import { ctrl, drive } from "../scripts/pty/driver";
 import { execute, temporaryApp, until } from "./helpers";
@@ -53,7 +53,7 @@ test("missing and corrupt entries compile stock OpenTUI with one actionable noti
       console.log(
         JSON.stringify({
           cache: corrupt ? "corrupt" : "empty",
-          notice: notice.mock.calls[0]?.[0],
+          notice: z.string().parse(notice.mock.calls[0]?.[0]),
           stdout: run.stdout.toString(),
           stderr: run.stderr.toString(),
         }),
@@ -115,8 +115,18 @@ import {writeFileSync} from "node:fs";
 import {detectOpenTuiSeams} from ${JSON.stringify(resolve("packages/core/src/opentui-seams.ts"))};
 `,
       );
-      const preparedCache = join(root, "prepared/luciole");
-      await prepareNativeRuntime({ cache: preparedCache });
+      const preparation = await execute(
+        [process.execPath, resolve("packages/core/src/cli.ts"), "native-runtime"],
+        { env: { ...process.env, XDG_CACHE_HOME: join(root, "prepared") } },
+      );
+      console.log(
+        JSON.stringify({
+          preparationExit: preparation.exitCode,
+          stdout: preparation.stdout.toString(),
+          stderr: preparation.stderr.toString(),
+        }),
+      );
+      expect(preparation.exitCode).toBe(0);
       for (const prepared of [true, false]) {
         const xdg = join(root, prepared ? "prepared" : "empty");
         const binary = join(root, prepared ? "pixel/notes" : "stock/notes");
