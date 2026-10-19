@@ -1,3 +1,4 @@
+import { drive } from "../scripts/pty/driver";
 import { rejectionOf } from "./helpers";
 import { expect, spyOn, test } from "bun:test";
 import { TextRenderable } from "@opentui/core";
@@ -307,4 +308,35 @@ test("no-act capture preserves native close failure on destruction", async () =>
     Reflect.deleteProperty(ui.renderer, "closed");
     await ui.dispose();
   }
+});
+
+test("PTY span snapshots retain colors across input and resize refreshes", async () => {
+  await using terminal = await drive({
+    command: [
+      process.execPath,
+      "-e",
+      String.raw`
+      process.stdin.setRawMode(true);
+      process.stdout.write("\x1b[?2026h\x1b[H\x1b[38;2;255;0;0mred\x1b[0m\x1b[?2026l");
+      process.stdin.on("data", () => {
+        process.stdout.write("\x1b[?2026h\x1b[H\x1b[38;2;0;255;0mnew\x1b[0m\x1b[?2026l");
+      });
+    `,
+    ],
+    cols: 20,
+    rows: 3,
+  });
+  await terminal.waitFor("red");
+  const first = await terminal.spans();
+  const red = first[0]?.find((span) => span.text.includes("red"));
+  expect(red?.fg).toBe("#ff0000");
+  terminal.write("x");
+  await terminal.waitFor("new");
+  const next = await terminal.spans();
+  expect(next[0]?.find((span) => span.text.includes("new"))?.fg).toBe("#00ff00");
+  expect(first[0]?.find((span) => span.text.includes("red"))).toEqual(red);
+  terminal.resize(30, 4);
+  const resized = await terminal.spans();
+  expect(resized).toHaveLength(4);
+  expect(resized[0]?.map((span) => span.text).join("")).toHaveLength(30);
 });
