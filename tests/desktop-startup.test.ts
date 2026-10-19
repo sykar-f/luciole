@@ -23,12 +23,21 @@ for (const desktop of [true, false]) {
   test(`${desktop ? "desktop" : "terminal"} hangup during URL resolution keeps its lifetime meaning`, async () => {
     const work = await mkdtemp("/tmp/luciole-start-");
     const state = join(work, "state");
+    const lost = Promise.withResolvers<void>();
+    const events = Bun.serve({
+      port: 0,
+      fetch() {
+        lost.resolve();
+        return new Response(null, { status: 204 });
+      },
+    });
     const child = spawn(process.execPath, ["tests/desktop-startup-client.ts"], {
       env: {
         ...process.env,
         LUCIOLE_DESKTOP: desktop ? "1" : undefined,
         XDG_RUNTIME_DIR: work,
         XDG_STATE_HOME: state,
+        STARTUP_EVENTS: events.url.href,
       },
       stdio: ["ignore", "ignore", "pipe", "ipc"],
     });
@@ -48,12 +57,7 @@ for (const desktop of [true, false]) {
       });
       server = ready;
       expect((await serverStatus(ready.socket))?.clients).toBe(1);
-      const logFile = Bun.file(join(state, "startup/server.log"));
-      using changed = observe(desktop ? join(work, "luciole") : join(state, "startup"), async () =>
-        desktop
-          ? !existsSync(ready.socket)
-          : (await logFile.text()).includes("waiting 900 s for a Client"),
-      );
+      using changed = observe(join(work, "luciole"), async () => !existsSync(ready.socket));
       child.kill("SIGHUP");
       expect(await exited).toEqual(
         desktop ? { code: 0, signal: null } : { code: null, signal: "SIGHUP" },
@@ -68,7 +72,7 @@ for (const desktop of [true, false]) {
         expect(log).not.toContain("waiting 900 s for a Client");
         expect(await serverStatus(server.socket)).toBeUndefined();
       } else {
-        await changed.promise;
+        await lost.promise;
         expect((await serverStatus(ready.socket))?.graceUntil).toBeDefined();
         expect(await serverStatus(server.socket)).toMatchObject({ clients: 0 });
       }
@@ -80,6 +84,7 @@ for (const desktop of [true, false]) {
           unix: server.socket,
         }).catch(() => {});
       }
+      await events.stop(true);
       await rm(work, { recursive: true, force: true });
     }
   }, 15_000);

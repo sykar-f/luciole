@@ -13,9 +13,7 @@ const server = await ensureServer({
   command: [
     process.execPath,
     "--conditions=react-server",
-    resolve(
-      process.env.STARTUP_BARRIER ? "tests/desktop-startup-server.ts" : "tests/lifetime-server.ts",
-    ),
+    resolve("tests/desktop-startup-server.ts"),
   ],
   graceMs: 900_000,
   directories: { state: process.env.XDG_STATE_HOME ?? "/tmp" },
