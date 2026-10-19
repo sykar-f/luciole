@@ -1,6 +1,6 @@
 /** Keep every OpenTUI importer on the prepared JavaScript/native pair. */
 import type { BunPlugin } from "bun";
-import { readFileSync } from "node:fs";
+import { readFileSync, realpathSync } from "node:fs";
 import { dirname, isAbsolute, join, relative } from "node:path";
 import * as z from "zod/mini";
 
@@ -15,7 +15,9 @@ const Export = z.union([
 const Manifest = z.object({ exports: z.record(z.string(), Export) });
 
 export function nativeRuntimePlugin(directory: string): BunPlugin {
-  const installed = dirname(Bun.resolveSync("@opentui/core", import.meta.dir));
+  // Bun reports real paths to onResolve, even when the cache uses a symlink.
+  directory = realpathSync(directory);
+  const installed = realpathSync(dirname(Bun.resolveSync("@opentui/core", import.meta.dir)));
   const prepared = join(directory, "core");
   const manifest = Manifest.parse(JSON.parse(readFileSync(join(prepared, "package.json"), "utf8")));
   function coreEntry(specifier: string) {
