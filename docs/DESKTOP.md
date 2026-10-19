@@ -96,7 +96,8 @@ avant qu'Electrobun ne signe le bundle, fait tourner l'hôte sur le binaire de l
 Contents/MacOS/launcher      natif Electrobun : lance « bun main.js »
 Contents/MacOS/bun           script : BUN_BE_BUN=1 exec ./<app> "$@"
 Contents/MacOS/<app>         le binaire de l'app, à côté des bibliothèques d'Electrobun
-Resources/app/luciole/bin/<app> → lien vers MacOS/<app>, que l'hôte lance sur le PTY
+Contents/MacOS/native/luciole-pty   lanceur natif du PTY, signé avec l'app
+Contents/MacOS/native/       les paquets natifs éventuels, à côté du binaire
 
 launcher ─▶ <app> en Bun (hôte, main.js) ─▶ <app> (Client, sur le PTY) ─▶ <app> serve
 ```
@@ -104,9 +105,19 @@ launcher ─▶ <app> en Bun (hôte, main.js) ─▶ <app> (Client, sur le PTY) 
 Le binaire compilé ignore son programme sous `BUN_BE_BUN=1` et se comporte comme `bun` ;
 l'hôte le lance ensuite sans cette variable (`src/host/session.ts`). Il est déplacé dans
 `MacOS/` parce qu'Electrobun charge ses bibliothèques à côté de l'exécutable en cours.
+L'hôte lance directement `MacOS/<app>` sur macOS. `native/` est un vrai répertoire :
+l'extracteur du bundle compacté d'Electrobun ne conserve pas les liens symboliques.
 Le bundle passe de 140 à 80 Mo (55 à 31 Mo en zip). En contrepartie, Electrobun tourne
 sur le Bun de l'app (1.4.2) plutôt que sur celui qu'il fixe (1.4.0) : `bun run smoke`
 le vérifie après chaque build. macOS seulement ; ailleurs le bundle garde ses deux Bun.
+
+Sur macOS, `luciole-pty` attache le PTY comme terminal de contrôle, puis remplace
+son processus par le programme. Le noyau envoie ainsi SIGWINCH après un redimensionnement
+et SIGINT au groupe de premier plan quand le PTY reçoit Ctrl+C. Le lanceur corrige le
+cas de Bun 1.4.x où un `Bun.Terminal` alloué avant le spawn reste sans terminal de contrôle.
+Le stage contient le lanceur universel (arm64 et x86_64, macOS 13 ou plus) dans `native/` ;
+le stage le signe avec le binaire de l’app (`--sign`, signature ad hoc par défaut).
+Le hook du build vérifie sa signature avant la signature du bundle. Aucun compilateur n'est requis à l'installation.
 
 L'app tourne dans son répertoire de données (`Utils.paths.userData`,
 `~/Library/Application Support/<identifier>/…`) : ce qu'elle écrit par chemin relatif

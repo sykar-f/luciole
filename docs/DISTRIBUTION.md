@@ -160,6 +160,13 @@ lockfile, comme sur la plateforme de build (`bun add` résoudrait la version du 
 refusé avec cette indication. `native/TARGET` empêche de mélanger deux cibles dans un
 même répertoire.
 
+Sur macOS, tout Client ou app compilé contient aussi `native/luciole-pty`, le lanceur
+universel qui donne au programme son terminal de contrôle. Il requiert macOS 13 ou plus,
+comme le runtime Bun officiel embarqué. Le paquet npm de core contient le binaire compilé ;
+aucun compilateur n'est requis. Le lanceur doit rester à côté du binaire, dans `native/`,
+y compris après une copie ou un déplacement. `--sign` le signe aussi et `--notarize` le
+soumet séparément à Apple avant le binaire principal.
+
 `native/` voyage avec le binaire : dans l'archive de `--on` (couverte par
 `SHA256SUMS`), dans le paquet npm de plateforme (`bin/native/`), et dans
 `apps/<app>/<buildId>/` à l'installation. Référence : `examples/files` (miniatures sharp)

@@ -50,6 +50,12 @@ const compiled = Bun.spawnSync(
     "--portable",
     "--outfile",
     join(stage, "bin", name),
+    // Sign both executables before Electrobun copies them into its bundle. Release
+    // builds can pass their Developer ID through --sign; local builds use ad hoc.
+    ...(process.platform === "darwin" &&
+    !flags.some((flag) => flag === "--sign" || flag.startsWith("--sign="))
+      ? ["--sign", "-"]
+      : []),
     ...flags,
   ],
   { stdout: "inherit", stderr: "inherit" },

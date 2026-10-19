@@ -8,7 +8,10 @@
  *                           launcher starts with the host's main.js
  *   Contents/MacOS/<app>    the app binary, beside Electrobun's libraries: the host loads
  *                           them next to the running executable
- *   Resources/app/luciole/bin/<app>   a link to it, where the host starts the app
+ *   Contents/MacOS/native/          the app's native packages and signed PTY helper
+ *
+ * The host starts MacOS/<app> directly on macOS. The packed-app extractor drops
+ * symlinks, so both the app and native/ are real entries beside the runtime.
  *
  * The host starts the app without `BUN_BE_BUN` (src/host/session.ts). Runs before
  * Electrobun signs the bundle, so the signature covers this layout. macOS only for now:
@@ -23,10 +26,10 @@ import {
   readdirSync,
   renameSync,
   rmSync,
-  symlinkSync,
   writeFileSync,
 } from "node:fs";
-import { join, relative } from "node:path";
+import { spawnSync } from "node:child_process";
+import { join } from "node:path";
 import { BUNDLED, METADATA, STAGE, readMetadata } from "../src/staged";
 
 const { ELECTROBUN_OS: os, ELECTROBUN_BUILD_DIR: buildDir } = process.env;
@@ -53,10 +56,13 @@ if (!existsSync(runtime) || !existsSync(linked))
   throw new Error(`single-runtime: ${contents} lacks MacOS/bun or the app binary`);
 
 renameSync(linked, binary);
-symlinkSync(relative(join(bundled, "bin"), binary), linked);
-// The binary finds native packages next to itself (src/launcher/binary.ts).
-const native = join(bundled, "bin", "native");
-if (existsSync(native)) symlinkSync(relative(macos, native), join(macos, "native"));
+// The binary and host find native packages and the PTY helper next to themselves (src/launcher/binary.ts).
+const native = join(macos, "native");
+renameSync(join(bundled, "bin", "native"), native);
+const helper = join(native, "luciole-pty");
+if (!existsSync(helper)) throw new Error(`single-runtime: missing PTY helper ${helper}`);
+const signature = spawnSync("codesign", ["--verify", "--strict", helper], { stdio: "inherit" });
+if (signature.status !== 0) throw new Error(`single-runtime: unsigned PTY helper ${helper}`);
 rmSync(runtime);
 writeFileSync(
   runtime,

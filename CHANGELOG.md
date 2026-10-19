@@ -13,6 +13,11 @@ and marked **Breaking**.
 
 ## [Unreleased]
 
+### Fixed
+
+- Desktop apps on macOS redraw after a window resize. Programs in a `<Terminal>`
+  receive Ctrl+C and SIGWINCH from the kernel through their controlling terminal.
+
 ## [0.5.0] - 2026-10-18
 
 ### Added

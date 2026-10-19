@@ -4,7 +4,7 @@
  * PTY up, and the program's end closes the window, which ends the host.
  */
 import { mkdirSync, readFileSync } from "node:fs";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { ApplicationMenu, BrowserView, BrowserWindow, PATHS, Utils, app } from "electrobun/main";
 import type { TerminalRPC } from "../protocol";
 import { BUNDLED, METADATA, readMetadata } from "../staged";
@@ -19,7 +19,13 @@ const cwd = Utils.paths.userData;
 mkdirSync(cwd, { recursive: true });
 
 const session = createWindowSession({
-  command: [join(bundled, "bin", name)],
+  // The macOS postBuild hook places the real binary beside this host's runtime.
+  // Use that path directly: Electrobun's packed-app extractor does not keep links.
+  command: [
+    process.platform === "darwin"
+      ? join(dirname(process.execPath), name)
+      : join(bundled, "bin", name),
+  ],
   cwd,
   send: (data) => mainWindow.webview.rpc?.send.output({ data }),
   onExit: () => mainWindow.close(),
