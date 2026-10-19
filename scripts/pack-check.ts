@@ -456,7 +456,9 @@ export async function checkPackage(dir: string, log: (line: string) => void): Pr
       }
       const specifier = sub === "." ? name : `${name}/${sub.slice(2)}`;
       const json = importable.every((target) => target.endsWith(".json"));
-      const code = `await import(${JSON.stringify(specifier)}${json ? ', { with: { type: "json" } }' : ""})`;
+      // Browser entries may install listeners that keep Bun alive. This probe checks
+      // the awaited import only; thrown imports still fail before the successful exit.
+      const code = `await import(${JSON.stringify(specifier)}${json ? ', { with: { type: "json" } }' : ""}); process.exit(0);`;
       for (const runtime of nodeAllowed ? ["node", "bun"] : ["bun"]) {
         const args =
           runtime === "node" ? ["node", "--input-type=module", "-e", code] : ["bun", "-e", code];
