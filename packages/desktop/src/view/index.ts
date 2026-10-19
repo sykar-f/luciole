@@ -4,7 +4,7 @@
  */
 import { Electroview } from "electrobun/view";
 import { FitAddon } from "@xterm/addon-fit";
-import { WebglAddon } from "@xterm/addon-webgl";
+import { attachTerminalView } from "@luciole-sh/core/terminal-view";
 import { Terminal } from "@xterm/xterm";
 import "@xterm/xterm/css/xterm.css";
 import type { TerminalRPC } from "../protocol";
@@ -13,6 +13,8 @@ const container = document.getElementById("terminal");
 if (!container) throw new Error("The view has no #terminal element");
 
 const terminal = new Terminal({
+  // PixelScrollAddon reads the grid and mouse modes through xterm's proposed API.
+  allowProposedApi: true,
   fontFamily: '"SF Mono", Menlo, "DejaVu Sans Mono", monospace',
   fontSize: 13,
   // OpenTUI draws its own cursor and scrolls its own views.
@@ -25,12 +27,8 @@ const terminal = new Terminal({
 const fit = new FitAddon();
 terminal.loadAddon(fit);
 terminal.open(container);
-// The GPU renderer when the webview has WebGL2; the DOM renderer otherwise.
-try {
-  const webgl = new WebglAddon();
-  webgl.onContextLoss(() => webgl.dispose());
-  terminal.loadAddon(webgl);
-} catch {}
+// Let xterm handle row wheel events when the pixel host has not consumed them.
+attachTerminalView(terminal, { fallbackWheel: () => true });
 fit.fit();
 
 const rpc = Electroview.defineRPC<TerminalRPC>({
