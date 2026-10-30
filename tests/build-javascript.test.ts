@@ -61,7 +61,6 @@ test(
       return nativeBuild({
         ...options,
         plugins: [
-          ...(options.plugins ?? []),
           {
             name: "observe-javascript-runtime",
             setup(b) {
@@ -71,6 +70,7 @@ test(
               });
             },
           },
+          ...(options.plugins ?? []),
         ],
       });
     });
@@ -116,14 +116,11 @@ export function Client() { return <><Plain/><View/></>; }`,
           "view.jsx",
           role === "client" ? "client.jsx" : "application.jsx",
         ]) {
-          expect(
-            imports.some(
-              (i) =>
-                i.role.endsWith(`/${role}`) &&
-                i.importer.endsWith(`/${file}`) &&
-                i.path === `${runtime}/jsx-runtime`,
-            ),
-          ).toBe(true);
+          expect(imports).toContainEqual({
+            role: expect.stringMatching(new RegExp(`/${role}$`)),
+            importer: expect.stringMatching(new RegExp(`/${file.replace(".", "\\.")}$`)),
+            path: `${runtime}/jsx-runtime`,
+          });
         }
       }
       const server = await Bun.file(join(output, "server/index.js")).text();
@@ -131,7 +128,7 @@ export function Client() { return <><Plain/><View/></>; }`,
       const worker = await Bun.file(join(output, "web-server/server-worker.js")).text();
       expect(worker).toContain("HASHBANG_SENTINEL");
       expect(worker).toContain("APPLICATION_JSX_SENTINEL");
-      expect(worker).toMatch(/resume\([^\n]*save\(\), await Promise.resolve\(/);
+      expect(worker).toMatch(/\.resume\([^\n]*\.save\(\),\s*await Promise.resolve\(/);
       const client = await importClient(dir, "javascript-runtime");
       const app = client.createApp({ url: "http://terminal.invalid" });
       const { Client } = app.options.resolveModule(`${buildId}/client.jsx`);
