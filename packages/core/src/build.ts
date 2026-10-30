@@ -1062,7 +1062,7 @@ async function buildUnlocked(
         // (development and production alike) and a debugger finds it. Inline would double
         // the bundle a compiled Client embeds; external would be found by nothing.
         sourcemap: "linked",
-        // The production JSX runtime, as `transpileModule` emitted: React's production
+        // The production JSX runtime: React's production
         // build has no `jsxDEV`. Each file's pragma picks the import source.
         jsx: { runtime: "automatic", development: false },
         plugins: [

@@ -116,11 +116,10 @@ export function Client() { return <><Plain/><View/></>; }`,
           "view.jsx",
           role === "client" ? "client.jsx" : "application.jsx",
         ]) {
-          expect(imports).toContainEqual({
-            role: expect.stringMatching(new RegExp(`/${role}$`)),
-            importer: expect.stringMatching(new RegExp(`/${file.replace(".", "\\.")}$`)),
-            path: `${runtime}/jsx-runtime`,
-          });
+          const paths = imports
+            .filter((i) => i.role.endsWith(`/${role}`) && i.importer.endsWith(`/${file}`))
+            .map((i) => i.path);
+          expect(paths).toContain(`${runtime}/jsx-runtime`);
         }
       }
       const server = await Bun.file(join(output, "server/index.js")).text();
