@@ -13,11 +13,10 @@ and marked **Breaking**.
 
 ## [Unreleased]
 
-### Changed
+### Fixed
 
-- The build lets Bun transform JavaScript files directly, without transpiling them
-  with TypeScript. Builds with large dependencies are faster, and source maps for
-  `.js` and `.jsx` files point at their original lines.
+- Apps with large dependencies build faster. Bun now transforms JavaScript files
+  directly. Source maps for `.js` and `.jsx` files point at their original lines.
 
 ## [0.6.0] - 2026-10-19
 
