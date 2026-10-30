@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import ts from "@typescript/typescript6";
 import { build } from "../packages/core/src/build";
-import { BUILD_TEST_MS } from "./helpers";
+import { BUILD_TEST_MS, importClient } from "./helpers";
 
 test("JavaScript load hooks leave transformation to Bun", async () => {
   // TypeScript's transpileModule export is a non-configurable accessor, so it cannot
@@ -81,6 +81,7 @@ test(
       const files: Record<string, string> = {
         "node_modules/native-js-fixture/package.json": JSON.stringify({
           name: "native-js-fixture",
+          version: "1.0.0",
           type: "module",
           exports: { "./plain": "./plain.js", "./jsx": "./view.jsx" },
         }),
@@ -104,7 +105,7 @@ export function Client() { return <><Plain/><View/></>; }`,
         await mkdir(join(dir, name, ".."), { recursive: true });
         await Bun.write(join(dir, name), text);
       }
-      const { output } = await build(dir, undefined, { webServer: true });
+      const { buildId, output } = await build(dir, undefined, { webServer: true });
       for (const [role, runtime] of [
         ["server", "react"],
         ["client", "@opentui/react"],
@@ -131,7 +132,13 @@ export function Client() { return <><Plain/><View/></>; }`,
       expect(worker).toContain("HASHBANG_SENTINEL");
       expect(worker).toContain("APPLICATION_JSX_SENTINEL");
       expect(worker).toMatch(/resume\([^\n]*save\(\), await Promise.resolve\(/);
-      expect(await Bun.file(join(output, "client/index.js")).text()).toContain("Client.__luciole");
+      const client = await importClient(dir, "javascript-runtime");
+      const app = client.createApp({ url: "http://terminal.invalid" });
+      const { Client } = app.options.resolveModule(`${buildId}/client.jsx`);
+      expect(Client).toMatchObject({ displayName: "Client" });
+      expect(Object.getOwnPropertyDescriptor(Client, "__luciole")?.value).toMatchObject({
+        source: "client.jsx:4",
+      });
     } finally {
       observer.mockRestore();
       await rm(dir, { recursive: true, force: true });
