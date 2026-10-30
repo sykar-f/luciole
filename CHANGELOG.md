@@ -13,11 +13,12 @@ and marked **Breaking**.
 
 ## [Unreleased]
 
-### Changed
+## [0.6.1] - 2026-10-30
 
-- The build lets Bun transform JavaScript files directly, without transpiling them
-  with TypeScript. Builds with large dependencies are faster, and source maps for
-  `.js` and `.jsx` files point at their original lines.
+### Fixed
+
+- Apps with large dependencies build faster. Bun now transforms JavaScript files
+  directly. Source maps for `.js` and `.jsx` files point at their original lines.
 
 ## [0.6.0] - 2026-10-19
 
@@ -358,7 +359,8 @@ First public release, on npm. Five packages share this version: `luciole.sh`,
 - No multi-user load test and no public TLS proxy test. See
   <https://luciole.sh/status/>.
 
-[Unreleased]: https://github.com/sykar-f/luciole/compare/v0.6.0...HEAD
+[Unreleased]: https://github.com/sykar-f/luciole/compare/v0.6.1...HEAD
+[0.6.1]: https://github.com/sykar-f/luciole/releases/tag/v0.6.1
 [0.6.0]: https://github.com/sykar-f/luciole/releases/tag/v0.6.0
 [0.5.1]: https://github.com/sykar-f/luciole/releases/tag/v0.5.1
 [0.5.0]: https://github.com/sykar-f/luciole/releases/tag/v0.5.0
