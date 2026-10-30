@@ -13,6 +13,8 @@ and marked **Breaking**.
 
 ## [Unreleased]
 
+## [0.6.1] - 2026-10-30
+
 ### Fixed
 
 - Apps with large dependencies build faster. Bun now transforms JavaScript files
@@ -357,7 +359,8 @@ First public release, on npm. Five packages share this version: `luciole.sh`,
 - No multi-user load test and no public TLS proxy test. See
   <https://luciole.sh/status/>.
 
-[Unreleased]: https://github.com/sykar-f/luciole/compare/v0.6.0...HEAD
+[Unreleased]: https://github.com/sykar-f/luciole/compare/v0.6.1...HEAD
+[0.6.1]: https://github.com/sykar-f/luciole/releases/tag/v0.6.1
 [0.6.0]: https://github.com/sykar-f/luciole/releases/tag/v0.6.0
 [0.5.1]: https://github.com/sykar-f/luciole/releases/tag/v0.5.1
 [0.5.0]: https://github.com/sykar-f/luciole/releases/tag/v0.5.0
