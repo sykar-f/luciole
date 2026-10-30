@@ -1258,25 +1258,17 @@ async function buildUnlocked(
                 // Without async context in a Worker, every wait carries its store (W6).
                 if (browserServer) source = transformAsyncContext(source, a.path);
                 const jsxImportSource = serverSide ? "react" : "@opentui/react";
-                // TypeScript is Bun's to strip, so the source map points at the original
-                // lines (Bun does not compose a plugin's own map). The pragma shares the
-                // first line: no line moves. Application code is erasable syntax only.
-                if (/\.tsx?$/.test(a.path))
-                  return {
-                    contents: `/** @jsxImportSource ${jsxImportSource} */ ${source}`,
-                    loader: a.path.endsWith("x") ? "tsx" : "ts",
-                  };
+                // Bun strips types and transforms JSX, so its map keeps the source's lines.
+                // The pragma shares a line with code; a hashbang must stay first and alone.
+                const pragma = `/** @jsxImportSource ${jsxImportSource} */ `;
+                const start = source.startsWith("#!") ? source.indexOf("\n") + 1 : 0;
+                const contents =
+                  source.startsWith("#!") && !start
+                    ? `${source}\n${pragma}`
+                    : source.slice(0, start) + pragma + source.slice(start);
                 return {
-                  contents: ts.transpileModule(source, {
-                    fileName: a.path,
-                    compilerOptions: {
-                      target: ts.ScriptTarget.ESNext,
-                      module: ts.ModuleKind.ESNext,
-                      jsx: ts.JsxEmit.ReactJSX,
-                      jsxImportSource,
-                    },
-                  }).outputText,
-                  loader: "js",
+                  contents,
+                  loader: /\.tsx?$/.test(a.path) ? (a.path.endsWith("x") ? "tsx" : "ts") : "jsx",
                 };
               });
             },

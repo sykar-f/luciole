@@ -35,3 +35,40 @@ test("built bundles link source maps that point at the original lines", async ()
     await rm(dir, { recursive: true, force: true });
   }
 }, 60_000);
+
+test("JavaScript JSX maps an exception to its original line", async () => {
+  const dir = await temporaryApp("source-maps-jsx");
+  try {
+    const files: Record<string, string> = {
+      "app/layout.tsx": `"use client";export default function Layout({children}) { return children; }`,
+      "app/page.tsx": `import { Boom } from "../Boom.jsx"; export default function Page() { return <Boom />; }`,
+      "Boom.jsx": `"use client";
+export function Boom() {
+  return <text>JavaScript</text>;
+}
+
+export function explode() {
+  throw new Error("original JSX line");
+}
+`,
+    };
+    for (const [name, text] of Object.entries(files)) {
+      await mkdir(join(dir, name, ".."), { recursive: true });
+      await Bun.write(join(dir, name), text);
+    }
+    const { buildId } = await build(dir);
+    const client = await importClient(dir, "source-maps-jsx");
+    const app = client.createApp({ url: "http://terminal.invalid" });
+    const { explode } = app.options.resolveModule(`${buildId}/Boom.jsx`);
+    if (typeof explode !== "function") throw new Error("explode is not exported");
+    let stack = "";
+    try {
+      Reflect.apply(explode, undefined, []);
+    } catch (error) {
+      stack = error instanceof Error ? String(error.stack) : "";
+    }
+    expect(stack).toContain(`${join(dir, "Boom.jsx")}:7:`);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+}, 60_000);
