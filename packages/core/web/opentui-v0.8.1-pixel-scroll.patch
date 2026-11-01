@@ -1743,7 +1743,7 @@ index ea61a58..cb4b4c7 100644
      assert(ot_scene_get_layout(context, &box, OT_LAYOUT_PUBLIC, &layout) == OT_OK);
      assert(layout.width == 4 && layout.height == 2);
 diff --git a/packages/native/src/tests/scene_frame_test.zig b/packages/native/src/tests/scene_frame_test.zig
-index 05b0e37..b4e37f1 100644
+index 05b0e37..4ed324a 100644
 --- a/packages/native/src/tests/scene_frame_test.zig
 +++ b/packages/native/src/tests/scene_frame_test.zig
 @@ -2855,3 +2855,149 @@ test "Scene viewport inside a culled row filters as the full walk does" {
@@ -1872,7 +1872,7 @@ index 05b0e37..b4e37f1 100644
 +        }
 +        var expected: [24]u32 = undefined;
 +        for (0..3) |pass| {
-+            if (pass == 2) try f.owner.sceneSetPaint(rows[1], .{ .foreground = .{ 250, 0, 0, 255 } });
++            if (pass == 2) try f.owner.sceneSetTextOptions(rows[1], .{ .wrap_mode = .none, .attributes = ansi.TextAttributes.BOLD });
 +            try @import("scene_fixture_test.zig").repaint(f.owner, f.id, options.background, true, 42);
 +            var ordinary: [24]u32 = undefined;
 +            var drop: [24]u32 = undefined;
