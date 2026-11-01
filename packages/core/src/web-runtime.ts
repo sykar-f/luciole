@@ -10,7 +10,7 @@
  * leaves nothing behind.
  */
 import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { createHash } from "node:crypto";
 import { ABI_KEY, APP_MANIFEST, AppManifest } from "./abi";
 import { defaultCache } from "./targets";
@@ -60,6 +60,7 @@ export function prepareOpenTui(
     options: ["-Dlibrary-target=wasm32-wasi", "-Doptimize=ReleaseSmall"],
     runtime: "web runtime",
     tag,
+    env: { PATH: `${dirname(Bun.which(zig) ?? resolve(zig))}:${process.env["PATH"] ?? ""}` },
   });
 }
 

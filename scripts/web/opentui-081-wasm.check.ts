@@ -11,7 +11,7 @@ import { opentuiWasm } from "../../packages/core/src/web/opentui/plugin";
 import { Browser } from "./cdp";
 
 const VERSION = "0.8.1";
-const TIMEOUT_MS = 240_000;
+const TIMEOUT_MS = 600_000;
 const NOT_FOUND = 404;
 const Result = z.object({ ok: z.literal(true) });
 

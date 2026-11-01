@@ -142,7 +142,7 @@ export function buildOpenTuiLibrary({
   // A failed rebuild cannot leave a previously accepted provenance record.
   rmSync(record, { force: true });
   rmSync(artifact, { force: true });
-  run(["bun", "install", "--frozen-lockfile"], checkout);
+  run(["bun", "install", "--frozen-lockfile"], checkout, false, env);
   run(["sh", "scripts/prepare-zig-deps.sh"], native, false, env);
   run([zig, "build", ...options], native, false, env);
   writeFileSync(record, `${tree}\n`);
