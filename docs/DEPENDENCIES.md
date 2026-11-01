@@ -1,7 +1,7 @@
 # Dépendances — 22 septembre 2026
 
 OpenTUI a été porté à 0.6.6 le 18 octobre 2026 ; les deux sondes ont été rejouées
-avec Bun 1.4.3. Les autres versions ci-dessous ne font pas partie de ce contrôle.
+avec Bun 1.4.4. Les autres versions ci-dessous ne font pas partie de ce contrôle.
 
 Les versions stables ont été comparées aux tags `latest` du registre npm, aux
 versions PyPI et aux releases officielles des outils. Les versions expérimentales
@@ -10,7 +10,7 @@ des deux sondes d'origine (`probes/rsc`, `probes/rpc`) étaient à jour ; `bun o
 
 | Dépendance                                   | Version  |
 | -------------------------------------------- | -------- |
-| Bun / @types/bun                             | 1.4.3    |
+| Bun / @types/bun                             | 1.4.4    |
 | @opentui/core / @opentui/react               | 0.6.6    |
 | @opentui/keymap                              | 0.6.6    |
 | react / react-dom / react-server-dom-webpack | 19.3.1   |

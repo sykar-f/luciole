@@ -15,6 +15,8 @@ and marked **Breaking**.
 
 ### Changed
 
+- New apps pin Bun 1.4.4. The minimum supported Bun version stays at 1.4.1.
+
 - Core and Markdown Editor use marked 18.1.2. The parser includes fixes for
   lists, quotes, links, emphasis, HTML blocks and character references.
 - **Breaking:** The optional SQLite WASM peer range starts at 3.54.1-build1.

@@ -90,7 +90,7 @@ test("a version with no mark, a mark of nothing and a page with no mark fail", a
 
 test("only the main's text counts, not its scripts nor the page around it", async () => {
   const html = `<p>9.9.9</p><main><script>"9.9.9"</script>
-    <span data-version-of="bun-version"> 1.4.3 </span></main><footer>9.9.9</footer>`;
+    <span data-version-of="bun-version"> 1.4.4 </span></main><footer>9.9.9</footer>`;
   expect(await problems(html)).toEqual([]);
 });
 
