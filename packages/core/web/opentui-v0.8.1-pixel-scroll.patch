@@ -238,7 +238,7 @@ index 265751a..9bfd699 100644
  export * from "./types.js"
  export * from "./utils.js"
 diff --git a/packages/core/src/native-abi.generated.ts b/packages/core/src/native-abi.generated.ts
-index 792bfbf..aa41458 100644
+index 792bfbf..66795df 100644
 --- a/packages/core/src/native-abi.generated.ts
 +++ b/packages/core/src/native-abi.generated.ts
 @@ -1,7 +1,7 @@
@@ -246,18 +246,18 @@ index 792bfbf..aa41458 100644
  // Run `bun run generate:abi` in packages/core. Do not edit.
  // Inspect audit input: bun scripts/native-abi.ts --audit
 -// ABI audit SHA-256: 1f1e8424bc1216febc37ed16ad59186b66b331cff98c6f8390c1262d97d68142
-+// ABI audit SHA-256: 3f40dbacb7d8b6f6b048a1b8db68d4f4751f3e7d2a43e9db77caff63848a444e
++// ABI audit SHA-256: 3a7a13f27fe7c6ce7cfbb611e80b671f2ba3c3adce18d68b685d65ce9e9a5c85
  
  export const nativeSymbols = {
    ot_scene_set_hooks: { args: ["ptr", "buffer", "buffer"], returns: "i32" },
-@@ -26,6 +26,7 @@ export const nativeSymbols = {
-   ot_scene_set_viewport: { args: ["ptr", "buffer", "ptr"], returns: "i32" },
+@@ -27,6 +27,7 @@ export const nativeSymbols = {
    ot_scene_set_scroll: { args: ["ptr", "buffer", "buffer"], returns: "i32" },
    ot_scene_set_scroll_arrow: { args: ["ptr", "buffer", "u32", "u32", "buffer", "ptr", "u32"], returns: "i32" },
-+  ot_scene_scroll_paint: { args: ["ptr", "buffer", "f64", "f64"], returns: "i32" },
    ot_scene_scroll_to: { args: ["ptr", "buffer", "f64", "f64", "u32", "ptr"], returns: "i32" },
++  ot_scene_scroll_paint: { args: ["ptr", "buffer", "f64", "f64"], returns: "i32" },
    ot_scene_scroll_request: { args: ["ptr", "buffer", "u32", "ptr", "u32", "u32", "ptr"], returns: "i32" },
    ot_scene_get_scroll: { args: ["ptr", "buffer", "buffer"], returns: "i32" },
+   ot_scene_set_focus: { args: ["ptr", "buffer", "u32"], returns: "i32" },
 @@ -269,6 +270,10 @@ export const nativeSymbols = {
    ot_session_input_reset: { args: ["ptr", "buffer", "u32"], returns: "i32" },
    ot_session_get_write_limit: { args: ["ptr", "buffer", "buffer"], returns: "i32" },
@@ -830,10 +830,10 @@ index 6519943..b5aa76b 100644
 +})
 diff --git a/packages/core/src/tests/pixel-seams.test.ts b/packages/core/src/tests/pixel-seams.test.ts
 new file mode 100644
-index 0000000..6eabc71
+index 0000000..62b8126
 --- /dev/null
 +++ b/packages/core/src/tests/pixel-seams.test.ts
-@@ -0,0 +1,1094 @@
+@@ -0,0 +1,1132 @@
 +import { ScrollBoxRenderable } from "../renderables/ScrollBox.js"
 +import { expect, spyOn, test } from "bun:test"
 +import { Writable } from "node:stream"
@@ -1919,11 +1919,49 @@ index 0000000..6eabc71
 +    await renderOnce()
 +    expect(projected.origin(inner.num)?.y).toBe(canonical.y - 2)
 +    expect(outer.scrollTop).toBe(0)
++    expect(inner.y).toBe(canonical.y)
++    expect(inner.content.y).toBe(canonical.contentY)
++    expect(inner.scrollableViewport.rect).toEqual(canonical.viewport)
 +    r.setFramePlan(null)
 +    await renderOnce()
 +    await renderOnce()
 +    expect(inner.y).toBe(canonical.y)
 +    expect(errors).toEqual([])
++  } finally {
++    await f.dispose()
++  }
++})
++
++test("abandoned ScrollBox projection restores canonical facade observations and next-frame hits", async () => {
++  const f = await scrollScene()
++  const { r, parent, child, outer, renderOnce } = f
++  const errors: string[] = []
++  r.on(CliRenderEvents.ERROR, (e: CliRendererErrorEvent) => errors.push(e.error.message))
++  try {
++    outer.set(1.625)
++    await renderOnce()
++    const canonical = { y: child.y, contentY: child.content.y, viewport: { ...child.scrollableViewport.rect } }
++    r.setFramePlan(() => ({
++      projection: {
++        ...outer.project(2),
++        onHitMap() {
++          throw new Error("abandoned scroll projection")
++        },
++      },
++    }))
++    await renderOnce()
++    await r.idle()
++    expect(errors).toEqual(["abandoned scroll projection"])
++    expect(outer.position).toBe(1.625)
++    expect(parent.scrollTop).toBe(1)
++    expect(child.y).toBe(canonical.y)
++    expect(child.content.y).toBe(canonical.contentY)
++    expect(child.scrollableViewport.rect).toEqual(canonical.viewport)
++    r.setFramePlan(null)
++    await renderOnce()
++    await renderOnce()
++    expect(child.scrollableViewport.rect).toEqual(canonical.viewport)
++    expect(errors).toEqual(["abandoned scroll projection"])
 +  } finally {
 +    await f.dispose()
 +  }
@@ -2005,19 +2043,19 @@ index 18a7f06..dcd19fd 100644
    public sceneSetDebugFlags(context: NativeContextHandle, session: SessionHandle, flags: number): void {
      const handle = encodeContextHandle(context, session)
 diff --git a/packages/native/include/opentui.h b/packages/native/include/opentui.h
-index fb0ced6..72c8e0c 100644
+index fb0ced6..184af0a 100644
 --- a/packages/native/include/opentui.h
 +++ b/packages/native/include/opentui.h
-@@ -920,6 +920,9 @@ ot_status ot_scene_set_scroll_arrow(ot_context *, const ot_handle *node, uint32_
-  * it lands at the new max and releases a held anchor. A following view that the
-  * scroll left stuck where it asked keeps no target on the follow axis. A later
+@@ -922,6 +922,9 @@ ot_status ot_scene_set_scroll_arrow(ot_context *, const ot_handle *node, uint32_
   * scroll without REAPPLY drops pending targets. */
+ ot_status ot_scene_scroll_to(ot_context *, const ot_handle *node, double x, double y, uint32_t flags,
+     ot_scene_scroll_state *out_state);
 +/* Paint-only content origin (-1 restores canonical; -2 keeps it) and vertical thumb fraction [0,1).
 + * Neither changes logical offsets, sticky/anchor state, nor scroll notifications. */
 +ot_status ot_scene_scroll_paint(ot_context *, const ot_handle *node, double origin, double fraction);
- ot_status ot_scene_scroll_to(ot_context *, const ot_handle *node, double x, double y, uint32_t flags,
-     ot_scene_scroll_state *out_state);
  /* Requests about a node in the scroll node's subtree, read from the last solve
+  * (OT_INVALID_ARGUMENT for a node outside it):
+  * - INTO_VIEW scrolls now so the target's rect is inside the viewport inset by
 @@ -3307,6 +3310,21 @@ ot_status ot_session_write(
      const uint8_t *bytes,
      uint32_t byte_count);
@@ -2298,7 +2336,7 @@ index eb8bdf9..864af1a 100644
          }
  
 diff --git a/packages/native/src/scene.zig b/packages/native/src/scene.zig
-index 11812d7..5feb231 100644
+index 11812d7..da333fa 100644
 --- a/packages/native/src/scene.zig
 +++ b/packages/native/src/scene.zig
 @@ -92,6 +92,8 @@ pub const ScrollState = struct {
@@ -2454,7 +2492,57 @@ index 11812d7..5feb231 100644
          }
      }
  
-@@ -3660,7 +3721,7 @@ fn localLayout(value: *const native.NativeRenderable, comptime source: anytype)
+@@ -3372,10 +3433,13 @@ pub const Scene = struct {
+                 }
+                 layout.screenX = frame.parent.screenX + @as(f64, layout.left) + node.paint.translateX;
+                 layout.screenY = frame.parent.screenY + @as(f64, layout.top) + node.paint.translateY;
+-                if (node.scroll) |state| if (!std.meta.eql(state.screen, .{ layout.screenX, layout.screenY })) {
+-                    state.screen = .{ layout.screenX, layout.screenY };
+-                    state.generation += 1;
+-                };
++                if (node.scroll) |state| {
++                    const canonical_screen = canonicalScrollScreen(value, layout);
++                    if (!std.meta.eql(state.screen, canonical_screen)) {
++                        state.screen = canonical_screen;
++                        state.generation += 1;
++                    }
++                }
+                 const cells = cellLayout(layout);
+                 if (frame.filter) |filter| {
+                     self.frame_work.overlap_tests += 1;
+@@ -3570,7 +3634,13 @@ fn rect(layout: Layout) [4]f64 {
+ pub fn scrollReport(value: *const native.NativeRenderable) !api.ot_scene_scroll_state {
+     const node = value.scene_node.?;
+     const state = node.scroll orelse return error.WrongKind;
+-    const box = cellLayout(node.layout);
++    // Hidden-part facades describe canonical observation even while paint walks
++    // through an ancestor's projected origin. Its screen is committed only by
++    // ordinary preparation, independently of the transient node.layout.
++    var canonical_layout = node.layout;
++    canonical_layout.screenX = state.screen[0];
++    canonical_layout.screenY = state.screen[1];
++    const box = cellLayout(canonical_layout);
+     var report: api.ot_scene_scroll_state = .{
+         .struct_size = @sizeOf(api.ot_scene_scroll_state),
+         .abi_version = api.OT_CONTEXT_ABI_VERSION,
+@@ -3656,11 +3726,24 @@ fn localLayout(value: *const native.NativeRenderable, comptime source: anytype)
+     return .{ .left = computed.left, .top = computed.top, .right = computed.right, .bottom = computed.bottom, .width = computed.width, .height = computed.height };
+ }
+ 
++// A nested facade stays canonical even when first prepared through a projected
++// ancestor. Local layout is unchanged; undo only the paint-only ancestor deltas.
++fn canonicalScrollScreen(value: *const native.NativeRenderable, layout: Layout) [2]f64 {
++    var screen = [2]f64{ layout.screenX, layout.screenY };
++    var parent = value.scene_node.?.parent;
++    while (parent) |ancestor| : (parent = ancestor.scene_node.?.parent) {
++        if (ancestor.scene_node.?.scroll) |state| if (state.paint_origin) |origin| {
++            screen[1] += origin - state.offset[1];
++        };
++    }
++    return screen;
++}
++
+ /// Where a parent's children compose from: its screen position, plus a scroll node's viewport
  /// and content origins minus its offset.
  fn childOrigin(node: *const Node, parent: Layout) [2]f64 {
      const state = node.scroll orelse return .{ parent.screenX, parent.screenY };
