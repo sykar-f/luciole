@@ -29,14 +29,23 @@ du writer stdout, conserve l'ordre des écritures de contrôle et abandonne ses
 octets si un segment échoue. Son enveloppe 2026 suit la politique native négociée
 `auto` / `always` / `never`.
 
-La projection générique d'un renderable est portée. La projection du contenu
-natif de `ScrollBox`, le pouce fractionnaire, le culling et la propagation des
-deltas précis restent à porter dans `pixel-081-scroll`. Les versions actives
-restent à 0.6.8 ; ce patch n'active pas le runtime 0.8.1.
+Le patch porte aussi la projection du contenu natif de `ScrollBox`, le pouce
+fractionnaire, le culling et la propagation du reste des deltas précis sans
+accélération. La position précise appartient à la boîte ; son origine logique
+reste entière. Le descripteur `{ renderable: boîte, scrollContent: true, origin }`
+ne déplace que le contenu pendant la passe de peinture : viewport et barres
+restent fixes. Les hits des barres identifient la boîte propriétaire. Les passes
+invalident la préparation et les données retenues incompatibles, puis restaurent
+l'observation canonique, y compris pour une projection générique de la boîte
+ou d'un ancêtre, après succès comme après abandon. Une mutation différée
+refusée par le moteur n'empêche ni la restauration native ni l'invalidation
+des observations ; son erreur initiale reste propagée. Les versions actives
+restent à 0.6.8 ; la bascule des
+versions activera ce port complet.
 
 La preuve sélectionnée est `orch test run scripts/opentui-081-hits.check.ts` :
 clone propre de v0.8.1, application des deux patches, ABI générée, tests natifs
-et tests TypeScript du renderer, de la scène et de `NativeSession`. Tant que le
+et tests TypeScript du renderer, de la scène, de `NativeSession` et de `ScrollBox`. Tant que le
 patch web de production n'est pas présent, ce script prend son prédécesseur exact
 dans le commit du spike `a64f24c7`.
 

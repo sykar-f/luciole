@@ -1,4 +1,4 @@
-/** Selected proof of the inactive 0.8.1 hit/output port. Run via orch test run.
+/** Selected proof of the inactive 0.8.1 pixel-scroll port. Run via orch test run.
  * Keeps the upstream checkout and logs under TMPDIR for mission cleanup.
  */
 import { expect, test } from "bun:test";
@@ -53,7 +53,7 @@ async function run(
 }
 
 test(
-  "0.8.1 pixel hits: clean patch stack and generated ABI",
+  "0.8.1 pixel scroll: clean patch stack and generated ABI",
   async () => {
     console.log(`0.8.1 check checkout: ${checkout}`);
     await run(
@@ -102,7 +102,7 @@ test(
 );
 
 test(
-  "0.8.1 pixel hits: native tests, C ABI and upstream release library",
+  "0.8.1 pixel scroll: native tests, C ABI and upstream release library",
   async () => {
     expect(prepared).toBe(true);
     await run([zig, "build", "test", "-Drequire-video", "--summary", "all"], native);
@@ -122,7 +122,7 @@ test(
 );
 
 test(
-  "0.8.1 pixel hits: scene, renderer, NativeSession and pixel TypeScript tests",
+  "0.8.1 pixel scroll: scene, renderer, NativeSession and pixel TypeScript tests",
   async () => {
     expect(libraryReady).toBe(true);
     const discovered: string[] = [];
@@ -138,7 +138,7 @@ test(
           file,
         );
       const caller =
-        /NativeSession|CliRenderer|nativeScene|NativeScene|createTestRenderer|translateX|translateY/.test(
+        /NativeSession|CliRenderer|nativeScene|NativeScene|createTestRenderer|translateX|translateY|ScrollBox|ScrollableViewport|scrollOnce|wheelDirection|scrollByWheel|scrollableViewport/.test(
           await Bun.file(join(checkout, file)).text(),
         );
       if (named || caller) files.push(file.slice("packages/core/".length));
@@ -162,7 +162,7 @@ test(
 // and render-lib mocks. Keep it in a separate process per mission question 2;
 // upstream's test:js runs it with the same Core preload/default timeout.
 test(
-  "0.8.1 pixel hits: isolated upstream NativeSession simulation",
+  "0.8.1 pixel scroll: isolated upstream NativeSession simulation",
   async () => {
     expect(libraryReady).toBe(true);
     await run([process.execPath, "test", simulation], core, typeScriptEnv);

@@ -1,8 +1,7 @@
-# OpenTUI v0.8.1: ordered hit/drop snapshots and frame output transactions.
-# Apply after the v0.8.1 web patch. ScrollBox content projection follows separately.
-
+# OpenTUI v0.8.1: pixel-scroll hit snapshots, frame transactions and ScrollBox projection.
+# Apply after the v0.8.1 web patch. Active runtime pins remain unchanged.
 diff --git a/packages/core/scripts/native-abi-pointers.ts b/packages/core/scripts/native-abi-pointers.ts
-index 55571b8..5084a2a 100644
+index 55571b8..00048cf 100644
 --- a/packages/core/scripts/native-abi-pointers.ts
 +++ b/packages/core/scripts/native-abi-pointers.ts
 @@ -227,6 +227,10 @@ export const nativePointerPolicies = {
@@ -16,8 +15,17 @@ index 55571b8..5084a2a 100644
    ot_session_write: { 0: context, 1: buffer, 2: empty },
    ot_session_read_output: { 0: context, 1: buffer, 2: empty, 4: buffer },
    ot_session_drain_output: {
+@@ -281,6 +285,8 @@ export const nativePointerPolicies = {
+   ot_scene_set_arrow: { 0: context, 1: buffer, 2: buffer, 3: optional },
+   ot_scene_set_scroll: { 0: context, 1: buffer, 2: buffer },
+   ot_scene_set_scroll_arrow: { 0: context, 1: buffer, 4: buffer, 5: optional },
++  ot_scene_project_translation: { 0: context, 1: buffer },
++  ot_scene_scroll_paint: { 0: context, 1: buffer },
+   ot_scene_scroll_to: { 0: context, 1: buffer, 5: optional },
+   ot_scene_scroll_request: { 0: context, 1: buffer, 3: optional, 6: optional },
+   ot_scene_get_scroll: { 0: context, 1: buffer, 2: buffer },
 diff --git a/packages/core/src/NativeScene.ts b/packages/core/src/NativeScene.ts
-index 4fed49d..3f9aaf1 100644
+index 4fed49d..3f2fff9 100644
 --- a/packages/core/src/NativeScene.ts
 +++ b/packages/core/src/NativeScene.ts
 @@ -374,14 +374,17 @@ export class NativeScene {
@@ -41,6 +49,55 @@ index 4fed49d..3f9aaf1 100644
    }
  
    setBackground(renderable: Renderable, color: RGBA): void {
+@@ -489,6 +492,48 @@ export class NativeScene {
+     this.driver.renderLib.sceneSetScrollArrow(this.driver.context, renderable._getSceneHandle(this), axis, end, options)
+   }
+ 
++  // Cleanup must bypass a rejected staged write, then propagate that exact failure.
++  private restorePaintProjection(restore: () => void): void {
++    let failure: { error: unknown } | undefined
++    try {
++      this.flushStaged()
++    } catch (error) {
++      failure = { error }
++    }
++    try {
++      restore()
++    } catch (error) {
++      failure ??= { error }
++    } finally {
++      this.changeLayout()
++    }
++    if (failure) throw failure.error
++  }
++
++  projectTranslation(renderable: Renderable, translation: { x: number; y: number } | null): void {
++    const apply = () =>
++      this.driver.renderLib.sceneProjectTranslation(
++        this.driver.context,
++        renderable._getSceneHandle(this),
++        translation?.x ?? 0,
++        translation?.y ?? 0,
++        translation !== null,
++      )
++    if (translation === null) return this.restorePaintProjection(apply)
++    this.flushStaged()
++    apply()
++    this.changeLayout()
++  }
++
++  scrollPaint(renderable: Renderable, origin: number, fraction: number): void {
++    const apply = () =>
++      this.driver.renderLib.sceneScrollPaint(this.driver.context, renderable._getSceneHandle(this), origin, fraction)
++    if (origin === -1) return this.restorePaintProjection(apply)
++    this.flushStaged()
++    apply()
++    this.changeLayout()
++  }
++
+   scrollTo(
+     renderable: Renderable,
+     x: number,
 diff --git a/packages/core/src/NativeSession.ts b/packages/core/src/NativeSession.ts
 index e523625..fceaa0d 100644
 --- a/packages/core/src/NativeSession.ts
@@ -161,8 +218,64 @@ index e523625..fceaa0d 100644
        if (!this.stopped && ready) this.blocked = false
      } catch (error) {
        this.output = null
+diff --git a/packages/core/src/ScrollableViewport.ts b/packages/core/src/ScrollableViewport.ts
+new file mode 100644
+index 0000000..1e05d08
+--- /dev/null
++++ b/packages/core/src/ScrollableViewport.ts
+@@ -0,0 +1,40 @@
++import type { Renderable } from "./Renderable.js"
++
++/** A content-only vertical scroll surface. Positions and deltas are in rows. */
++export interface ScrollableViewport {
++  readonly owner: Renderable
++  readonly position: number
++  readonly origin: number
++  readonly max: number
++  readonly rect: Readonly<{ x: number; y: number; width: number; height: number }>
++  set(position: number): void
++  /** Consume a precise delta without acceleration; return the unconsumed remainder. */
++  scroll(delta: number): number
++  /** Describe a paint pass, without changing logical state or scheduling work. */
++  project(origin: number): { renderable: Renderable; scrollContent: true; origin: number }
++}
++
++export function getScrollableViewport(value: unknown): ScrollableViewport | undefined {
++  if (!value || typeof value !== "object") return undefined
++  const viewport = Reflect.get(value, "scrollableViewport")
++  if (!viewport || typeof viewport !== "object") return undefined
++  return ["set", "scroll", "project"].every((key) => typeof Reflect.get(viewport, key) === "function")
++    ? (viewport as ScrollableViewport)
++    : undefined
++}
++
++/** Only one member of an ancestor/descendant chain may carry a fraction. */
++export function settleScrollableChain(owner: Renderable): void {
++  const settle = (node: unknown) => {
++    const viewport = getScrollableViewport(node)
++    if (viewport && !Number.isInteger(viewport.position)) viewport.set(Math.round(viewport.position))
++  }
++  for (let parent = owner.parent; parent; parent = parent.parent) settle(parent)
++  const visit = (node: Renderable) => {
++    for (const child of node.getChildren()) {
++      settle(child)
++      visit(child)
++    }
++  }
++  visit(owner)
++}
+diff --git a/packages/core/src/index.ts b/packages/core/src/index.ts
+index 265751a..9bfd699 100644
+--- a/packages/core/src/index.ts
++++ b/packages/core/src/index.ts
+@@ -1,4 +1,5 @@
+ // Core exports without 3D dependencies
++export * from "./ScrollableViewport.js"
+ export * from "./Renderable.js"
+ export * from "./types.js"
+ export * from "./utils.js"
 diff --git a/packages/core/src/native-abi.generated.ts b/packages/core/src/native-abi.generated.ts
-index 792bfbf..b9f2005 100644
+index 792bfbf..60211b9 100644
 --- a/packages/core/src/native-abi.generated.ts
 +++ b/packages/core/src/native-abi.generated.ts
 @@ -1,7 +1,7 @@
@@ -170,11 +283,20 @@ index 792bfbf..b9f2005 100644
  // Run `bun run generate:abi` in packages/core. Do not edit.
  // Inspect audit input: bun scripts/native-abi.ts --audit
 -// ABI audit SHA-256: 1f1e8424bc1216febc37ed16ad59186b66b331cff98c6f8390c1262d97d68142
-+// ABI audit SHA-256: 7b61b146ca37bac255a378e0c09da7eb9932bccb13e9d9fe9653f76e9adf5dfa
++// ABI audit SHA-256: 2946dc66591b1962b26ad4af196d2fcfb97fd02a22a078f2063392de0491e051
  
  export const nativeSymbols = {
    ot_scene_set_hooks: { args: ["ptr", "buffer", "buffer"], returns: "i32" },
-@@ -269,6 +269,10 @@ export const nativeSymbols = {
+@@ -27,6 +27,8 @@ export const nativeSymbols = {
+   ot_scene_set_scroll: { args: ["ptr", "buffer", "buffer"], returns: "i32" },
+   ot_scene_set_scroll_arrow: { args: ["ptr", "buffer", "u32", "u32", "buffer", "ptr", "u32"], returns: "i32" },
+   ot_scene_scroll_to: { args: ["ptr", "buffer", "f64", "f64", "u32", "ptr"], returns: "i32" },
++  ot_scene_project_translation: { args: ["ptr", "buffer", "f64", "f64", "u32"], returns: "i32" },
++  ot_scene_scroll_paint: { args: ["ptr", "buffer", "f64", "f64"], returns: "i32" },
+   ot_scene_scroll_request: { args: ["ptr", "buffer", "u32", "ptr", "u32", "u32", "ptr"], returns: "i32" },
+   ot_scene_get_scroll: { args: ["ptr", "buffer", "buffer"], returns: "i32" },
+   ot_scene_set_focus: { args: ["ptr", "buffer", "u32"], returns: "i32" },
+@@ -269,6 +271,10 @@ export const nativeSymbols = {
    ot_session_input_reset: { args: ["ptr", "buffer", "u32"], returns: "i32" },
    ot_session_get_write_limit: { args: ["ptr", "buffer", "buffer"], returns: "i32" },
    ot_session_write: { args: ["ptr", "buffer", "ptr", "u32"], returns: "i32" },
@@ -185,11 +307,127 @@ index 792bfbf..b9f2005 100644
    ot_session_read_output: { args: ["ptr", "buffer", "ptr", "u32", "buffer"], returns: "i32" },
    ot_session_drain_output: { args: ["ptr", "buffer", "u32", "buffer", "ptr", "ptr"], returns: "i32" },
    ot_session_drain_stdout: { args: ["ptr", "buffer", "u32", "buffer"], returns: "i32" },
+diff --git a/packages/core/src/renderables/ScrollBox.ts b/packages/core/src/renderables/ScrollBox.ts
+index f8b31af..9ea7aaa 100644
+--- a/packages/core/src/renderables/ScrollBox.ts
++++ b/packages/core/src/renderables/ScrollBox.ts
+@@ -1,3 +1,4 @@
++import { settleScrollableChain, type ScrollableViewport } from "../ScrollableViewport.js"
+ import { type KeyEvent } from "../lib/index.js"
+ import { LinearScrollAccel, type ScrollAcceleration } from "../lib/scroll-acceleration.js"
+ import { scrollOnce, wheelDirection } from "../lib/scroll-chain.js"
+@@ -89,6 +90,61 @@ export class ScrollBoxRenderable extends BoxRenderable {
+       },
+     },
+   }
++  public readonly scrollableViewport: ScrollableViewport = {
++    owner: this,
++    get position() {
++      return (this.owner as ScrollBoxRenderable).reconcilePosition()
++    },
++    get origin() {
++      return (this.owner as ScrollBoxRenderable).scrollTop
++    },
++    get max() {
++      return (this.owner as ScrollBoxRenderable)._scrollState().max[1]
++    },
++    get rect() {
++      return { ...(this.owner as ScrollBoxRenderable)._scrollState().viewport }
++    },
++    set: (position: number) => this.setViewportPosition(position),
++    scroll: (delta: number) => {
++      if (!Number.isFinite(delta)) throw new RangeError("Viewport delta must be finite")
++      const before = this.reconcilePosition()
++      const next = Math.max(0, Math.min(this.scrollableViewport.max, before + delta))
++      if (next === before) return delta
++      settleScrollableChain(this)
++      this.setViewportPosition(next)
++      return delta - (this.reconcilePosition() - before)
++    },
++    project: (origin: number) => {
++      if (!Number.isInteger(origin) || origin < 0 || origin > Math.ceil(this.scrollableViewport.max))
++        throw new RangeError("Projection origin must be an integer in the viewport range")
++      return { renderable: this, scrollContent: true, origin }
++    },
++  } as ScrollableViewport & { owner: ScrollBoxRenderable }
++  private fractionalPosition = 0
++  private settingViewport = false
++
++  private reconcilePosition(): number {
++    const state = this._scrollState()
++    this.fractionalPosition = Math.max(0, Math.min(state.max[1], state.offset[1] + (this.fractionalPosition % 1)))
++    return this.fractionalPosition
++  }
++
++  private setViewportPosition(position: number): void {
++    if (!Number.isFinite(position)) throw new RangeError("Viewport position must be finite")
++    const next = Math.max(0, Math.min(this.scrollableViewport.max, position))
++    if (!Number.isInteger(next)) settleScrollableChain(this)
++    this.fractionalPosition = next
++    this.settingViewport = true
++    try {
++      this.scrollTop = Math.floor(next)
++    } finally {
++      this.settingViewport = false
++    }
++    this._ctx.nativeScene.scrollPaint(this, -2, next % 1)
++    this._refreshScrollHook()
++    this.requestRender()
++  }
++
+   public readonly wrapper: ScrollBoxWrapper
+   public readonly viewport: ScrollBoxViewport
+   public readonly content: ScrollBoxContent
+@@ -337,6 +393,10 @@ export class ScrollBoxRenderable extends BoxRenderable {
+     const state = scroll()
+     this.state = state
+     this.stateRevision = this._ctx.nativeScene.observedLayoutRevision
++    if (!this.settingViewport) {
++      this.reconcilePosition()
++      this._ctx.nativeScene.scrollPaint(this, -2, this.fractionalPosition % 1)
++    }
+     const moved = (state.offset[0] !== before[0] ? 1 : 0) | (state.offset[1] !== before[1] ? 2 : 0)
+     if (moved) this.requestRender()
+     this.notifyOffsets(state, moved)
+@@ -353,6 +413,7 @@ export class ScrollBoxRenderable extends BoxRenderable {
+ 
+   private listening(): boolean {
+     return (
++      !Number.isInteger(this.fractionalPosition) ||
+       this.verticalScrollBar?._listening() ||
+       this.horizontalScrollBar?._listening() ||
+       this.content?._listening() ||
+@@ -375,6 +436,8 @@ export class ScrollBoxRenderable extends BoxRenderable {
+    * waiting for layout. */
+   private notifyScroll(): void {
+     const state = this._scrollState()
++    this.reconcilePosition()
++    this._ctx.nativeScene.scrollPaint(this, -2, this.fractionalPosition % 1)
+     this.notifyOffsets(state, state.changes)
+     if (!this.isDestroyed && state.changes & 8) this.viewport._emitResize()
+     if (!this.isDestroyed && state.changes & 4) this.content._emitResize()
+@@ -474,6 +537,16 @@ export class ScrollBoxRenderable extends BoxRenderable {
+     const dir = wheelDirection(event)
+     const vertical = dir === "up" || dir === "down"
+     if (!vertical && dir !== "left" && dir !== "right") return false
++    const precise = event.scroll as (NonNullable<MouseEvent["scroll"]> & { precise?: boolean }) | undefined
++    if (precise?.precise) {
++      if (event.defaultPrevented || !vertical) return false
++      const delta = (dir === "up" ? -1 : 1) * precise.delta
++      const remainder = this.scrollableViewport.scroll(delta)
++      // Keep the original direction convention; wheelDirection applies Shift at each owner.
++      precise.delta = Math.abs(remainder)
++      if (remainder === 0) event.stopPropagation()
++      return remainder === 0
++    }
+     const axis = vertical ? 1 : 0
+     const sign = dir === "up" || dir === "left" ? -1 : 1
+     const { offset, max } = this._scrollState()
 diff --git a/packages/core/src/renderer.ts b/packages/core/src/renderer.ts
-index 01655e0..e213a39 100644
+index 01655e0..993f878 100644
 --- a/packages/core/src/renderer.ts
 +++ b/packages/core/src/renderer.ts
-@@ -1087,6 +1087,30 @@ interface AnimationTicker {
+@@ -1087,6 +1087,34 @@ interface AnimationTicker {
    callback: AnimationTickCallback
  }
  
@@ -211,7 +449,11 @@ index 01655e0..e213a39 100644
 +
 +export interface RenderFramePlan extends RenderFrameSegment {
 +  deferHover?: boolean
-+  projection?: RenderFrameSegment & { renderable: Renderable; translateX: number; translateY: number }
++  projection?: RenderFrameSegment &
++    (
++      | { renderable: Renderable; translateX: number; translateY: number }
++      | { renderable: Renderable; scrollContent: true; origin: number }
++    )
 +}
 +
 +const SYNC_SET = new Uint8Array([0x1b, 0x5b, 0x3f, 0x32, 0x30, 0x32, 0x36, 0x68])
@@ -220,7 +462,7 @@ index 01655e0..e213a39 100644
  export class CliRenderer extends EventEmitter implements RenderContext {
    private static animationFrameId = 0
    private lib: RenderLib
-@@ -1168,6 +1192,211 @@ export class CliRenderer extends EventEmitter implements RenderContext {
+@@ -1168,6 +1196,213 @@ export class CliRenderer extends EventEmitter implements RenderContext {
    private frameCount: number = 0
    // Bumped once per loop() iteration; see RenderContext.frameId.
    private _frameId: number = 0
@@ -260,7 +502,7 @@ index 01655e0..e213a39 100644
 +  }
 +  private _projection: NonNullable<RenderFramePlan["projection"]> | null = null
 +  /** The second pass's override, while it paints: painters derive their unprojected window from it. */
-+  public get projection(): Readonly<{ renderable: Renderable; translateX: number; translateY: number }> | null {
++  public get projection(): Readonly<NonNullable<RenderFramePlan["projection"]>> | null {
 +    return this._projection
 +  }
 +
@@ -381,12 +623,13 @@ index 01655e0..e213a39 100644
 +      }
 +      if (projection.renderable.isDestroyed) throw new Error("Projection target was destroyed")
 +      const target = projection.renderable
-+      const saved = { translateX: target.translateX, translateY: target.translateY }
 +      this._isProjectionPass = true
 +      this._projection = projection
 +      this._renderPassId++
 +      // Native paint state only: the wrapper keeps its translation and schedules nothing.
-+      this.nativeScene.setPaint(target, { translateX: projection.translateX, translateY: projection.translateY })
++      if ("scrollContent" in projection)
++        this.nativeScene.scrollPaint(target, projection.origin, Reflect.get(target, "scrollableViewport").position % 1)
++      else this.nativeScene.projectTranslation(target, { x: projection.translateX, y: projection.translateY })
 +      try {
 +        this.nativeScene.paint(deltaTime, () => ({
 +          background: this.backgroundColor,
@@ -400,7 +643,8 @@ index 01655e0..e213a39 100644
 +        status = await this.presentNativeScene()
 +        if (status === "rendered") projection.onHitMap?.(projected)
 +      } finally {
-+        this.nativeScene.setPaint(target, saved, true)
++        if ("scrollContent" in projection) this.nativeScene.scrollPaint(target, -1, -1)
++        else this.nativeScene.projectTranslation(target, null)
 +      }
 +      validatePlan()
 +      write(projection.after)
@@ -432,7 +676,7 @@ index 01655e0..e213a39 100644
    private lastFpsTime: number = 0
    private currentFps: number = 0
    private targetFrameTime: number = 1000 / this._targetFps
-@@ -1898,6 +2127,7 @@ export class CliRenderer extends EventEmitter implements RenderContext {
+@@ -1898,6 +2133,7 @@ export class CliRenderer extends EventEmitter implements RenderContext {
    }
  
    public requestRender() {
@@ -440,7 +684,7 @@ index 01655e0..e213a39 100644
      if (this._isDestroyed || this._controlState === RendererControlState.EXPLICIT_SUSPENDED) {
        return
      }
-@@ -3810,6 +4040,7 @@ export class CliRenderer extends EventEmitter implements RenderContext {
+@@ -3810,6 +4046,7 @@ export class CliRenderer extends EventEmitter implements RenderContext {
          this._keyHandler.processParsedKey(event.key)
          return
        case "mouse":
@@ -448,7 +692,7 @@ index 01655e0..e213a39 100644
          if (this._useMouse && this.processSingleMouseEvent(event.event)) {
            return
          }
-@@ -3936,7 +4167,11 @@ export class CliRenderer extends EventEmitter implements RenderContext {
+@@ -3936,7 +4173,11 @@ export class CliRenderer extends EventEmitter implements RenderContext {
      }
    }
  
@@ -461,7 +705,7 @@ index 01655e0..e213a39 100644
      // A left drag belongs to the node that got the left press: the first motion report can already be past it.
      // Every left down or up ends the record, also one that returns early; other events keep it.
      const pressed = this.pressedRenderable
-@@ -3969,7 +4204,7 @@ export class CliRenderer extends EventEmitter implements RenderContext {
+@@ -3969,7 +4210,7 @@ export class CliRenderer extends EventEmitter implements RenderContext {
      }
  
      if (mouseEvent.type === "scroll") {
@@ -470,7 +714,7 @@ index 01655e0..e213a39 100644
        const maybeRenderable = Renderable.renderablesByNumber.get(maybeRenderableId)
        const fallbackTarget =
          this._currentFocusedRenderable &&
-@@ -3986,7 +4221,7 @@ export class CliRenderer extends EventEmitter implements RenderContext {
+@@ -3986,7 +4227,7 @@ export class CliRenderer extends EventEmitter implements RenderContext {
        return true
      }
  
@@ -479,7 +723,7 @@ index 01655e0..e213a39 100644
      const sameElement = maybeRenderableId === this.lastOverRenderableNum
      this.lastOverRenderableNum = maybeRenderableId
      const maybeRenderable = Renderable.renderablesByNumber.get(maybeRenderableId)
-@@ -4175,7 +4410,11 @@ export class CliRenderer extends EventEmitter implements RenderContext {
+@@ -4175,7 +4416,11 @@ export class CliRenderer extends EventEmitter implements RenderContext {
    }
  
    public hitTest(x: number, y: number): number {
@@ -492,7 +736,7 @@ index 01655e0..e213a39 100644
    }
  
    private takeMemorySnapshot(): void {
-@@ -5237,6 +5476,7 @@ export class CliRenderer extends EventEmitter implements RenderContext {
+@@ -5237,6 +5482,7 @@ export class CliRenderer extends EventEmitter implements RenderContext {
          return
        // Bump before any work so all callers this iteration see the new id.
        this._frameId++
@@ -500,7 +744,7 @@ index 01655e0..e213a39 100644
  
        const now = this.normalizeClockTime(this.clock.now(), this.lastTime)
        const elapsed = this.getElapsedMs(now, this.lastTime)
-@@ -5288,6 +5528,14 @@ export class CliRenderer extends EventEmitter implements RenderContext {
+@@ -5288,6 +5534,14 @@ export class CliRenderer extends EventEmitter implements RenderContext {
        // Callbacks can start terminal setup; a frame step is invalid until it settles.
        if (this.nativeTerminalTransition && !(await this.waitForTerminalTransition())) return
        if (!this.canRender || this.currentControlState === RendererControlState.EXPLICIT_SUSPENDED) return
@@ -515,7 +759,7 @@ index 01655e0..e213a39 100644
        const sceneStart = performance.now()
        const requestedBeforeScene = this.immediateRerenderRequested
        try {
-@@ -5320,7 +5568,9 @@ export class CliRenderer extends EventEmitter implements RenderContext {
+@@ -5320,7 +5574,9 @@ export class CliRenderer extends EventEmitter implements RenderContext {
  
        // If destroy() was requested during this frame, skip native work and scheduling.
        if (this.canRender && !this.nativeSplitFlush) {
@@ -526,7 +770,7 @@ index 01655e0..e213a39 100644
          if (!this.canRender || this.currentControlState === RendererControlState.EXPLICIT_SUSPENDED) return
          if (nativeStatus === "rendered") this.frameCount++
          if (this.getElapsedMs(now, this.lastFpsTime) >= 1000) {
-@@ -5332,7 +5582,7 @@ export class CliRenderer extends EventEmitter implements RenderContext {
+@@ -5332,7 +5588,7 @@ export class CliRenderer extends EventEmitter implements RenderContext {
  
          if (nativeStatus === "rendered") {
            // The presented frame's hits may have moved under the pointer.
@@ -535,7 +779,7 @@ index 01655e0..e213a39 100644
              this.recheckHoverState()
            }
            if (!this.canRender) return
-@@ -5398,22 +5648,27 @@ export class CliRenderer extends EventEmitter implements RenderContext {
+@@ -5398,22 +5654,27 @@ export class CliRenderer extends EventEmitter implements RenderContext {
        const completion = this.renderingCompletion
        this.renderingCompletion = null
        try {
@@ -621,15 +865,17 @@ index 6519943..b5aa76b 100644
 +})
 diff --git a/packages/core/src/tests/pixel-seams.test.ts b/packages/core/src/tests/pixel-seams.test.ts
 new file mode 100644
-index 0000000..53e5956
+index 0000000..2b80075
 --- /dev/null
 +++ b/packages/core/src/tests/pixel-seams.test.ts
-@@ -0,0 +1,799 @@
+@@ -0,0 +1,1313 @@
++import { NativeError, NativeStatus } from "../zig.js"
++import { ScrollBoxRenderable } from "../renderables/ScrollBox.js"
 +import { expect, spyOn, test } from "bun:test"
 +import { Writable } from "node:stream"
 +import { NativeSession } from "../NativeSession.js"
 +import { TextRenderable } from "../renderables/Text.js"
-+import { CliRenderEvents, type CliRendererErrorEvent, type RenderHitMap, type MouseEvent } from "../renderer.js"
++import { CliRenderEvents, type CliRendererErrorEvent, type RenderHitMap, MouseEvent } from "../renderer.js"
 +import type { RawMouseEvent } from "../lib/parse.mouse.js"
 +import { BoxRenderable } from "../renderables/Box.js"
 +import { createTestRenderer } from "../testing/test-renderer.js"
@@ -1424,8 +1670,520 @@ index 0000000..53e5956
 +    await f.dispose()
 +  }
 +})
++
++async function scrollScene() {
++  const fixture = await setup(30, 16)
++
++  const parent = new ScrollBoxRenderable(fixture.r, {
++    width: 24,
++    height: 12,
++    scrollY: true,
++    scrollX: true,
++    contentOptions: { width: 40 },
++  })
++  const child = new ScrollBoxRenderable(fixture.r, {
++    width: 18,
++    height: 6,
++    flexShrink: 0,
++    scrollY: true,
++  })
++  child.add(
++    new TextRenderable(fixture.r, {
++      content: Array.from({ length: 12 }, (_, i) => `child ${i}`).join("\n"),
++      height: 12,
++      flexShrink: 0,
++    }),
++  )
++  parent.add(child)
++  parent.add(new TextRenderable(fixture.r, { content: "tail", height: 20, flexShrink: 0 }))
++  fixture.r.root.add(parent)
++  await fixture.renderOnce()
++  await fixture.renderOnce()
++
++  const outer = parent.scrollableViewport
++  const inner = child.scrollableViewport
++  if (!outer || !inner) throw new Error("Missing scrollable viewport")
++  return { ...fixture, parent, child, outer, inner }
++}
++
++test("ScrollBox fractions survive keys, scrollTo, scrollbar moves and auto-scroll, and clamp on resize", async () => {
++  const { r, child, inner, renderOnce, mockInput } = await scrollScene()
++  try {
++    inner.set(1.375)
++    expect(child.scrollTop).toBe(1)
++    child.scrollTo(2)
++    expect(inner.position).toBe(2.375)
++    child.verticalScrollBar.scrollBy(1)
++    expect(inner.position).toBe(3.375)
++    child.focus()
++    mockInput.pressArrow("up")
++    expect(inner.position).toBe(2.375)
++    // The normal selection auto-scroll uses integer scrollTop increments.
++    child.startAutoScroll(child.x + child.width / 2, child.y + child.height - 1)
++    Reflect.get(child, "handleAutoScroll").call(child, 20)
++    child.stopAutoScroll()
++    expect(inner.position).toBe(3.375)
++    expect(inner.origin).toBe(child.scrollTop)
++    child.height = 14
++    await renderOnce()
++    await renderOnce()
++    expect(inner.position).toBe(inner.max)
++    expect(inner.position).toBe(0)
++    expect(() => inner.set(NaN)).toThrow()
++  } finally {
++    r.destroy()
++    await r.closed
++  }
++})
++
++test("content-only ScrollBox projections preserve logical state, events and render scheduling", async () => {
++  const { r, parent, outer, renderOnce } = await scrollScene()
++  try {
++    outer.set(1.625)
++    let changes = 0
++    parent.verticalScrollBar.on("change", () => changes++)
++    const before = {
++      position: outer.position,
++      origin: outer.origin,
++      contentY: parent.content.y,
++    }
++    expect(outer.rect).toEqual({
++      x: parent.viewport.x,
++      y: parent.viewport.y,
++      width: parent.viewport.width,
++      height: parent.viewport.height,
++    })
++    expect(outer.rect.x + outer.rect.width).toBeLessThanOrEqual(parent.verticalScrollBar.x)
++    expect(outer.rect.y + outer.rect.height).toBeLessThanOrEqual(parent.horizontalScrollBar.y)
++    const projection = outer.project(2)
++    expect(projection.renderable).toBe(parent)
++    expect(projection.scrollContent).toBe(true)
++    expect(projection.origin).toBe(2)
++    expect(parent.content.y).toBe(before.contentY)
++    let projected: RenderHitMap | undefined
++    r.setFramePlan(() => ({
++      projection: {
++        ...projection,
++        onHitMap(map) {
++          projected = map
++          expect(outer.position).toBe(before.position)
++          expect(outer.origin).toBe(before.origin)
++        },
++      },
++    }))
++    await renderOnce()
++    await r.idle()
++    expect(projected).toBeDefined()
++    expect(projected?.origin(parent.num)).toEqual({
++      x: parent.x,
++      y: parent.y,
++    })
++    expect({
++      position: outer.position,
++      origin: outer.origin,
++      contentY: parent.content.y,
++    }).toEqual(before)
++    expect(changes).toBe(0)
++    const frame = r.frameId
++    await new Promise<void>((resolve) => setImmediate(resolve))
++    await r.idle()
++    expect(r.frameId).toBe(frame)
++    expect(() => outer.project(0.5)).toThrow()
++  } finally {
++    r.destroy()
++    await r.closed
++  }
++})
++
++test("thumb paint follows fractional rows while its logical value stays canonical", async () => {
++  const scene = await scrollScene()
++  const { r, child, inner, renderOnce } = scene
++  try {
++    const slider = child.verticalScrollBar
++    inner.set(0)
++    await renderOnce()
++    const before = scene.captureSpans()
++    inner.set(0.875)
++    await renderOnce()
++    expect(child.scrollTop).toBe(0)
++    expect(slider.scrollPosition).toBe(0)
++    expect(scene.captureSpans()).not.toEqual(before)
++  } finally {
++    r.destroy()
++    await r.closed
++  }
++})
++
++test("precise row deltas bypass acceleration and bubble only the remainder; chain ownership rounds the previous surface", async () => {
++  const { r, parent, child, outer, inner } = await scrollScene()
++  try {
++    let ticks = 0
++    for (const box of [parent, child])
++      box.scrollAcceleration = {
++        tick() {
++          ticks++
++          return 100
++        },
++        reset() {},
++      }
++    const precise = (delta: number) => {
++      const attributes: RawMouseEvent & { scroll: NonNullable<RawMouseEvent["scroll"]> & { precise: true } } = {
++        ...input("scroll"),
++        scroll: { direction: delta < 0 ? "up" : "down", delta: Math.abs(delta), precise: true },
++      }
++      const event = new MouseEvent(child, attributes)
++      child.processMouseEvent(event)
++      return event
++    }
++    precise(0.375)
++    expect(inner.position).toBe(0.375)
++    expect(outer.position).toBe(0)
++    outer.set(1.625)
++    expect(inner.position).toBe(0)
++    precise(0.25)
++    expect(outer.position).toBe(2)
++    expect(inner.position).toBe(0.25)
++    inner.set(inner.max - 0.25)
++    precise(0.625)
++    expect(inner.position).toBe(inner.max)
++    expect(outer.position).toBe(2.375)
++    precise(0.25)
++    expect(inner.position).toBe(inner.max)
++    expect(outer.position).toBe(2.625)
++    precise(-0.5)
++    expect(outer.position).toBe(3)
++    expect(inner.position).toBe(inner.max - 0.5)
++    expect(ticks).toBe(0)
++    inner.set(0)
++    outer.set(1.625)
++    precise(1)
++    expect(outer.position).toBe(2)
++    expect(inner.position).toBe(1)
++    inner.set(0)
++    outer.set(0)
++    const exhausted = precise(-0.25)
++    expect(exhausted.propagationStopped).toBe(false)
++    expect(exhausted.scroll?.delta).toBe(0.25)
++    expect(inner.scroll(-0.5)).toBe(-0.5)
++    // Existing discrete wheel keeps the configured acceleration and integer origin.
++    child.processMouseEvent(new MouseEvent(child, input("scroll")))
++    expect(ticks).toBeGreaterThan(0)
++    expect(Number.isInteger(child.scrollTop)).toBe(true)
++    expect(inner.position).toBe(inner.origin)
++  } finally {
++    r.destroy()
++    await r.closed
++  }
++})
++
++test("projected nested culled ScrollBoxes retain fixed chrome, canonical input and verified repaint", async () => {
++  const f = await setup(30, 16)
++  const { r, renderOnce } = f
++  const { ScrollBoxRenderable } = await import("../renderables/ScrollBox.js")
++  const outer = new ScrollBoxRenderable(r, { width: 24, height: 12, viewportCulling: true })
++  const inner = new ScrollBoxRenderable(r, { width: 18, height: 6, flexShrink: 0, viewportCulling: true })
++  const rows = Array.from(
++    { length: 20 },
++    (_, i) => new TextRenderable(r, { content: `ROW ${i}`, height: 1, flexShrink: 0 }),
++  )
++  for (const row of rows) inner.add(row)
++  outer.add(inner)
++  outer.add(new TextRenderable(r, { content: "tail", height: 20, flexShrink: 0 }))
++  r.root.add(outer)
++  const errors: string[] = []
++  r.on(CliRenderEvents.RENDER_ERROR, (e: CliRendererErrorEvent) => errors.push(e.error.message))
++  try {
++    await renderOnce()
++    await renderOnce()
++    inner.scrollableViewport.set(1.625)
++    await renderOnce()
++    const canonical = {
++      x: inner.x,
++      y: inner.y,
++      contentY: inner.content.y,
++      viewport: { ...inner.scrollableViewport.rect },
++    }
++    let main!: RenderHitMap
++    let projected!: RenderHitMap
++    let clicks = 0
++    rows[2]!.onMouseDown = () => clicks++
++    r.setFramePlan(() => ({
++      onHitMap: (map) => {
++        main = map
++      },
++      projection: {
++        ...inner.scrollableViewport.project(2),
++        onHitMap: (map) => {
++          projected = map
++        },
++      },
++    }))
++    await renderOnce()
++    await r.idle()
++    const { x, y, width, height } = canonical.viewport
++    expect(main.hitTest(x, y)).toBe(rows[1]!.num)
++    expect(projected.hitTest(x, y)).toBe(rows[2]!.num)
++    expect(projected.origin(rows[2]!.num)).toEqual({ x, y })
++    expect(projected.origin(inner.num)).toEqual({ x: canonical.x, y: canonical.y })
++    expect(projected.hitTest(inner.verticalScrollBar.x, inner.verticalScrollBar.y)).toBe(inner.num)
++    expect(projected.hitTest(x, y + height)).not.toBe(rows[2]!.num)
++    expect(projected.hitTest(x + width, y)).toBe(inner.num)
++    expect(r.hitTest(x, y)).toBe(rows[1]!.num)
++    r.dispatchMouseEventFromHitMap(input("down", x, y), projected)
++    expect(clicks).toBe(1)
++    expect(inner.scrollableViewport.position).toBe(1.625)
++    expect(inner.scrollTop).toBe(1)
++    expect(inner.content.y).toBe(canonical.contentY)
++    expect(inner.scrollableViewport.rect).toEqual(canonical.viewport)
++    // Repeat the pair, then restore canonical retained and banded repaint paths.
++    await renderOnce()
++    r.setFramePlan(null)
++    await renderOnce()
++    await renderOnce()
++    rows[2]!.content = "changed"
++    await renderOnce()
++    expect(r.hitTest(x, y)).toBe(rows[1]!.num)
++    // Project an ancestor so the nested viewport and newly visible descendants move together.
++    r.setFramePlan(() => ({
++      projection: {
++        ...outer.scrollableViewport.project(2),
++        onHitMap: (map) => {
++          projected = map
++        },
++      },
++    }))
++    await renderOnce()
++    expect(projected.origin(inner.num)?.y).toBe(canonical.y - 2)
++    expect(outer.scrollTop).toBe(0)
++    expect(inner.y).toBe(canonical.y)
++    expect(inner.content.y).toBe(canonical.contentY)
++    expect(inner.scrollableViewport.rect).toEqual(canonical.viewport)
++    r.setFramePlan(null)
++    await renderOnce()
++    await renderOnce()
++    expect(inner.y).toBe(canonical.y)
++    expect(errors).toEqual([])
++  } finally {
++    await f.dispose()
++  }
++})
++
++test("abandoned ScrollBox projection restores canonical facade observations and next-frame hits", async () => {
++  const f = await scrollScene()
++  const { r, parent, child, outer, renderOnce } = f
++  const errors: string[] = []
++  r.on(CliRenderEvents.RENDER_ERROR, (e: CliRendererErrorEvent) => errors.push(e.error.message))
++  try {
++    outer.set(1.625)
++    await renderOnce()
++    const canonical = { y: child.y, contentY: child.content.y, viewport: { ...child.scrollableViewport.rect } }
++    r.setFramePlan(() => ({
++      projection: {
++        ...outer.project(2),
++        onHitMap() {
++          throw new Error("abandoned scroll projection")
++        },
++      },
++    }))
++    await renderOnce()
++    await r.idle()
++    expect(errors).toEqual(["abandoned scroll projection"])
++    expect(outer.position).toBe(1.625)
++    expect(parent.scrollTop).toBe(1)
++    expect(child.y).toBe(canonical.y)
++    expect(child.content.y).toBe(canonical.contentY)
++    expect(child.scrollableViewport.rect).toEqual(canonical.viewport)
++    r.setFramePlan(null)
++    await renderOnce()
++    await renderOnce()
++    expect(child.scrollableViewport.rect).toEqual(canonical.viewport)
++    expect(r.hitTest(canonical.viewport.x, Math.max(0, canonical.viewport.y))).toBe(child.getChildren()[0]!.num)
++    expect(errors).toEqual(["abandoned scroll projection"])
++  } finally {
++    await f.dispose()
++  }
++})
++
++for (const targetKind of ["ancestor", "box"] as const) {
++  for (const abandoned of [false, true]) {
++    test(`generic ${targetKind} projection restores ScrollBox facades and scrollbar input (${abandoned ? "abandoned" : "success"})`, async () => {
++      const f = await setup(30, 16)
++      const { r, renderOnce } = f
++      const ancestor = new BoxRenderable(r, { width: 26, height: 14, translateX: 1, translateY: 1 })
++      const box = new ScrollBoxRenderable(r, {
++        width: 18,
++        height: 8,
++        translateX: 1,
++        translateY: 1,
++        scrollX: true,
++        scrollY: true,
++        contentOptions: { width: 30 },
++      })
++      box.add(
++        new TextRenderable(r, {
++          width: 30,
++          height: 24,
++          flexShrink: 0,
++          content: Array.from({ length: 24 }, (_, i) => `row ${i}`).join("\n"),
++        }),
++      )
++      ancestor.add(box)
++      r.root.add(ancestor)
++      const errors: string[] = []
++      r.on(CliRenderEvents.RENDER_ERROR, (event: CliRendererErrorEvent) => errors.push(event.error.message))
++      try {
++        await renderOnce()
++        await renderOnce()
++        const canonical = {
++          x: box.x,
++          y: box.y,
++          rect: box.scrollableViewport.rect,
++          bars: box._scrollState().bars,
++          vertical: {
++            x: box.verticalScrollBar.x,
++            y: box.verticalScrollBar.y,
++            width: box.verticalScrollBar.width,
++            height: box.verticalScrollBar.height,
++          },
++        }
++        const target = targetKind === "ancestor" ? ancestor : box
++        let projected = 0
++        r.setFramePlan(() => ({
++          projection: {
++            renderable: target,
++            translateX: target.translateX + 2,
++            translateY: target.translateY + 1,
++            onHitMap(map) {
++              projected++
++              expect(map.origin(box.num)).toEqual({ x: canonical.x + 2, y: canonical.y + 1 })
++              // Facades and native bar input use logical coordinates even during the paint attempt.
++              expect(box.scrollableViewport.rect).toEqual(canonical.rect)
++              expect(box._scrollState().bars).toEqual(canonical.bars)
++              if (abandoned) throw new Error("abandoned generic scroll projection")
++            },
++          },
++        }))
++        await renderOnce()
++        await r.idle()
++        expect(projected).toBe(1)
++        expect(errors).toEqual(abandoned ? ["abandoned generic scroll projection"] : [])
++        expect({ x: box.x, y: box.y }).toEqual({ x: canonical.x, y: canonical.y })
++        expect(box.scrollableViewport.rect).toEqual(canonical.rect)
++        expect(box._scrollState().bars).toEqual(canonical.bars)
++        expect({
++          x: box.verticalScrollBar.x,
++          y: box.verticalScrollBar.y,
++          width: box.verticalScrollBar.width,
++          height: box.verticalScrollBar.height,
++        }).toEqual(canonical.vertical)
++        const track = canonical.bars[1].track
++        const x = track.x,
++          y = track.y + track.height - 1
++        expect(r.hitTest(x, y)).toBe(box.num)
++        // Dispatch synchronously before another canonical repaint could hide a stale facade.
++        box.processMouseEvent(new MouseEvent(box, input("down", x, y)))
++        box.processMouseEvent(new MouseEvent(box, input("up", x, y)))
++        expect(box.scrollTop).toBeGreaterThan(0)
++        r.setFramePlan(null)
++        await renderOnce()
++        await renderOnce()
++        expect(box.scrollableViewport.rect).toEqual(canonical.rect)
++        expect(errors).toEqual(abandoned ? ["abandoned generic scroll projection"] : [])
++      } finally {
++        await f.dispose()
++      }
++    })
++  }
++}
++
++for (const kind of ["generic", "content"] as const) {
++  test(`${kind} projection restores geometry after a rejected staged mutation and admits the next projection`, async () => {
++    const f = await scrollScene()
++    const { r, parent, child, outer, renderOnce } = f
++    const errors: Error[] = []
++    r.on(CliRenderEvents.RENDER_ERROR, (event: CliRendererErrorEvent) => errors.push(event.error))
++    let rejected: unknown
++    let observeFlush: ReturnType<typeof spyOn> | undefined
++    try {
++      outer.set(1.625)
++      await renderOnce()
++      const geometry = () => ({
++        owner: { x: parent.x, y: parent.y },
++        child: { x: child.x, y: child.y },
++        viewport: outer.rect,
++        childViewport: child.scrollableViewport.rect,
++        bars: parent._scrollState().bars,
++        childBars: child._scrollState().bars,
++      })
++      const canonical = geometry()
++      const flush = r.nativeScene.flushStaged.bind(r.nativeScene)
++      observeFlush = spyOn(r.nativeScene, "flushStaged").mockImplementation(() => {
++        try {
++          flush()
++        } catch (error) {
++          rejected = error
++          throw error
++        }
++      })
++      const descriptor = () =>
++        kind === "generic" ? { renderable: parent, translateX: 1, translateY: 1 } : outer.project(2)
++      let firstPass = 0
++      r.setFramePlan(() => ({
++        projection: {
++          ...descriptor(),
++          onHitMap() {
++            firstPass++
++            // Finite f32, rejected by native's [0,1] opacity rule during cleanup's flush.
++            r.nativeScene.setPaint(child, { opacity: 2 })
++            expect(r.nativeScene.hasStagedMutations).toBe(true)
++          },
++        },
++      }))
++      await renderOnce()
++      await r.idle()
++      expect(firstPass).toBe(1)
++      expect(rejected).toBeInstanceOf(NativeError)
++      expect((rejected as NativeError).status).toBe(NativeStatus.InvalidArgument)
++      expect(errors).toHaveLength(1)
++      expect(errors[0]).toBe(rejected)
++      // No canonical repaint may repair the failed attempt before these reads.
++      expect(geometry()).toEqual(canonical)
++      expect(outer.position).toBe(1.625)
++      expect(outer.origin).toBe(1)
++      let nextPass = 0
++      let main!: RenderHitMap
++      r.setFramePlan(() => ({
++        onHitMap(map) {
++          main = map
++        },
++        projection: {
++          ...descriptor(),
++          onHitMap(map) {
++            nextPass++
++            const delta = kind === "generic" ? { x: 1, y: 1 } : { x: 0, y: -1 }
++            expect(map.origin(child.num)).toEqual({ x: canonical.child.x + delta.x, y: canonical.child.y + delta.y })
++          },
++        },
++      }))
++      await renderOnce()
++      await r.idle()
++      expect(nextPass).toBe(1)
++      expect(main.origin(child.num)).toEqual(canonical.child)
++      expect(geometry()).toEqual(canonical)
++      expect(errors).toEqual([rejected])
++      r.setFramePlan(null)
++      await renderOnce()
++      await renderOnce()
++      expect(geometry()).toEqual(canonical)
++      expect(errors).toEqual([rejected])
++    } finally {
++      observeFlush?.mockRestore()
++      await f.dispose()
++    }
++  })
++}
 diff --git a/packages/core/src/zig.ts b/packages/core/src/zig.ts
-index 18a7f06..08d3bbd 100644
+index 18a7f06..3b6e93b 100644
 --- a/packages/core/src/zig.ts
 +++ b/packages/core/src/zig.ts
 @@ -6400,6 +6400,39 @@ export class FFIRenderLib {
@@ -1468,7 +2226,37 @@ index 18a7f06..08d3bbd 100644
    public sessionWrite(context: NativeContextHandle, session: SessionHandle, bytes: Uint8Array): void {
      const handle = encodeContextHandle(context, session)
      const input = sessionBytes(bytes, "Session write length")
-@@ -8321,6 +8354,17 @@ export class FFIRenderLib {
+@@ -7758,6 +7791,29 @@ export class FFIRenderLib {
+ 
+   /** An explicit scroll; a relative axis adds its value to the offset, and `reapply` applies the targets again after
+    * the next frame's layout. Returns the state after it. */
++  public sceneProjectTranslation(
++    context: NativeContextHandle,
++    node: SceneNodeHandle,
++    x: number,
++    y: number,
++    active: boolean,
++  ): void {
++    this.getYogaHost().assertMutable()
++    const handle = encodeContextHandle(context, node)
++    const pointer = this.nativeContextPointer(context, "ot_scene_project_translation")
++    nativeResult(
++      "ot_scene_project_translation",
++      this.opentui.symbols.ot_scene_project_translation(pointer, handle, x, y, active ? 1 : 0),
++    )
++  }
++
++  public sceneScrollPaint(context: NativeContextHandle, node: SceneNodeHandle, origin: number, fraction: number): void {
++    this.getYogaHost().assertMutable()
++    const handle = encodeContextHandle(context, node)
++    const pointer = this.nativeContextPointer(context, "ot_scene_scroll_paint")
++    nativeResult("ot_scene_scroll_paint", this.opentui.symbols.ot_scene_scroll_paint(pointer, handle, origin, fraction))
++  }
++
+   public sceneScrollTo(
+     context: NativeContextHandle,
+     node: SceneNodeHandle,
+@@ -8321,6 +8377,17 @@ export class FFIRenderLib {
      return output[0]
    }
  
@@ -1487,10 +2275,25 @@ index 18a7f06..08d3bbd 100644
    public sceneSetDebugFlags(context: NativeContextHandle, session: SessionHandle, flags: number): void {
      const handle = encodeContextHandle(context, session)
 diff --git a/packages/native/include/opentui.h b/packages/native/include/opentui.h
-index fb0ced6..443128f 100644
+index fb0ced6..39f4ede 100644
 --- a/packages/native/include/opentui.h
 +++ b/packages/native/include/opentui.h
-@@ -3307,6 +3307,21 @@ ot_status ot_session_write(
+@@ -922,6 +922,14 @@ ot_status ot_scene_set_scroll_arrow(ot_context *, const ot_handle *node, uint32_
+  * scroll without REAPPLY drops pending targets. */
+ ot_status ot_scene_scroll_to(ot_context *, const ot_handle *node, double x, double y, uint32_t flags,
+     ot_scene_scroll_state *out_state);
++/* Transient paint translation. active=1 saves canonical translation and projects;
++ * active=0 restores it. ScrollBox facade reports keep canonical coordinates in
++ * either pass. Nested active projections on the same node reject. */
++ot_status ot_scene_project_translation(ot_context *, const ot_handle *node, double x, double y, uint32_t active);
++/* Paint-only content origin (-1 restores canonical; -2 keeps it) and vertical thumb fraction [0,1).
++ * With origin=-1, fraction=-1 keeps the current thumb without a host state read.
++ * Neither changes logical offsets, sticky/anchor state, nor scroll notifications. */
++ot_status ot_scene_scroll_paint(ot_context *, const ot_handle *node, double origin, double fraction);
+ /* Requests about a node in the scroll node's subtree, read from the last solve
+  * (OT_INVALID_ARGUMENT for a node outside it):
+  * - INTO_VIEW scrolls now so the target's rect is inside the viewport inset by
+@@ -3307,6 +3315,21 @@ ot_status ot_session_write(
      const uint8_t *bytes,
      uint32_t byte_count);
  
@@ -1513,7 +2316,7 @@ index fb0ced6..443128f 100644
   * capacity. A successful empty read returns a zero byte_count and request_id.
   * Failure leaves both outputs unchanged. The next read requires completion of
 diff --git a/packages/native/src/context-abi.zig b/packages/native/src/context-abi.zig
-index 3a7cdaa..625e17f 100644
+index 3a7cdaa..6b6603e 100644
 --- a/packages/native/src/context-abi.zig
 +++ b/packages/native/src/context-abi.zig
 @@ -765,6 +765,37 @@ pub fn ot_session_get_write_limit(
@@ -1554,7 +2357,33 @@ index 3a7cdaa..625e17f 100644
  pub fn ot_session_write(
      context: ?*ContextHandle,
      session_ptr: ?*const c.ot_handle,
-@@ -2493,6 +2524,17 @@ pub fn ot_scene_hit_test(context: ?*ContextHandle, session_ptr: ?*const c.ot_han
+@@ -1931,6 +1962,25 @@ fn checkScrollOutput(owner: *ContextHandle, out: *const c.ot_scene_scroll_state)
+     return null;
+ }
+ 
++pub fn ot_scene_project_translation(context: ?*ContextHandle, node_ptr: ?*const c.ot_handle, x: f64, y: f64, active: u32) callconv(.c) c.ot_status {
++    const status = sessionContextStatus(context);
++    if (status != c.OT_OK) return status;
++    const owner = context.?;
++    const node = node_ptr orelse return sessionError(owner, error.InvalidOptions);
++    if (active > 1) return sessionError(owner, error.InvalidOptions);
++    owner.core.sceneProjectTranslation(handleFromC(node.*), .{ x, y }, active == 1) catch |err| return sessionError(owner, err);
++    return c.OT_OK;
++}
++
++pub fn ot_scene_scroll_paint(context: ?*ContextHandle, node_ptr: ?*const c.ot_handle, origin: f64, fraction: f64) callconv(.c) c.ot_status {
++    const status = sessionContextStatus(context);
++    if (status != c.OT_OK) return status;
++    const owner = context.?;
++    const node = node_ptr orelse return sessionError(owner, error.InvalidOptions);
++    owner.core.sceneScrollPaint(handleFromC(node.*), origin, fraction) catch |err| return sessionError(owner, err);
++    return c.OT_OK;
++}
++
+ pub fn ot_scene_scroll_to(context: ?*ContextHandle, node_ptr: ?*const c.ot_handle, x: f64, y: f64, flags: u32, out_ptr: ?*c.ot_scene_scroll_state) callconv(.c) c.ot_status {
+     const status = sessionContextStatus(context);
+     if (status != c.OT_OK) return status;
+@@ -2493,6 +2543,17 @@ pub fn ot_scene_hit_test(context: ?*ContextHandle, session_ptr: ?*const c.ot_han
      return c.OT_OK;
  }
  
@@ -1572,11 +2401,61 @@ index 3a7cdaa..625e17f 100644
  pub fn ot_scene_get_stats(context: ?*ContextHandle, session_ptr: ?*const c.ot_handle, out_ptr: ?*c.ot_scene_stats) callconv(.c) c.ot_status {
      const status = sessionContextStatus(context);
      if (status != c.OT_OK) return status;
+@@ -3764,6 +3825,28 @@ test "Scene scroll ABI validates options, targets, and the scroll node's style a
+     try std.testing.expectEqual(c.OT_STALE_HANDLE, ot_scene_scroll_to(handle, &stale, 0, 0, 0, null));
+     try std.testing.expectEqual(c.OT_WRONG_CONTEXT, ot_scene_scroll_to(handle, &foreign, 0, 0, 0, null));
+     try std.testing.expectEqual(c.OT_OK, ot_scene_set_scroll(handle, &box, &options));
++    try std.testing.expectEqual(c.OT_WRONG_KIND, ot_scene_scroll_paint(handle, &root, -1, 0));
++    try std.testing.expectEqual(c.OT_STALE_HANDLE, ot_scene_scroll_paint(handle, &stale, -1, 0));
++    try std.testing.expectEqual(c.OT_WRONG_CONTEXT, ot_scene_scroll_paint(handle, &foreign, -1, 0));
++    try std.testing.expectEqual(c.OT_INVALID_ARGUMENT, ot_scene_scroll_paint(handle, &box, 0.5, 0));
++    try std.testing.expectEqual(c.OT_INVALID_ARGUMENT, ot_scene_scroll_paint(handle, &box, -1, std.math.nan(f64)));
++    try std.testing.expectEqual(c.OT_INVALID_ARGUMENT, ot_scene_scroll_paint(handle, &box, -1, 1));
++    try std.testing.expectEqual(c.OT_OK, ot_scene_scroll_paint(handle, &box, 0, 0.625));
++    try std.testing.expectEqual(c.OT_OK, ot_scene_get_scroll(handle, &box, &state));
++    try std.testing.expectEqual([2]f64{ 0, 0 }, state.offset);
++    try std.testing.expectEqual(c.OT_INVALID_ARGUMENT, ot_scene_scroll_paint(handle, &box, 0, -1));
++    try std.testing.expectEqual(c.OT_OK, ot_scene_scroll_paint(handle, &box, -1, -1));
++    try std.testing.expectEqual(c.OT_OK, ot_scene_scroll_paint(handle, &box, -1, 0));
++    try std.testing.expectEqual(c.OT_STALE_HANDLE, ot_scene_project_translation(handle, &stale, 2, 1, 1));
++    try std.testing.expectEqual(c.OT_WRONG_CONTEXT, ot_scene_project_translation(handle, &foreign, 2, 1, 1));
++    try std.testing.expectEqual(c.OT_INVALID_ARGUMENT, ot_scene_project_translation(handle, &box, 2, 1, 2));
++    try std.testing.expectEqual(c.OT_INVALID_ARGUMENT, ot_scene_project_translation(handle, &box, std.math.nan(f64), 1, 1));
++    try std.testing.expectEqual(c.OT_OK, ot_scene_project_translation(handle, &box, 2, 1, 1));
++    try std.testing.expectEqual(c.OT_INVALID_ARGUMENT, ot_scene_project_translation(handle, &box, 3, 2, 1));
++    try std.testing.expectEqual(c.OT_OK, ot_scene_project_translation(handle, &box, 0, 0, 0));
++    const restored = try owner.sceneGetLayout(handleFromC(box), false);
++    try std.testing.expectEqual(@as(f64, 0), restored.screenX);
++    try std.testing.expectEqual(@as(f64, 0), restored.screenY);
+     try std.testing.expectEqual(c.OT_OK, ot_scene_set_scroll(handle, &box, &options));
+     // NaN and unknown flags reject; NULL output is allowed; a short output record rejects.
+     try std.testing.expectEqual(c.OT_INVALID_ARGUMENT, ot_scene_scroll_to(handle, &box, std.math.nan(f64), 0, 0, &state));
 diff --git a/packages/native/src/context.zig b/packages/native/src/context.zig
-index a697a28..ce7bdef 100644
+index a697a28..0fc69d3 100644
 --- a/packages/native/src/context.zig
 +++ b/packages/native/src/context.zig
-@@ -3087,14 +3087,66 @@ pub const Context = struct {
+@@ -2475,6 +2475,20 @@ pub const Context = struct {
+         try value.scene_node.?.owner.setScrollArrow(value, axis, end, options);
+     }
+ 
++    pub fn sceneProjectTranslation(self: *Context, handle: Handle, translation: [2]f64, active: bool) !void {
++        try self.beginMutation();
++        defer self.mutating = false;
++        const value = try self.sceneMutableNode(handle);
++        try value.scene_node.?.owner.projectTranslation(value, translation, active);
++    }
++
++    pub fn sceneScrollPaint(self: *Context, handle: Handle, origin: f64, fraction: f64) !void {
++        try self.beginMutation();
++        defer self.mutating = false;
++        const value = try self.sceneMutableNode(handle);
++        try value.scene_node.?.owner.scrollPaint(value, origin, fraction);
++    }
++
+     /// An explicit scroll; returns the state after it.
+     pub fn sceneScrollTo(self: *Context, handle: Handle, target: [2]f64, relative: [2]bool, reapply: bool) !api.ot_scene_scroll_state {
+         try self.beginMutation();
+@@ -3087,14 +3101,66 @@ pub const Context = struct {
          value.cancelSceneFrame();
      }
  
@@ -1723,10 +2602,28 @@ index eb8bdf9..864af1a 100644
          }
  
 diff --git a/packages/native/src/scene.zig b/packages/native/src/scene.zig
-index 11812d7..7472952 100644
+index 11812d7..576a48f 100644
 --- a/packages/native/src/scene.zig
 +++ b/packages/native/src/scene.zig
-@@ -722,16 +722,20 @@ pub const PaintSlot = struct {
+@@ -92,6 +92,8 @@ pub const ScrollState = struct {
+     arrows: [2][2]ArrowOptions = @splat(@splat(.{})),
+     stuck: bool = true,
+     offset: [2]f64 = @splat(0),
++    paint_origin: ?f64 = null,
++    thumb_fraction: f64 = 0,
+     max: [2]f64 = @splat(0),
+     extent: [2]f32 = @splat(0),
+     // The hidden viewport node's rect, local to the box.
+@@ -527,6 +529,8 @@ pub const Node = struct {
+     // children replies marked.
+     selected_frame: u64 = 0,
+     paint: Paint = .{},
++    // The ordinary translation while a generic frame-plan projection paints.
++    projection_translation: ?[2]f64 = null,
+     layout: Layout = .{},
+     observed_layout: Layout = .{},
+     viewport: ?handles.Handle = null,
+@@ -722,16 +726,20 @@ pub const PaintSlot = struct {
  };
  
  /// A painted member's rect within its clip, in screen cells.
@@ -1749,7 +2646,61 @@ index 11812d7..7472952 100644
      }
      return null;
  }
-@@ -2480,13 +2484,42 @@ pub const Scene = struct {
+@@ -1222,6 +1230,23 @@ pub const Scene = struct {
+         try yoga.check(yoga.yogaNodeIsDirtyChecked(value.yoga_node, &unused));
+     }
+ 
++    pub fn projectTranslation(self: *Scene, value: *native.NativeRenderable, translation: [2]f64, active: bool) !void {
++        const node = value.scene_node.?;
++        if (active and node.projection_translation != null) return error.InvalidOptions;
++        const canonical = node.projection_translation orelse [2]f64{ node.paint.translateX, node.paint.translateY };
++        const next = if (active) translation else canonical;
++        var paint = node.paint;
++        paint.translateX = next[0];
++        paint.translateY = next[1];
++        try self.setPaintPartial(value, api.OT_SCENE_PROPERTY_TRANSLATE_X | api.OT_SCENE_PROPERTY_TRANSLATE_Y, paint);
++        node.projection_translation = if (active) canonical else null;
++        self.selection_epoch +%= 1;
++        self.preparation_dirty = true;
++        self.clearPreparation();
++        self.presented_records_frame = 0;
++        markObservationStale(value);
++    }
++
+     pub fn setPaintPartial(self: *Scene, value: *native.NativeRenderable, fields: u32, patch: Paint) !void {
+         if (fields == 0 or fields & ~paint_fields_all != 0) return error.InvalidOptions;
+         if (fields & api.OT_SCENE_PROPERTY_BACKGROUND != 0) try buffer.validateColor(patch.background);
+@@ -1441,6 +1466,29 @@ pub const Scene = struct {
+ 
+     /// An explicit scroll: moves the offset in whole cells within the last solve's limits and
+     /// recomputes stuck. With `reapply` each axis it sets keeps its target for the next frame.
++    pub fn scrollPaint(self: *Scene, value: *native.NativeRenderable, origin: f64, fraction: f64) !void {
++        const node = value.scene_node.?;
++        const state = node.scroll orelse return error.WrongKind;
++        const keep_fraction = origin == -1 and fraction == -1;
++        if (!std.math.isFinite(origin) or (origin != -1 and origin != -2 and (origin < 0 or @floor(origin) != origin or origin > @ceil(state.max[1]))) or
++            (!keep_fraction and (!std.math.isFinite(fraction) or fraction < 0 or fraction >= 1))) return error.InvalidOptions;
++        try checkWritable(value);
++        const projected: ?f64 = if (origin == -2) state.paint_origin else if (origin == -1) null else origin;
++        const thumb_fraction = if (keep_fraction) state.thumb_fraction else fraction;
++        if (state.paint_origin == projected and state.thumb_fraction == thumb_fraction) return;
++        state.paint_origin = projected;
++        state.thumb_fraction = thumb_fraction;
++        node.paint_epoch = nextPaintEpoch();
++        // Projection changes the selected descendants even when Yoga did not move.
++        staleCull(value);
++        self.selection_epoch +%= 1;
++        self.preparation_dirty = true;
++        self.clearPreparation();
++        // A canonical/projected pair cannot share retained records or damage bands.
++        self.presented_records_frame = 0;
++        markObservationStale(value);
++    }
++
+     pub fn scrollTo(self: *Scene, value: *native.NativeRenderable, target: [2]f64, relative: [2]bool, reapply: bool) !void {
+         const state = value.scene_node.?.scroll orelse return error.WrongKind;
+         for (target) |coordinate| if (std.math.isNan(coordinate)) return error.InvalidOptions;
+@@ -2480,13 +2528,42 @@ pub const Scene = struct {
          self.hits_frame = 0;
      }
  
@@ -1793,7 +2744,7 @@ index 11812d7..7472952 100644
          if (builtin.is_test) self.test_hit_steps += hits.len - (index orelse 0);
          return if (index) |found| hits[found].token else 0;
      }
-@@ -2761,7 +2794,10 @@ pub const Scene = struct {
+@@ -2761,7 +2838,10 @@ pub const Scene = struct {
          defer self.verify_target = null;
          try self.paintMembers(owner, cli, options, recording, refresh_views, false);
          try self.verifyRows(scratch, next, false);
@@ -1805,7 +2756,7 @@ index 11812d7..7472952 100644
      }
  
      /// Where paint draws: next, or the scratch buffer of a verified skip.
-@@ -2916,9 +2952,9 @@ pub const Scene = struct {
+@@ -2916,9 +2996,9 @@ pub const Scene = struct {
              self.frame_work.member_cells += @as(u64, drawn.width) * drawn.height;
              try self.drawMember(owner, cli, entry, phases, cells, scissor);
          };
@@ -1817,7 +2768,18 @@ index 11812d7..7472952 100644
      }
  
      /// One member's phases and body inside a scissor. A member on several bands prepares its
-@@ -3051,11 +3087,11 @@ pub const Scene = struct {
+@@ -3042,7 +3122,9 @@ pub const Scene = struct {
+             for (0..2) |axis| {
+                 if (!state.visible[axis]) continue;
+                 const rects = state.barRects(axis, box, node.paint.borderSides);
+-                if (rects.track.width >= 1 and rects.track.height >= 1) try paintSlider(target, state.slider(axis), rects.track, entry.clip);
++                var slider = state.slider(axis);
++                if (axis == 1) slider.value = @min(state.max[1], state.offset[1] + state.thumb_fraction);
++                if (rects.track.width >= 1 and rects.track.height >= 1) try paintSlider(target, slider, rects.track, entry.clip);
+                 if (state.options.bars[axis].arrows) for (rects.arrows, 0..) |arrow, end| {
+                     if (arrow.width < 1 or arrow.height < 1) continue;
+                     const glyph = state.arrows[axis][end];
+@@ -3051,11 +3133,11 @@ pub const Scene = struct {
                  };
              }
          }
@@ -1831,6 +2793,71 @@ index 11812d7..7472952 100644
          }
      }
  
+@@ -3372,10 +3454,13 @@ pub const Scene = struct {
+                 }
+                 layout.screenX = frame.parent.screenX + @as(f64, layout.left) + node.paint.translateX;
+                 layout.screenY = frame.parent.screenY + @as(f64, layout.top) + node.paint.translateY;
+-                if (node.scroll) |state| if (!std.meta.eql(state.screen, .{ layout.screenX, layout.screenY })) {
+-                    state.screen = .{ layout.screenX, layout.screenY };
+-                    state.generation += 1;
+-                };
++                if (node.scroll) |state| {
++                    const canonical_screen = canonicalScrollScreen(value, layout);
++                    if (!std.meta.eql(state.screen, canonical_screen)) {
++                        state.screen = canonical_screen;
++                        state.generation += 1;
++                    }
++                }
+                 const cells = cellLayout(layout);
+                 if (frame.filter) |filter| {
+                     self.frame_work.overlap_tests += 1;
+@@ -3570,7 +3655,13 @@ fn rect(layout: Layout) [4]f64 {
+ pub fn scrollReport(value: *const native.NativeRenderable) !api.ot_scene_scroll_state {
+     const node = value.scene_node.?;
+     const state = node.scroll orelse return error.WrongKind;
+-    const box = cellLayout(node.layout);
++    // Hidden-part facades describe canonical observation even while paint walks
++    // through an ancestor's projected origin. Its screen is committed only by
++    // ordinary preparation, independently of the transient node.layout.
++    var canonical_layout = node.layout;
++    canonical_layout.screenX = state.screen[0];
++    canonical_layout.screenY = state.screen[1];
++    const box = cellLayout(canonical_layout);
+     var report: api.ot_scene_scroll_state = .{
+         .struct_size = @sizeOf(api.ot_scene_scroll_state),
+         .abi_version = api.OT_CONTEXT_ABI_VERSION,
+@@ -3656,11 +3747,30 @@ fn localLayout(value: *const native.NativeRenderable, comptime source: anytype)
+     return .{ .left = computed.left, .top = computed.top, .right = computed.right, .bottom = computed.bottom, .width = computed.width, .height = computed.height };
+ }
+ 
++// Facades describe logical geometry for either frame-plan descriptor. Include
++// this node's generic translation, but only ancestors' content-origin deltas:
++// projecting a box's content does not move the box's own chrome.
++fn canonicalScrollScreen(value: *const native.NativeRenderable, layout: Layout) [2]f64 {
++    var screen = [2]f64{ layout.screenX, layout.screenY };
++    var cursor: ?*const native.NativeRenderable = value;
++    while (cursor) |ancestor| : (cursor = ancestor.scene_node.?.parent) {
++        const node = ancestor.scene_node.?;
++        if (node.projection_translation) |canonical| {
++            screen[0] += canonical[0] - node.paint.translateX;
++            screen[1] += canonical[1] - node.paint.translateY;
++        }
++        if (ancestor != value) if (node.scroll) |state| if (state.paint_origin) |origin| {
++            screen[1] += origin - state.offset[1];
++        };
++    }
++    return screen;
++}
++
+ /// Where a parent's children compose from: its screen position, plus a scroll node's viewport
+ /// and content origins minus its offset.
+ fn childOrigin(node: *const Node, parent: Layout) [2]f64 {
+     const state = node.scroll orelse return .{ parent.screenX, parent.screenY };
+-    return .{ parent.screenX + state.content_origin[0] - state.offset[0], parent.screenY + state.content_origin[1] - state.offset[1] };
++    return .{ parent.screenX + state.content_origin[0] - state.offset[0], parent.screenY + state.content_origin[1] - (state.paint_origin orelse state.offset[1]) };
+ }
+ 
+ /// A scroll node's viewport rect in screen cells, from the node's prepared layout.
 diff --git a/packages/native/src/tests/context-abi.c b/packages/native/src/tests/context-abi.c
 index ea61a58..88f9e2b 100644
 --- a/packages/native/src/tests/context-abi.c
