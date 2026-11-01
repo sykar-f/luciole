@@ -728,7 +728,7 @@ test("content-only ScrollBox projections preserve logical state, events and rend
     const before = {
       position: outer.position,
       origin: outer.origin,
-      translation: parent.content.translateY,
+      contentY: parent.content.y,
     };
     expect(outer.rect).toEqual({
       x: parent.viewport.x,
@@ -739,8 +739,10 @@ test("content-only ScrollBox projections preserve logical state, events and rend
     expect(outer.rect.x + outer.rect.width).toBeLessThanOrEqual(parent.verticalScrollBar.x);
     expect(outer.rect.y + outer.rect.height).toBeLessThanOrEqual(parent.horizontalScrollBar.y);
     const projection = outer.project(2);
-    expect(projection.renderable).toBe(parent.content);
-    expect(parent.content.translateY).toBe(before.translation);
+    expect(projection.renderable).toBe(parent);
+    expect("scrollContent" in projection && projection.scrollContent).toBe(true);
+    expect("origin" in projection && projection.origin).toBe(2);
+    expect(parent.content.y).toBe(before.contentY);
     let projected: RenderHitMap | undefined;
     r.setFramePlan(() => ({
       projection: {
@@ -755,14 +757,14 @@ test("content-only ScrollBox projections preserve logical state, events and rend
     await renderOnce();
     await r.idle();
     expect(projected).toBeDefined();
-    expect(projected?.origin(parent.verticalScrollBar.slider.num)).toEqual({
-      x: parent.verticalScrollBar.slider.x,
-      y: parent.verticalScrollBar.slider.y,
+    expect(projected?.origin(parent.num)).toEqual({
+      x: parent.x,
+      y: parent.y,
     });
     expect({
       position: outer.position,
       origin: outer.origin,
-      translation: parent.content.translateY,
+      contentY: parent.content.y,
     }).toEqual(before);
     expect(changes).toBe(0);
     const frame = r.frameId;
@@ -780,14 +782,14 @@ test("thumb paint follows fractional rows while its logical value stays canonica
   const scene = await scrollScene();
   const { r, child, inner, renderOnce } = scene;
   try {
-    const slider = child.verticalScrollBar.slider;
+    const bar = child.verticalScrollBar;
     inner.set(0);
     await renderOnce();
     const before = await renderFrame(scene);
     inner.set(0.875);
     await renderOnce();
     expect(child.scrollTop).toBe(0);
-    expect(slider.value).toBe(0);
+    expect(bar.scrollPosition).toBe(0);
     expect(await renderFrame(scene)).not.toBe(before);
   } finally {
     r.destroy();

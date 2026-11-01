@@ -39,9 +39,9 @@ export const isAbiSpecifier = (specifier: string): specifier is AbiSpecifier =>
 /** The exact versions behind those specifiers, as package.json pins them. */
 export const ABI_PACKAGES = {
   react: "19.3.1",
-  "@opentui/core": "0.6.8",
-  "@opentui/react": "0.6.8",
-  "@opentui/keymap": "0.6.8",
+  "@opentui/core": "0.8.1",
+  "@opentui/react": "0.8.1",
+  "@opentui/keymap": "0.8.1",
   "@tanstack/react-router": "1.170.46",
   "react-server-dom-webpack": "19.3.1",
   zod: "4.6.7",

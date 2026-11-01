@@ -20,12 +20,12 @@ export interface RenderFrameSegment {
 export interface RenderFramePlan extends RenderFrameSegment {
   /** Wait for generation-tagged input instead of hit-testing the projection grid. */
   deferHover?: boolean;
-  /** Replace this content node's paint translation for a second pass. */
-  projection?: RenderFrameSegment & {
-    renderable: Renderable;
-    translateX: number;
-    translateY: number;
-  };
+  /** Paint a whole node translation or a ScrollBox content origin in a second pass. */
+  projection?: RenderFrameSegment &
+    (
+      | { renderable: Renderable; translateX: number; translateY: number }
+      | { renderable: Renderable; scrollContent: true; origin: number }
+    );
 }
 
 export type PresentedMouseEvent = RawMouseEvent & {

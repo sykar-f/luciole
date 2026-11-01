@@ -54,7 +54,7 @@ test("frame commands capture the integer origin before projecting and commit onc
   expect(messages(plan.after)).toEqual([
     { op: "register", version: 1, id: 1, generation: 7, rect: frame.rect, origin: 10 },
   ]);
-  expect(plan.projection?.translateY).toBe(-11);
+  expect(plan.projection).toMatchObject({ translateY: -11 });
   expect(messages(plan.projection?.after)).toEqual([
     { op: "step", version: 1, id: 1, generation: 7, fraction: 0.25 },
     { op: "commit", version: 1, generation: 7 },
@@ -197,7 +197,7 @@ test("nested surface rectangles clip to visible content and terminal cells", () 
 test("popup canonical repaint refreshes fixed chrome before the release command", () => {
   const plan = planPixelFrame(fixture(0), true, true);
   expect(messages(plan.after).map((p) => p?.op)).toEqual(["register"]);
-  expect(plan.projection?.translateY).toBe(-10);
+  expect(plan.projection).toMatchObject({ translateY: -10 });
   expect(messages(plan.projection?.after).map((p) => p?.op)).toEqual(["step", "commit", "release"]);
 });
 

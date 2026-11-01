@@ -15,11 +15,23 @@ and marked **Breaking**.
 
 ### Changed
 
-- Core uses OpenTUI 0.6.8. Delete, Backspace, Delete Line and selection delete
-  can remove text that contains only zero-width characters. A left or right
-  wheel step no longer shifts truncated text by one column. Select-all in an
-  Input or Textarea that contains only zero-width text still makes an empty
-  selection. Use Delete, Backspace or Delete Line to remove that text.
+- Core uses OpenTUI 0.8.1. Pixel scrolling keeps fractional rows, fixed
+  scrollbars and correct pointer targets in nested lists. Native output uses
+  a writer thread on Linux and macOS. Captured output has a size limit.
+- **Breaking:** Prepared native and web runtimes need Zig 0.17.0.
+  Rebuild apps and prepare their runtimes with this compiler.
+- **Breaking:** ScrollBox parts are facades. Children belong to the box.
+  Remove uses of scrollbar `slider` and arrow parts. Use the scrollbar's
+  `scrollPosition` and the box's viewport geometry instead.
+- **Breaking:** Browser video is unavailable. Do not use `VideoRenderable`
+  in a web app.
+- **Breaking:** A node with zero width or height draws nothing and receives
+  no mouse events. Set `flexShrink: 0` on headers above growing ScrollBoxes.
+- **Breaking:** ScrollBox clips overflow and accepts whole-cell viewport
+  padding. Check part options and use integer padding values.
+- **Breaking:** Render hooks are cached when the class is constructed.
+  Call `refreshHooks()` after a change through reflection. Use prototype
+  methods for hook overrides.
 
 - **Breaking:** OpenTUI rejects default-ignorable characters in `customBorderChars`
   and `drawGrid`. Use a border character that fills one cell, such as a space.

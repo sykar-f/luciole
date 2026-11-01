@@ -1,5 +1,5 @@
 /* eslint-disable no-magic-numbers -- Fixed cell geometry, colors and a bounded memory-growth proof. */
-// This page exercises the pinned 0.6.8 sources and their WebAssembly port.
+// This page exercises the pinned 0.8.1 sources and their WebAssembly port.
 import { renderCaptureWithoutAct } from "../../packages/core/src/test/capture";
 import { growMemory } from "./opentui-066-setup";
 import { BoxRenderable, TextRenderable, StyledText, fg } from "@opentui/core";
@@ -51,7 +51,7 @@ async function check() {
       throw new Error(`Native measurement writes were lost: ${measured.width}x${measured.height}`);
     const read = () => {
       const buffer = renderer.currentRenderBuffer;
-      if (!hasScopedBuffers(buffer)) throw new Error("0.6.8 scoped buffer access is missing");
+      if (!hasScopedBuffers(buffer)) throw new Error("0.8.1 scoped buffer access is missing");
       return buffer.withBuffers((cells) => ({
         cornerChar: String.fromCodePoint(cells.char[0]),
         textChars: Array.from(cells.char.slice(21, 26), (code) => String.fromCodePoint(code)).join(

@@ -81,7 +81,7 @@ test(
     expect(manifest.dependencies["@luciole-sh/core"]).toBe(`^${version}`);
     expect(manifest.dependencies["@luciole-sh/markdown-editor"]).toBe(`^${version}`);
     for (const name of ["@opentui/core", "@opentui/react", "@opentui/keymap"])
-      expect(manifest.dependencies[name]).toBe("0.6.8");
+      expect(manifest.dependencies[name]).toBe("0.8.1");
     const drawer = await Bun.file(join(starter, "components/Drawer.tsx")).text();
     expect(drawer).toContain("const engine = getTimelineEngine(renderer)");
     expect(drawer).toContain("createTimeline({ autoplay: false }, renderer)");
