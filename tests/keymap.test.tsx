@@ -43,6 +43,18 @@ export default function Layout({ children }: LayoutProps) {
   "app/page.tsx": "export default function Page(){return <text>home</text>}",
   "app/items/[id]/page.tsx": `import { Editor } from "../../../components/Editor";
 export default function Page(){return <Editor />}`,
+  "app/collision/page.tsx": `import { Collision } from "../../components/Collision";
+export default function Page(){return <Collision />}`,
+  "components/Collision.tsx": `"use client";
+import { useState } from "react";
+import { useBindings } from "@luciole-sh/core/client";
+export function Collision() {
+  const [count, setCount] = useState(0);
+  useBindings(() => ({ bindings: [
+    { key: "ctrl+c", cmd: () => setCount((n) => n + 1), desc: "app ctrl+c", group: "collision" },
+  ] }), []);
+  return <text>app ctrl+c {count}</text>;
+}`,
   "components/Editor.tsx": `"use client";
 import { KeyHelp, useBindings, useNavigate } from "@luciole-sh/core/client";
 export function Editor() {
@@ -134,6 +146,31 @@ test("a desktop window leaves Ctrl+C to the application", async () => {
     });
     expect(heard).toBe(true);
     expect(quits).toBe(0);
+  } finally {
+    await destroy(rendered);
+    await server.stop();
+  }
+});
+
+test("framework quit stays reachable when an app also binds Ctrl+C", async () => {
+  const server = await launch(join(root, ".luciole/server/index.js"));
+  const { createApp, Shell } = await importClient(root, "keymap-collision");
+  const app = createApp({ url: server.url });
+  let quits = 0;
+  app.quit = () => void quits++;
+  let rendered: TestUI | undefined;
+  try {
+    await app.router.navigate({ to: "/collision" });
+    const ui = await testRender(<Shell app={app} />, { width: 100, height: 24 });
+    rendered = ui;
+    await ui.renderOnce();
+    await act(async () => {
+      ui.mockInput.pressCtrlC();
+    });
+    const frame = await renderFrame(ui);
+    console.log("Ctrl+C collision", { quits, applicationHandled: frame.includes("app ctrl+c 1") });
+    expect(quits).toBe(1);
+    expect(frame).toContain("app ctrl+c 0");
   } finally {
     await destroy(rendered);
     await server.stop();
