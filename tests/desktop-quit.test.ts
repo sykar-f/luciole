@@ -59,7 +59,7 @@ for (const { mode, desktop } of cases) {
         ...(mode === "lookalike"
           ? {}
           : {
-              operation: mode === "other-operation" ? "ot_scene_flush" : "ot_session_drain_stdout",
+              operation: mode === "other-operation" ? "ot_scene_flush" : "ot_session_post_stdout",
             }),
         failure:
           mode === "lookalike"

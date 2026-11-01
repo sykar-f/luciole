@@ -21,11 +21,11 @@ void mock.module(resolve("packages/core/src/connect.ts"), () => ({
         if (mode === "closed-output") closeSync(1);
         else {
           const lib = core.resolveRenderLib();
-          lib.sessionDrainStdout = () => {
+          lib.sessionPostStdout = () => {
             if (mode === "lookalike")
-              throw new Error("ot_session_drain_stdout failed: OutputFailed");
+              throw new Error("ot_session_post_stdout failed: OutputFailed");
             throw new core.NativeError(
-              mode === "other-operation" ? "ot_scene_flush" : "ot_session_drain_stdout",
+              mode === "other-operation" ? "ot_scene_flush" : "ot_session_post_stdout",
               mode === "internal"
                 ? core.NativeStatus.InternalError
                 : core.NativeStatus.OutputFailed,
