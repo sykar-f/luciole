@@ -148,3 +148,32 @@ test("numeric control references stay in one paragraph after an edit", () => {
   expect(editor.markdown).toBe("foo&#10;&#10;bar \\&copy;!");
   expect(parseMarkdown(editor.markdown)).toHaveLength(1);
 });
+
+test("an edit at the end of indented code stays on its last content line", () => {
+  for (const [markdown, text] of [
+    ["    foo\n", "foo"],
+    ["\tfoo\n", "foo"],
+    ["    foo\n\n    bar\n", "foo\n\nbar"],
+  ] as const) {
+    const editor = new EditorController(markdown);
+    editor.end();
+    editor.type("!");
+    expect(parseMarkdown(editor.markdown)[0]).toMatchObject({ type: "code", text: `${text}!` });
+  }
+});
+
+test("code layout removes only indented terminal newlines", () => {
+  for (const [markdown, rows] of [
+    ["    foo\n", ["foo"]],
+    ["\tfoo\n", ["foo"]],
+    ["    foo\n\n    bar\n", ["foo", "", "bar"]],
+    ["```\nfoo\n\n```\n", ["foo", ""]],
+  ] as const) {
+    const layout = layoutDocument(parseMarkdown(markdown), 30, theme);
+    expect(
+      layout.lines
+        .filter((line) => !line.pad)
+        .map((line) => line.glyphs.map((g) => g.text).join("")),
+    ).toEqual([...rows]);
+  }
+});
