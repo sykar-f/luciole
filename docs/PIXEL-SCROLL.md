@@ -37,7 +37,9 @@ ne déplace que le contenu pendant la passe de peinture : viewport et barres
 restent fixes. Les hits des barres identifient la boîte propriétaire. Les passes
 invalident la préparation et les données retenues incompatibles, puis restaurent
 l'observation canonique, y compris pour une projection générique de la boîte
-ou d'un ancêtre, après succès comme après abandon. Les versions actives
+ou d'un ancêtre, après succès comme après abandon. Une mutation différée
+refusée par le moteur n'empêche ni la restauration native ni l'invalidation
+des observations ; son erreur initiale reste propagée. Les versions actives
 restent à 0.6.8 ; la bascule des
 versions activera ce port complet.
 
