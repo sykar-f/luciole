@@ -253,6 +253,10 @@ test("0.8.1 preparation has a separate toolchain and leaves the 0.6.8 identity i
     zigTarget: "aarch64-macos.13.0",
     libc: "system",
   });
+  // Identity emitted at the mission base, before version selection existed.
+  expect(nativeRuntimeDirectory(target, "/cache")).toBe(
+    "/cache/native/bun-darwin-arm64-699b83dd30873b65",
+  );
   expect(active.tag).toBe("v0.6.8");
   expect(active.zigVersion).toBe("0.16.0");
   expect(active.patches).toHaveLength(1);

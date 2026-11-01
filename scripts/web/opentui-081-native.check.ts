@@ -2,6 +2,7 @@
 import { expect, test } from "bun:test";
 import { dlopen } from "bun:ffi";
 import { readFileSync } from "node:fs";
+import { nativeRuntimePlugin } from "../../packages/core/src/native-runtime-plugin";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import {
@@ -44,7 +45,36 @@ test(
     );
     library.close();
     const abi = readFileSync(join(directory, "core/native-abi.generated.ts"), "utf8");
-    expect(abi).toContain("ot_session_renderer_state");
+    expect(abi).toMatch(/ot_session_renderer_state: \{\s*size: 40,/);
+    const entry = join(cache, "load.ts");
+    await Bun.write(
+      entry,
+      `
+      import {createTestRenderer} from "@opentui/core/testing";
+      import {BoxRenderable, TextRenderable} from "@opentui/core";
+      const ui = await createTestRenderer({width:20,height:5});
+      try {
+        const box = new BoxRenderable(ui.renderer, {width:12,height:3,border:true});
+        box.add(new TextRenderable(ui.renderer, {content:"hello"}));
+        ui.renderer.root.add(box);
+        await ui.renderOnce();
+        if (!ui.captureCharFrame().includes("hello")) throw new Error("Missing native cells");
+      } finally {ui.renderer.destroy();}
+    `,
+    );
+    const built = await Bun.build({
+      entrypoints: [entry],
+      outdir: join(cache, "bundle"),
+      target: "bun",
+      plugins: [nativeRuntimePlugin(directory)],
+    });
+    if (!built.success) throw new Error(built.logs.map(String).join("\n"));
+    const loaded = Bun.spawn([process.execPath, join(cache, "bundle/load.js")], {
+      stdout: "inherit",
+      stderr: "inherit",
+      signal: AbortSignal.timeout(TIMEOUT_MS),
+    });
+    expect(await loaded.exited).toBe(0);
     const reuse = Bun.spawn(
       [
         process.execPath,
