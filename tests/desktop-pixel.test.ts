@@ -1,8 +1,19 @@
-import { expect, test } from "bun:test";
+import { afterEach, expect, test } from "bun:test";
 import { mkdtemp, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { until } from "./helpers";
 import { decode, encode, type PixelOperation } from "../packages/core/src/pixel-scroll/protocol";
+
+// Bun can end a test before its polling promise settles. Report live state
+// from the hook as well as cleanup, so that timeout diagnostics cannot hang.
+const pendingDiagnostics = new Set<() => string | undefined>();
+afterEach(() => {
+  for (const describe of pendingDiagnostics) {
+    const state = describe();
+    if (state) console.error("desktop pixel wait diagnostics:", state);
+  }
+  pendingDiagnostics.clear();
+});
 
 async function launch(mode: string, desktop = true, prepared = false, pixelFlag?: string) {
   const directory = await mkdtemp(join(process.env.TMPDIR ?? "/tmp", "desktop-pixel-"));
@@ -37,7 +48,36 @@ async function launch(mode: string, desktop = true, prepared = false, pixelFlag?
       events.push(message);
     },
   });
-  const errors = new Response(child.stderr).text();
+  let stderr = "";
+  const errors = (async () => {
+    const decoder = new TextDecoder();
+    const reader = child.stderr.getReader();
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      stderr += decoder.decode(value, { stream: true });
+    }
+    stderr += decoder.decode();
+    return stderr;
+  })();
+  const describe = () =>
+    stage === undefined
+      ? undefined
+      : JSON.stringify(
+          {
+            mode,
+            prepared,
+            pixelFlag,
+            stage,
+            elapsedMs: performance.now() - started,
+            timeline,
+            output,
+            stderr,
+          },
+          null,
+          2,
+        );
+  pendingDiagnostics.add(describe);
   return {
     child,
     events,
@@ -60,6 +100,7 @@ async function launch(mode: string, desktop = true, prepared = false, pixelFlag?
     },
     async close() {
       const pending = stage;
+      pendingDiagnostics.delete(describe);
       if (child.exitCode === null) child.kill("SIGKILL");
       await child.exited;
       child.terminal?.close();
