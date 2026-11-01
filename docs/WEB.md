@@ -202,7 +202,7 @@ Trois ajouts, sans toucher aux rôles `server`, `client`, `app` :
   `.wasm` à côté). Il
   peut être publié et mis en cache comme un navigateur l'est ;
 - **rôle `web-server`** (optionnel) : le graphe Server de l'app, `conditions:
-["react-server", "browser"]`, `target: "browser"`, avec les substitutions de W9 ;
+  ["react-server", "browser"]`, `target: "browser"`, avec les substitutions de W9 ;
 - **`.luciole/web/`** : site statique `index.html` + runtime + `app/` (copie de
   `.luciole/app/`) + `server-worker.js` s'il existe. Déployable tel quel (Pages, R2, un
   `iframe` de la landing).

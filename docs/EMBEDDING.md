@@ -559,7 +559,7 @@ actuelles (tests à plusieurs Applications, boundary).
   `luciole.capabilities` (schéma de
   `src/capabilities.ts`, repris du probe sandbox, ajouté à `AppField` du registre)
   recopié dans le manifeste et comparé à l'audit (avertissement). `openApplication({
-bundle, url })` évalue ce bundle contre le runtime de l'hôte (`src/app-bundle.ts`) :
+  bundle, url })` évalue ce bundle contre le runtime de l'hôte (`src/app-bundle.ts`) :
   plus de copie du runtime par pane, `app.view` et les contextes sont ceux de l'hôte.
   Écarts : `zod` classique n'est pas dans l'ABI (le runtime Client ne le contient pas,
   une application qui l'utilise l'embarque) ; l'option `client` d'`openApplication`

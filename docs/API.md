@@ -922,7 +922,7 @@ Comportement observable :
   le modèle racine reçu, le stream Flight n'est plus lié à ce signal : les
   sous-arbres `Suspense` d'un arbre mis en cache continuent d'arriver.
 - Le loading s'affiche immédiatement (`pendingMs = 0`). Échap (`useApplication()
-.cancel()`) revient localement à la dernière route résolue, sans la recharger.
+  .cancel()`) revient localement à la dernière route résolue, sans la recharger.
 - `refresh()` invalide la destination en cours ou la route montée ; l'application le
   lie à la touche de son choix (Ctrl+R dans les exemples). Pendant un refresh, l'arbre
   reste monté (`activity === "refresh"`) : champ, focus et saisie restent actifs. Un
