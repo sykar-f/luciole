@@ -87,7 +87,7 @@ test(
       await run(["git", "apply", patch]);
     }
     await run([process.execPath, "install", "--frozen-lockfile", "--ignore-scripts"]);
-    await run(["sh", "scripts/prepare-zig-deps.sh"], native);
+    await run([process.execPath, "run", "prepare:zig"], native);
     await run([process.execPath, "packages/core/scripts/native-abi.ts", "--check"]);
     prepared = true;
   },
@@ -98,9 +98,9 @@ test(
   "0.8.1 pixel hits: OpenTUI native tests and C ABI",
   async () => {
     expect(prepared).toBe(true);
-    await run([zig, "build", "test", "--summary", "all"], native);
-    await run([zig, "build", "test-abi", "--summary", "all"], native);
-    await run([zig, "build", "-Doptimize=Debug"], native);
+    await run([zig, "build", "test", "-Drequire-video", "--summary", "all"], native);
+    await run([zig, "build", "test-abi", "-Drequire-video", "--summary", "all"], native);
+    await run([zig, "build", "-Doptimize=Debug", "-Drequire-video"], native);
     await run(
       [process.execPath, "scripts/build.ts", "--native", "--skip-zig", "--dev"],
       join(checkout, "packages/core"),
