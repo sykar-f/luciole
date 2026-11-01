@@ -1,7 +1,9 @@
 # Dépendances — 22 septembre 2026
 
 OpenTUI a été porté à 0.6.6 le 18 octobre 2026 ; les deux sondes ont été rejouées
-avec Bun 1.4.4. Les autres versions ci-dessous ne font pas partie de ce contrôle.
+avec Bun 1.4.3, comme le consignent les relevés [RSC](../probes/rsc/README.md) et
+[RPC](../probes/rpc/README.md). Les autres versions ci-dessous ne font pas partie
+de ce contrôle historique. Le framework utilise actuellement Bun 1.4.4.
 
 Les versions stables ont été comparées aux tags `latest` du registre npm, aux
 versions PyPI et aux releases officielles des outils. Les versions expérimentales
