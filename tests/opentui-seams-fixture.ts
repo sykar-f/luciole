@@ -241,7 +241,7 @@ test("logical editor focus precedes cursor delivery through a held borrowed sink
   }
 });
 
-test("editor viewport bounds stay canonical while the next projection yields", async () => {
+test("editor viewport bounds stay canonical during the next projection paint", async () => {
   const f = await setup(12, 8);
   const style = SyntaxStyle.fromStyles(
     { default: { fg: RGBA.fromHex("#eeeeee") } },
@@ -266,15 +266,8 @@ test("editor viewport bounds stay canonical while the next projection yields", a
     const painting = spyOn(f.r.nativeScene, "paint").mockImplementation((...args) => {
       const result = paint(...args);
       if (Reflect.get(f.r, "isProjectionPass") !== true) return result;
-      return Promise.resolve(result).then(
-        () =>
-          new Promise<void>((resolve) => {
-            setImmediate(() => {
-              observed = editor.scrollableViewport.rect;
-              resolve();
-            });
-          }),
-      );
+      observed = editor.scrollableViewport.rect;
+      return result;
     });
     try {
       await f.renderOnce();
@@ -288,7 +281,7 @@ test("editor viewport bounds stay canonical while the next projection yields", a
   }
 });
 
-test("private input waits through a yielding canonical paint, before planning its projection", async () => {
+test("private input waits through canonical paint, before planning its projection", async () => {
   const f = await setup();
   const view = new ScrollBoxRenderable(f.r, { width: 12, height: 2 });
   for (let i = 0; i < 8; i++)
@@ -325,36 +318,31 @@ test("private input waits through a yielding canonical paint, before planning it
   try {
     await f.renderOnce();
     const paint = f.r.nativeScene.paint.bind(f.r.nativeScene);
-    let yielded = false;
+    let intercepted = false;
     const painting = spyOn(f.r.nativeScene, "paint").mockImplementation((...args) => {
       const result = paint(...args);
-      if (yielded) return result;
-      yielded = true;
-      return Promise.resolve(result).then(
-        () =>
-          new Promise<void>((resolve) => {
-            setImmediate(() => {
-              paintFlag = Reflect.get(f.r, "isFramePlanPass") === true;
-              receive?.(
-                encode({
-                  op: "wheel",
-                  version: 1,
-                  id: 1,
-                  generation: 1,
-                  phase: 0.75,
-                  x: 2,
-                  y: 1,
-                  modifiers: 0,
-                  dx: 0,
-                  dy: 0.5,
-                  source: "precise",
-                }),
-              );
-              afterInput = viewport.position;
-              resolve();
-            });
-          }),
+      if (intercepted) return result;
+      intercepted = true;
+      // 0.7 removed yielding scene steps. Observe the synchronous canonical
+      // paint boundary while the planned transaction still owns private input.
+      paintFlag = Reflect.get(f.r, "isFramePlanPass") === true;
+      receive?.(
+        encode({
+          op: "wheel",
+          version: 1,
+          id: 1,
+          generation: 1,
+          phase: 0.75,
+          x: 2,
+          y: 1,
+          modifiers: 0,
+          dx: 0,
+          dy: 0.5,
+          source: "precise",
+        }),
       );
+      afterInput = viewport.position;
+      return result;
     });
     try {
       await f.renderOnce();
