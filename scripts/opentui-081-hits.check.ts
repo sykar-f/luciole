@@ -126,9 +126,10 @@ test(
         /\/(?:renderer\.[^/]+|native-session(?:\.sim)?|native-detached-session|native-scene-buffer|scene-observation-cache|pixel-seams|Timeline\.renderer|test-renderer\.wait|native-abi)\.test\.ts$/.test(
           file,
         );
-      const caller = /NativeSession|CliRenderer|nativeScene/.test(
-        await Bun.file(join(checkout, file)).text(),
-      );
+      const caller =
+        /NativeSession|CliRenderer|nativeScene|NativeScene|createTestRenderer|translateX|translateY/.test(
+          await Bun.file(join(checkout, file)).text(),
+        );
       if (named || caller) files.push(file);
     }
     expect(files.length).toBeGreaterThan(MIN_SELECTED_FILES);
