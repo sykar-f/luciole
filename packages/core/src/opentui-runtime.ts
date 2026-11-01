@@ -25,7 +25,7 @@ export const PIXEL_SCROLL_PATCH = resolve(
 export const OPENTUI_ZIG_VERSIONS = { "v0.8.1": "0.17.0" } as const;
 export type OpenTuiTag = keyof typeof OPENTUI_ZIG_VERSIONS;
 export function openTuiZigVersion(tag: string = OPENTUI_TAG) {
-  return OPENTUI_ZIG_VERSIONS[tag as OpenTuiTag] ?? OPENTUI_ZIG_VERSIONS[OPENTUI_TAG];
+  return tag === "v0.8.1" ? OPENTUI_ZIG_VERSIONS[tag] : OPENTUI_ZIG_VERSIONS[OPENTUI_TAG];
 }
 /** Native preparation applies the pixel contract without the web-only patch. */
 export function nativePatches(tag: OpenTuiTag): string[] {

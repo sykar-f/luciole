@@ -240,32 +240,31 @@ test("concurrent processes publish once and reuse the entry after waiting", asyn
   expect(findNativeRuntime("bun-darwin-arm64", cache)).toBeDefined();
 }, 15000);
 
-test("0.8.1 preparation has a separate toolchain and leaves the 0.8.1 identity intact", () => {
+test("0.8.1 preparation activates the pixel patch and replaces the previous identity", () => {
   const target = "bun-darwin-arm64";
   const active = nativeRuntimeIdentity(target);
   const next = nativeRuntimeIdentity(target, undefined, "v0.8.1");
-  expect(next).toEqual({
+  expect(next).toMatchObject({
     layout: 1,
     tag: "v0.8.1",
-    patches: [],
     zigVersion: "0.17.0",
     target,
     zigTarget: "aarch64-macos.13.0",
     libc: "system",
   });
-  // Identity emitted at the mission base, before version selection existed.
-  expect(nativeRuntimeDirectory(target, "/cache")).toBe(
+  // Activation must invalidate the previous source and toolchain identity.
+  expect(nativeRuntimeDirectory(target, "/cache")).not.toBe(
     "/cache/native/bun-darwin-arm64-699b83dd30873b65",
   );
   expect(active.tag).toBe("v0.8.1");
   expect(active.zigVersion).toBe("0.17.0");
   expect(active.patches).toHaveLength(1);
-  expect(nativeRuntimeDirectory(target, "/cache")).not.toBe(
+  expect(nativeRuntimeDirectory(target, "/cache")).toBe(
     nativeRuntimeDirectory(target, "/cache", "v0.8.1"),
   );
 });
 
-test("a manifest emitted before tag selection still decodes and reuses", async () => {
+test("a previous 0.6.8 manifest decodes but cannot reuse the new runtime", async () => {
   const cache = scratch();
   const target = "bun-darwin-arm64";
   const directory = await prepare(cache, target);
@@ -275,9 +274,9 @@ test("a manifest emitted before tag selection still decodes and reuses", async (
     file,
     JSON.stringify({
       layout: 1,
-      tag: "v0.8.1",
+      tag: "v0.6.8",
       patches: ["300a450e11aa80f1a6c22c0b94a5004c0093c10ad932ec891178cd4fd8eef323"],
-      zigVersion: "0.17.0",
+      zigVersion: "0.16.0",
       target,
       zigTarget: "aarch64-macos.13.0",
       libc: "system",
@@ -285,6 +284,7 @@ test("a manifest emitted before tag selection still decodes and reuses", async (
       files: recorded["files"],
     }),
   );
+  expect(findNativeRuntime(target, cache)).toBeUndefined();
+  expect(await prepare(cache, target)).toBe(directory);
   expect(findNativeRuntime(target, cache)).toBe(directory);
-  expect(await prepareNativeRuntime({ target, cache, zig: "/missing/zig" })).toBe(directory);
 });
