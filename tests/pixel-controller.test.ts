@@ -62,6 +62,16 @@ test("frame commands capture the integer origin before projecting and commit onc
   expect(frame.fraction).toBe(0.25);
 });
 
+test("frame planning forwards a ScrollBox content origin with its owning box", () => {
+  const frame = fixture();
+  const owner = frame.viewport.project(0).renderable;
+  frame.viewport.project = (origin) => ({ renderable: owner, scrollContent: true, origin });
+  const plan = planPixelFrame(frame);
+  expect(plan.projection?.renderable).toBe(owner);
+  expect(plan.projection).toMatchObject({ scrollContent: true, origin: 11 });
+  expect(messages(plan.projection?.after).map((op) => op?.op)).toEqual(["step", "commit"]);
+});
+
 test("canonical release follows its complete transaction without a projection", () => {
   const plan = planPixelFrame(fixture(0), true);
   expect(plan.projection).toBeUndefined();

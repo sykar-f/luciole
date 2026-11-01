@@ -28,7 +28,8 @@ const ALL: Room = { up: true, down: true };
 /** What a scroller of OpenTUI has left each way; undefined for anything else. */
 function scrollerRoom(node: Renderable): Room | undefined {
   if (node instanceof ScrollBoxRenderable) {
-    const max = Math.max(0, node.scrollHeight - node.viewport.height);
+    const { height, paddingTop, paddingBottom } = node.viewport;
+    const max = Math.max(0, Math.ceil(node.scrollHeight - height + paddingTop + paddingBottom));
     return { up: node.scrollTop > 0, down: node.scrollTop < max };
   }
   if (node instanceof TextBufferRenderable)
