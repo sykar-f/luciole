@@ -12,9 +12,19 @@ const checkout = join(scratch, "opentui");
 const native = join(checkout, "packages/native");
 const zig = process.env["ZIG"] ?? "zig";
 const TIMEOUT_MS = 600_000;
+const CLEANUP_MS = 5_000;
+const MIN_SELECTED_FILES = 45;
 const upstream = "9a09079c0c7ad0fb2d55404f66a5c453204328dd";
 const spike = "a64f24c75b98c76a75064e02fc8c45916cde487d";
 let prepared = false;
+
+function stopGroup(pid: number): void {
+  try {
+    process.kill(-pid, "SIGTERM");
+  } catch (error) {
+    if (!(error instanceof Error && "code" in error && error.code === "ESRCH")) throw error;
+  }
+}
 
 async function run(command: string[], cwd = checkout): Promise<void> {
   console.log(`0.8.1 check: ${command.join(" ")}`);
@@ -24,16 +34,12 @@ async function run(command: string[], cwd = checkout): Promise<void> {
     stdout: "inherit",
     stderr: "inherit",
     detached: true,
-    signal: AbortSignal.timeout(TIMEOUT_MS - 5_000),
+    signal: AbortSignal.timeout(TIMEOUT_MS - CLEANUP_MS),
   });
   try {
     expect(await child.exited).toBe(0);
   } finally {
-    try {
-      process.kill(-child.pid, "SIGTERM");
-    } catch (error) {
-      if (!(error instanceof Error && "code" in error && error.code === "ESRCH")) throw error;
-    }
+    stopGroup(child.pid);
   }
 }
 
@@ -122,7 +128,7 @@ test(
       );
       if (named || caller) files.push(file);
     }
-    expect(files.length).toBeGreaterThan(45);
+    expect(files.length).toBeGreaterThan(MIN_SELECTED_FILES);
     // Each path is explicit and printed, including the patch's ported seam tests.
     await run([process.execPath, "test", "--timeout", "20000", ...files]);
   },

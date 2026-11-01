@@ -1403,18 +1403,19 @@ index 18a7f06..671b97a 100644
      const handle = encodeContextHandle(context, session)
      const input = sessionBytes(bytes, "Session write length")
 diff --git a/packages/native/include/opentui.h b/packages/native/include/opentui.h
-index fb0ced6..fab18ef 100644
+index fb0ced6..d8ffe45 100644
 --- a/packages/native/include/opentui.h
 +++ b/packages/native/include/opentui.h
-@@ -3307,6 +3307,17 @@ ot_status ot_session_write(
+@@ -3307,6 +3307,18 @@ ot_status ot_session_write(
      const uint8_t *bytes,
      uint32_t byte_count);
  
++/* Resolve the native auto/always/never policy, including remote negotiation. */
++ot_status ot_session_frame_sync_enabled(ot_context *context, const ot_handle *session, uint8_t *enabled);
 +/* luciole pixel scroll. flags: 1 = full-screen frames omit their own synchronized-output
 + * pair (the host writes one pair around several frames and ordered ot_session_write
 + * segments); 2 = presentation keeps the published hit grid instead of this frame's.
 + * Split-footer frames are unaffected. */
-+ot_status ot_session_frame_sync_enabled(ot_context *context, const ot_handle *session, uint8_t *enabled);
 +ot_status ot_session_set_frame_sync(ot_context *context, const ot_handle *session, uint32_t flags);
 +/* luciole pixel scroll: copy the published (pending 0) or the painted draft's (pending 1)
 + * hit grid as public node numbers, row-major; bit 2 selects the drop-target grid,
@@ -1594,7 +1595,7 @@ index eb8bdf9..12fe074 100644
          }
  
 diff --git a/packages/native/src/scene.zig b/packages/native/src/scene.zig
-index 11812d7..5cc1540 100644
+index 11812d7..2d7778a 100644
 --- a/packages/native/src/scene.zig
 +++ b/packages/native/src/scene.zig
 @@ -722,7 +722,7 @@ pub const PaintSlot = struct {
@@ -1625,7 +1626,7 @@ index 11812d7..5cc1540 100644
 +        self.settleHits(cli);
 +        @memset(out, 0);
 +        const valid = if (pending)
-+            self.hits_frame != 0 and self.hits_generation == cli.hits_generation
++            self.painted != null and self.hits_frame != 0 and self.hits_generation == cli.hits_generation
 +        else
 +            self.presented_hits_frame != 0 and self.presented_hits_frame == cli.presented_hits_frame;
 +        if (!valid) return;
@@ -1709,10 +1710,10 @@ index ea61a58..cb4b4c7 100644
      assert(ot_scene_get_layout(context, &box, OT_LAYOUT_PUBLIC, &layout) == OT_OK);
      assert(layout.width == 4 && layout.height == 2);
 diff --git a/packages/native/src/tests/scene_frame_test.zig b/packages/native/src/tests/scene_frame_test.zig
-index 05b0e37..d3ecf41 100644
+index 05b0e37..b4e37f1 100644
 --- a/packages/native/src/tests/scene_frame_test.zig
 +++ b/packages/native/src/tests/scene_frame_test.zig
-@@ -2855,3 +2855,145 @@ test "Scene viewport inside a culled row filters as the full walk does" {
+@@ -2855,3 +2855,149 @@ test "Scene viewport inside a culled row filters as the full walk does" {
      }
      try twins[0].expectSameCells(twins[1]);
  }
@@ -1758,6 +1759,10 @@ index 05b0e37..d3ecf41 100644
 +    try testing.expectEqualSlices(u32, &published, &draft);
 +    try f.owner.sceneCopyHits(f.id, 2, &drop);
 +    try testing.expectEqual(@as(u32, 7), drop[0]);
++    try @import("scene_fixture_test.zig").repaint(f.owner, f.id, options.background, true, 0);
++    try f.owner.sceneFrameCancel(f.id, f.state.painted.?.ticket.frame_id);
++    try f.owner.sceneCopyHits(f.id, 1, &draft);
++    try testing.expectEqualSlices(u32, &.{ 0, 0, 0, 0, 0, 0, 0, 0 }, &draft);
 +    try f.owner.sceneDestroyNode(child);
 +    try f.owner.sceneCopyHits(f.id, 0, &published);
 +    try testing.expectEqual(@as(u32, 0), published[0]);
