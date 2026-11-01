@@ -62,7 +62,7 @@ test("a version changed in a manifest, the ABI or .bun-version fails", async () 
   ).toHaveLength(2);
   const catalog = changed(
     files.workspace,
-    `"@tanstack/react-router": "1.170.45"`,
+    `"@tanstack/react-router": "1.170.46"`,
     `"@tanstack/react-router": "1.171.0"`,
   );
   expectLines(await problems(page, { ...files, workspace: catalog }), [

@@ -13,6 +13,15 @@ and marked **Breaking**.
 
 ## [Unreleased]
 
+### Changed
+
+- Core and Markdown Editor use marked 18.1.2. The parser includes fixes for
+  lists, quotes, links, emphasis, HTML blocks and character references.
+- **Breaking:** The optional SQLite WASM peer range starts at 3.54.1-build1.
+  Apps that use the web Server must update `@sqlite.org/sqlite-wasm`.
+- Core uses TanStack Router 1.170.46. Its runtime ABI key changes.
+  Rebuild apps before use with the new runtime.
+
 ## [0.6.1] - 2026-10-30
 
 ### Fixed
