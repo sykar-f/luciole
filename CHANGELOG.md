@@ -33,6 +33,21 @@ and marked **Breaking**.
   Call `refreshHooks()` after a change through reflection. Use prototype
   methods for hook overrides.
 
+- **Breaking:** Remove `nativeSceneWorkBudget`, `NativeSceneFrame.Yield` and
+  frame-step work budgets. Remove `geometryRevision` from frame requests.
+- **Breaking:** Custom `RenderContext` implementations must supply `clock`
+  and `onAnimationTick`.
+- **Breaking:** Remove reads of `_textBufferSyntaxStyle`. Use the styles in
+  the text buffer. Replace `_hasFocusedDescendant` with `hasFocusedDescendant`.
+  Replace `contextDrawSceneText()` with `contextDrawSceneBody()`.
+- **Breaking:** Keep `translateX` and `translateY` within the 32-bit float
+  range. Values outside that range now throw `RangeError`.
+- **Breaking:** Generate custom native bindings again from the 0.8.1 header.
+  The context ABI is version 2. Scene statistics need 224 bytes, and renderer
+  state needs 40 bytes. Update renamed scene-body calls and record fields.
+- **Breaking:** Custom Zig code must render through a Session. Remove
+  standalone renderer calls and `BufferedOutput`. Update frame-step and
+  styled-text calls to the current signatures.
 - **Breaking:** OpenTUI rejects default-ignorable characters in `customBorderChars`
   and `drawGrid`. Use a border character that fills one cell, such as a space.
 - New apps pin Bun 1.4.4. The minimum supported Bun version stays at 1.4.1.
