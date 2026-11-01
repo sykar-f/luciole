@@ -48,10 +48,14 @@ async function launch(mode: string, desktop = true, prepared = false, pixelFlag?
       events.push(message);
     },
   });
+  // Bun merges stderr into terminal.data for a PTY, despite stderr: "pipe".
+  const stderrStream = new Response(child.stderr).body;
+  const stderrSource = stderrStream ? "pipe" : "merged PTY output";
   let stderr = "";
   const errors = (async () => {
     const decoder = new TextDecoder();
-    const reader = child.stderr.getReader();
+    if (!stderrStream) return stderr;
+    const reader = stderrStream.getReader();
     for (;;) {
       const { done, value } = await reader.read();
       if (done) break;
@@ -72,6 +76,7 @@ async function launch(mode: string, desktop = true, prepared = false, pixelFlag?
             elapsedMs: performance.now() - started,
             timeline,
             output,
+            stderrSource,
             stderr,
           },
           null,
@@ -116,6 +121,7 @@ async function launch(mode: string, desktop = true, prepared = false, pixelFlag?
               elapsedMs: performance.now() - started,
               timeline,
               output,
+              stderrSource,
               stderr: await errors,
             },
             null,
