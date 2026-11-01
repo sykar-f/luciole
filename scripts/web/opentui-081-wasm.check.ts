@@ -18,7 +18,6 @@ const Result = z.object({ ok: z.literal(true) });
 test(
   "OpenTUI 0.8.1 wasm32: box, changing text, and cells after memory growth",
   async () => {
-    const patch = join(import.meta.dir, `../../packages/core/web/opentui-v${VERSION}.patch`);
     const checkout = join(process.env["TMPDIR"] ?? tmpdir(), "opentui-081-web-checkout");
     const scratch = mkdtempSync(join(process.env["TMPDIR"] ?? tmpdir(), "opentui-081-"));
     const directory = await prepareWebRuntimeEntry({
@@ -33,7 +32,7 @@ test(
             `
         import { prepareOpenTui } from ${JSON.stringify(join(import.meta.dir, "../../packages/core/src/web-runtime.ts"))};
         prepareOpenTui(${JSON.stringify(checkout)}, ${JSON.stringify(process.env["ZIG"] ?? "zig")},
-          { tag: "v${VERSION}", patch: ${JSON.stringify(patch)} });
+          { tag: "v${VERSION}" });
       `,
           ],
           { stdout: "inherit", stderr: "inherit", signal: AbortSignal.timeout(TIMEOUT_MS) },
