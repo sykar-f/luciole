@@ -77,7 +77,7 @@ test(
 
 ## Native UI regressions
 
-For OpenTUI 0.6.6 changes, exercise the affected transition: remove a layout override and
+For OpenTUI 0.6.8 changes, exercise the affected transition: remove a layout override and
 check the resulting geometry, toggle visibility with `false` then a nullish value, or mount
 two Clients to catch shared native styles and animation engines. Each Client needs its own
 renderer-owned resources. For editor cursor/selection tests, include control characters:

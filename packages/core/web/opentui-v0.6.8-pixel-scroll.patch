@@ -337,7 +337,7 @@ index ff4ebe5..0aed61a 100644
      if (value === this._value) return
      this._value = value
 diff --git a/packages/core/src/renderer.ts b/packages/core/src/renderer.ts
-index 91a46db..12b1cf3 100644
+index 45e5fe9..f4e602b 100644
 --- a/packages/core/src/renderer.ts
 +++ b/packages/core/src/renderer.ts
 @@ -902,6 +902,30 @@ export enum RendererControlState {
@@ -573,7 +573,7 @@ index 91a46db..12b1cf3 100644
    private lastFpsTime: number = 0
    private currentFps: number = 0
    private targetFrameTime: number = 1000 / this._targetFps
-@@ -1681,6 +1900,7 @@ export class CliRenderer extends EventEmitter implements RenderContext {
+@@ -1675,6 +1894,7 @@ export class CliRenderer extends EventEmitter implements RenderContext {
    }
  
    public requestRender() {
@@ -581,7 +581,7 @@ index 91a46db..12b1cf3 100644
      if (this._isDestroyed || this._controlState === RendererControlState.EXPLICIT_SUSPENDED) {
        return
      }
-@@ -3466,6 +3686,7 @@ export class CliRenderer extends EventEmitter implements RenderContext {
+@@ -3460,6 +3680,7 @@ export class CliRenderer extends EventEmitter implements RenderContext {
          this._keyHandler.processParsedKey(event.key)
          return
        case "mouse":
@@ -589,7 +589,7 @@ index 91a46db..12b1cf3 100644
          if (this._useMouse && this.processSingleMouseEvent(event.event)) {
            return
          }
-@@ -3589,7 +3810,11 @@ export class CliRenderer extends EventEmitter implements RenderContext {
+@@ -3583,7 +3804,11 @@ export class CliRenderer extends EventEmitter implements RenderContext {
      }
    }
  
@@ -599,10 +599,10 @@ index 91a46db..12b1cf3 100644
 +    hitTest = (x: number, y: number) =>
 +      this.capturedRenderable ? this.dropHitTest(this.captureHitMap(false), x, y) : this.hitTest(x, y),
 +  ): boolean {
-     if (this._splitHeight > 0) {
-       if (mouseEvent.y < this.renderOffset) {
-         return false
-@@ -3617,7 +3842,7 @@ export class CliRenderer extends EventEmitter implements RenderContext {
+     // A left drag belongs to the node that got the left press: the first motion report can already be past it.
+     // Every left down or up ends the record, also one that returns early; other events keep it.
+     const pressed = this.pressedRenderable
+@@ -3616,7 +3841,7 @@ export class CliRenderer extends EventEmitter implements RenderContext {
      }
  
      if (mouseEvent.type === "scroll") {
@@ -611,7 +611,7 @@ index 91a46db..12b1cf3 100644
        const maybeRenderable = Renderable.renderablesByNumber.get(maybeRenderableId)
        const fallbackTarget =
          this._currentFocusedRenderable &&
-@@ -3634,7 +3859,7 @@ export class CliRenderer extends EventEmitter implements RenderContext {
+@@ -3633,7 +3858,7 @@ export class CliRenderer extends EventEmitter implements RenderContext {
        return true
      }
  
@@ -620,7 +620,7 @@ index 91a46db..12b1cf3 100644
      const sameElement = maybeRenderableId === this.lastOverRenderableNum
      this.lastOverRenderableNum = maybeRenderableId
      const maybeRenderable = Renderable.renderablesByNumber.get(maybeRenderableId)
-@@ -3831,7 +4056,8 @@ export class CliRenderer extends EventEmitter implements RenderContext {
+@@ -3822,7 +4047,8 @@ export class CliRenderer extends EventEmitter implements RenderContext {
    }
  
    public hitTest(x: number, y: number): number {
@@ -630,7 +630,7 @@ index 91a46db..12b1cf3 100644
    }
  
    private takeMemorySnapshot(): void {
-@@ -4798,6 +5024,7 @@ export class CliRenderer extends EventEmitter implements RenderContext {
+@@ -4789,6 +5015,7 @@ export class CliRenderer extends EventEmitter implements RenderContext {
          return
        // Bump before any work so all callers this iteration see the new id.
        this._frameId++
@@ -638,7 +638,7 @@ index 91a46db..12b1cf3 100644
  
        const now = this.normalizeClockTime(this.clock.now(), this.lastTime)
        const elapsed = this.getElapsedMs(now, this.lastTime)
-@@ -4844,6 +5071,14 @@ export class CliRenderer extends EventEmitter implements RenderContext {
+@@ -4835,6 +5062,14 @@ export class CliRenderer extends EventEmitter implements RenderContext {
        // Callbacks can start terminal setup; a frame step is invalid until it settles.
        if (this.nativeTerminalTransition && !(await this.waitForTerminalTransition())) return
        if (!this.canRender || this.currentControlState === RendererControlState.EXPLICIT_SUSPENDED) return
@@ -653,7 +653,7 @@ index 91a46db..12b1cf3 100644
        const sceneStart = performance.now()
        const requestedBeforeScene = this.immediateRerenderRequested
        try {
-@@ -4877,7 +5112,9 @@ export class CliRenderer extends EventEmitter implements RenderContext {
+@@ -4868,7 +5103,9 @@ export class CliRenderer extends EventEmitter implements RenderContext {
  
        // If destroy() was requested during this frame, skip native work and scheduling.
        if (this.canRender && !this.nativeSplitFlush) {
@@ -664,7 +664,7 @@ index 91a46db..12b1cf3 100644
          if (!this.canRender || this.currentControlState === RendererControlState.EXPLICIT_SUSPENDED) return
          if (nativeStatus === "rendered") this.frameCount++
          if (this.getElapsedMs(now, this.lastFpsTime) >= 1000) {
-@@ -4889,7 +5126,7 @@ export class CliRenderer extends EventEmitter implements RenderContext {
+@@ -4880,7 +5117,7 @@ export class CliRenderer extends EventEmitter implements RenderContext {
  
          if (nativeStatus === "rendered") {
            // Check if hit grid changed and recheck hover state if needed
@@ -673,7 +673,7 @@ index 91a46db..12b1cf3 100644
              this.recheckHoverState()
            }
            if (!this.canRender) return
-@@ -4950,22 +5187,27 @@ export class CliRenderer extends EventEmitter implements RenderContext {
+@@ -4941,22 +5178,27 @@ export class CliRenderer extends EventEmitter implements RenderContext {
        const completion = this.renderingCompletion
        this.renderingCompletion = null
        try {
@@ -904,10 +904,10 @@ index 0000000..fcee634
 +  }
 +})
 diff --git a/packages/core/src/zig.ts b/packages/core/src/zig.ts
-index d83570a..0bd604f 100644
+index 4619146..e92b026 100644
 --- a/packages/core/src/zig.ts
 +++ b/packages/core/src/zig.ts
-@@ -6112,6 +6112,27 @@ export class FFIRenderLib {
+@@ -6111,6 +6111,27 @@ export class FFIRenderLib {
      return output[0]
    }
  
@@ -957,7 +957,7 @@ index 12cc13e..22d1f7a 100644
   * capacity. A successful empty read returns a zero byte_count and request_id.
   * Failure leaves both outputs unchanged. The next read requires completion of
 diff --git a/packages/native/src/context-abi.zig b/packages/native/src/context-abi.zig
-index 1abe280..282390d 100644
+index 1ab48e3..3d7efa1 100644
 --- a/packages/native/src/context-abi.zig
 +++ b/packages/native/src/context-abi.zig
 @@ -745,6 +745,27 @@ pub fn ot_session_get_write_limit(
@@ -989,10 +989,10 @@ index 1abe280..282390d 100644
      context: ?*ContextHandle,
      session_ptr: ?*const c.ot_handle,
 diff --git a/packages/native/src/context.zig b/packages/native/src/context.zig
-index 5bbdb79..bfcf5d6 100644
+index 18824ed..561da54 100644
 --- a/packages/native/src/context.zig
 +++ b/packages/native/src/context.zig
-@@ -2905,6 +2905,47 @@ pub const Context = struct {
+@@ -2912,6 +2912,47 @@ pub const Context = struct {
          value.cancelSceneFrame();
      }
  
@@ -1229,10 +1229,10 @@ index 69b7119..b66362e 100644
      }
  
 diff --git a/packages/native/src/scene.zig b/packages/native/src/scene.zig
-index e3465e2..eb4a3eb 100644
+index 1f02634..e4e7a3e 100644
 --- a/packages/native/src/scene.zig
 +++ b/packages/native/src/scene.zig
-@@ -1197,6 +1197,7 @@ pub const Scene = struct {
+@@ -1225,6 +1225,7 @@ pub const Scene = struct {
          cli.setBackgroundColor(options.background);
          target.clear(options.background, if (options.preserve_unwritten) 0 else null);
          @import("utils.zig").fillU32(cli.nextHitGrid, 0);
@@ -1240,7 +1240,7 @@ index e3465e2..eb4a3eb 100644
      }
  
      fn markFocus(self: *Scene, objects: *const handles.Table) !void {
-@@ -1283,6 +1284,7 @@ pub const Scene = struct {
+@@ -1311,6 +1312,7 @@ pub const Scene = struct {
          errdefer {
              target.clear(cli.backgroundColor, null);
              @memset(cli.nextHitGrid, 0);
@@ -1248,7 +1248,7 @@ index e3465e2..eb4a3eb 100644
          }
          defer target.clearScissorRects();
          defer target.clearOpacity();
-@@ -1494,14 +1496,14 @@ pub const Scene = struct {
+@@ -1522,14 +1524,14 @@ pub const Scene = struct {
      }
  
      fn addHit(cli: *renderer.CliRenderer, layout: Layout, clip: buffer.ClipRect, num: u32, token: u32, options: FrameOptions) void {

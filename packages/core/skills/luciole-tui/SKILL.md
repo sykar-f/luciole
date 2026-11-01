@@ -5,7 +5,7 @@ description: Screens and rich interaction in a luciole app with OpenTUI. Use for
 
 # luciole terminal UI
 
-The screen is OpenTUI 0.6.6, rendered by React 19. Routes, pages and data belong to `luciole-app`.
+The screen is OpenTUI 0.6.8, rendered by React 19. Routes, pages and data belong to `luciole-app`.
 
 Before composing a screen, read [references/opentui.md](references/opentui.md), survey the
 installed components and reuse the widget's own behaviour. Then read the app's

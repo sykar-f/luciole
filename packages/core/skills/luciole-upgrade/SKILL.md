@@ -34,12 +34,12 @@ Run every command from the app's directory. The upgrade guide is
    Plain `bun update` never crosses a 0.x minor.
 5. **Install**, then **check the renderer pins**. The app pins `@opentui/core`,
    `@opentui/keymap` and `@opentui/react` to one exact version, which must satisfy the range
-   the new core asks for (this release: `0.6.6` for all three). When `node_modules/@luciole-sh/core/node_modules/@opentui/core`
+   the new core asks for (this release: `0.6.8` for all three). When `node_modules/@luciole-sh/core/node_modules/@opentui/core`
    exists, the pins fell outside that range and the app runs two renderers; `tsc` then reports
    "Types have separate declarations" on `@opentui/core` types. Set all three pins
    to the `version` of that nested copy's `package.json`, run `bun install` again, and check
    that the nested folder is gone.
-   When crossing to OpenTUI 0.6.6, audit native styles for a renderer owner, await
+   When crossing from OpenTUI older than 0.6.6 to 0.6.8, audit native styles for a renderer owner, await
    `suspend()`/`resume()` and `closed` at terminal handoff/shutdown, and move frame loops
    and timelines onto their renderer. Audit paint hooks for recording-buffer reads and
    round draw positions to finite signed 32-bit integers. Negative positions clip;

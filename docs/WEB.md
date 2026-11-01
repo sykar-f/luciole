@@ -71,8 +71,8 @@ aussi du code du framework. `luciole build --web` le prépare s'il manque. En lo
 | `src/web/build.ts`                      | Bundle de la page : variantes, OpenTUI depuis ses sources, shims Node, clé d'ABI                                            |
 | `src/web/platform/`                     | Variantes : `run`, `app-bundle`, `host-direct`, `vt/terminal`, `flight/server`                                              |
 | `src/web/opentui/`, `src/web/node/`     | Backend FFI WASM d'OpenTUI, Worker tree-sitter ; built-ins Node d'une page                                                  |
-| `web/opentui-v0.6.6.patch`              | Le patch OpenTUI : scène native et ABI C pour wasm32-wasi                                                                   |
-| `web/opentui-v0.6.6-pixel-scroll.patch` | Les seams de frame, hit maps et viewport, appliquées après le port wasm32                                                   |
+| `web/opentui-v0.6.8.patch`              | Le patch OpenTUI : scène native et ABI C pour wasm32-wasi                                                                   |
+| `web/opentui-v0.6.8-pixel-scroll.patch` | Les seams de frame, hit maps et viewport, appliquées après le port wasm32                                                   |
 | `scripts/web/`                          | Driver CDP et parcours navigateur (`test:web`, `test:web:local`, `test:web:forge`, `test:web:coder`)                        |
 
 ## Mode d'emploi (tout dans le navigateur)
@@ -492,7 +492,7 @@ sortie (signaux, Ctrl+C, quit, erreur fatale de démarrage). SIGINT, SIGTERM et
 SIGHUP gardent leur code 0 ; SIGQUIT, SIGABRT, SIGBUS et SIGBREAK, si la plateforme
 les expose, sortent avec 128 plus le numéro du signal. SIGPIPE reste ignoré.
 Un `process.exit()`
-explicite de l’app passe par le hook natif synchrone d’OpenTUI 0.6.6 ; luciole
+explicite de l’app passe par le hook natif synchrone d’OpenTUI 0.6.8 ; luciole
 n’installe plus de hook `exit` qui détruit le renderer. Le drainage synchrone
 ne fonctionne que vers le vrai fd stdout : une écriture en vol vers une sortie
 empruntée ne peut pas être rejouée. Une erreur de sortie restaure le mode du
@@ -502,9 +502,9 @@ fermeture du renderer avant d’écrire son message de fin dans xterm ; il ne
 termine pas le processus hôte et ne prend jamais son terminal. Les exceptions
 et rejets non rattrapés conservent le comportement non fatal d’OpenTUI.
 
-Le runtime épingle OpenTUI 0.6.6 et applique deux patchs dans cet ordre :
-`web/opentui-v0.6.6.patch` pour sa cible wasm32-wasi, puis
-`web/opentui-v0.6.6-pixel-scroll.patch` pour le défilement pixel. Le second
+Le runtime épingle OpenTUI 0.6.8 et applique deux patchs dans cet ordre :
+`web/opentui-v0.6.8.patch` pour sa cible wasm32-wasi, puis
+`web/opentui-v0.6.8-pixel-scroll.patch` pour le défilement pixel. Le second
 reste séparé : il porte les seams de frame, de hit maps et de viewport,
 sans modifier le port wasm32. Les deux entrent dans la clé du checkout source.
 Avant toute réutilisation du checkout, la préparation compare l'arbre source complet au tag

@@ -311,7 +311,7 @@ export class PixelController {
   }
 
   private receive(sequence: string) {
-    // A 0.6.6 projection can yield while native presentation completes. Keep
+    // A 0.6.8 projection can yield while native presentation completes. Keep
     // input in ingress order until geometry is restored, before output can stall.
     if (Reflect.get(this.renderer, "isFramePlanPass") === true) {
       if (this.deferredReports.length === 0) {

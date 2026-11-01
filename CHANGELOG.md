@@ -15,6 +15,10 @@ and marked **Breaking**.
 
 ### Changed
 
+- Core uses OpenTUI 0.6.8. Delete, Backspace, Delete Line and selection delete
+  can remove text that contains only zero-width characters. A left or right
+  wheel step no longer shifts truncated text by one column.
+
 - New apps pin Bun 1.4.4. The minimum supported Bun version stays at 1.4.1.
 
 - Core and Markdown Editor use marked 18.1.2. The parser includes fixes for

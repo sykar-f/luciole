@@ -58,7 +58,7 @@ export const opentuiWasm: BunPlugin = {
       return { loader: "ts", contents: text };
     });
 
-    // 0.6.6 reads cells through a scoped snapshot (lib/buffer-access.ts): live views, as
+    // 0.6.8 reads cells through a scoped snapshot (lib/buffer-access.ts): live views, as
     // Bun's toArrayBuffer gives, instead of copies.
     build.onLoad({ filter: /packages\/core\/src\/lib\/buffer-access\.ts$/ }, async (args) => {
       let text = await Bun.file(args.path).text();
@@ -78,7 +78,7 @@ export const opentuiWasm: BunPlugin = {
       return { loader: "ts", contents: text };
     });
 
-    // NativeSpanFeed chunks: copied when drained (no stateBuffer alias in 0.6.6).
+    // NativeSpanFeed chunks: copied when drained (no stateBuffer alias in 0.6.8).
     build.onLoad({ filter: /packages\/core\/src\/NativeSpanFeed\.ts$/ }, async (args) => {
       let text = await Bun.file(args.path).text();
       text = replace(

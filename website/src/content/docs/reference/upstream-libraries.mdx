@@ -37,7 +37,7 @@ A declaration file can mention internal symbols that the package does not export
 | `@tanstack/router-core`  | `src/router.ts` and `src/load-client.ts`                                         |
 | `@tanstack/react-form`   | `README.md`, `src/index.ts`, `src/useForm.tsx`, `src/useField.tsx`               |
 
-These boundaries were checked with OpenTUI `0.6.6`, Router `1.170.46` and Form `1.33.5`.
+These boundaries were checked with OpenTUI `0.6.8`, Router `1.170.46` and Form `1.33.5`.
 Recheck the installed signatures when upgrading.
 
 OpenTUI also publishes an [agent skill](https://github.com/anomalyco/opentui/blob/main/packages/web/src/content/SKILL.md).
@@ -67,7 +67,7 @@ after pausing. See [animation and timelines](https://opentui.com/docs/applicatio
 
 ### Layout resets, drawing and editor offsets
 
-OpenTUI 0.6.6 restores layout defaults when a React prop disappears or a layout setter
+OpenTUI 0.6.8 restores layout defaults when a React prop disappears or a layout setter
 receives `null`/`undefined`. Clearing an edge spacing override exposes its shorthand again;
 zero remains an explicit value. Built-in intrinsic dimensions restore their class size,
 while other defaults can differ: clearing `flexShrink` gives `1`. Hide with
