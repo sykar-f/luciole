@@ -17,8 +17,12 @@ and marked **Breaking**.
 
 - Core uses OpenTUI 0.6.8. Delete, Backspace, Delete Line and selection delete
   can remove text that contains only zero-width characters. A left or right
-  wheel step no longer shifts truncated text by one column.
+  wheel step no longer shifts truncated text by one column. Select-all in an
+  Input or Textarea that contains only zero-width text still makes an empty
+  selection. Use Delete, Backspace or Delete Line to remove that text.
 
+- **Breaking:** OpenTUI rejects default-ignorable characters in `customBorderChars`
+  and `drawGrid`. Use a border character that fills one cell, such as a space.
 - New apps pin Bun 1.4.4. The minimum supported Bun version stays at 1.4.1.
 
 - Core and Markdown Editor use marked 18.1.2. The parser includes fixes for

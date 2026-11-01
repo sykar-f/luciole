@@ -124,6 +124,10 @@ starts cleanup synchronously; `closed` can reject if output fails.
 
 ## Layout updates and custom drawing
 
+Use a character that fills one terminal cell for `customBorderChars` and `drawGrid`.
+OpenTUI 0.6.8 rejects default-ignorable characters such as U+200E or U+FFA0;
+a space is valid. Direction marks take zero cells in ordinary text.
+
 - In 0.6.8, removing a React layout prop, or writing `null`/`undefined`, restores the omitted
   option’s default. Clearing an edge spacing override lets its shorthand apply again;
   `0` sets an explicit edge. Built-in intrinsic widths/heights restore their class size,
