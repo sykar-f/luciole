@@ -18,6 +18,28 @@ avec `n = floor(p)` et `0 ≤ f < 1`. L'hôte possède les métriques, le DPR et
 quantification au pixel physique. Il n'ajoute ni inertie ni animation. La phase
 transportée est une fraction de ligne, **jamais une quantité de pixels**.
 
+## État du port OpenTUI 0.8.1
+
+Le patch `packages/core/web/opentui-v0.8.1-pixel-scroll.patch`, appliqué après
+le patch web 0.8.1, porte les captures de hits ordinaires et de drop sur les
+rectangles ordonnés du moteur natif, ainsi que les transactions de sortie des
+frames. Les générations invalident les captures natives lors d'un resize ; les
+copies déjà remises à l'hôte restent immuables. La transaction attend la collecte
+du writer stdout, conserve l'ordre des écritures de contrôle et abandonne ses
+octets si un segment échoue. Son enveloppe 2026 suit la politique native négociée
+`auto` / `always` / `never`.
+
+La projection générique d'un renderable est portée. La projection du contenu
+natif de `ScrollBox`, le pouce fractionnaire, le culling et la propagation des
+deltas précis restent à porter dans `pixel-081-scroll`. Les versions actives
+restent à 0.6.8 ; ce patch n'active pas le runtime 0.8.1.
+
+La preuve sélectionnée est `orch test run scripts/opentui-081-hits.check.ts` :
+clone propre de v0.8.1, application des deux patches, ABI générée, tests natifs
+et tests TypeScript du renderer, de la scène et de `NativeSession`. Tant que le
+patch web de production n'est pas présent, ce script prend son prédécesseur exact
+dans le commit du spike `a64f24c7`.
+
 ## Transport et numéros expérimentaux
 
 Une opération et un rapport utilisent exactement la même enveloppe :
