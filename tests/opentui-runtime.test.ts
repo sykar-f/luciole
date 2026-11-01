@@ -125,4 +125,13 @@ test("0.8.1 Zig diagnostics name the selected toolchain", async () => {
   expect(() => checkZig("/missing/zig", "web runtime", openTuiZigVersion("v0.8.1"))).toThrow(
     "Set ZIG to a Zig 0.17.0 executable.",
   );
+  const version = Bun.spawnSync([process.execPath, "--eval", "console.log('0.16.0')"]);
+  const commands = spyOn(Bun, "spawnSync").mockReturnValue(version);
+  try {
+    expect(() => checkZig("old-zig", "native runtime", openTuiZigVersion("v0.8.1"))).toThrow(
+      "The native runtime builds OpenTUI's core with Zig 0.17.0; old-zig is 0.16.0.",
+    );
+  } finally {
+    commands.mockRestore();
+  }
 });

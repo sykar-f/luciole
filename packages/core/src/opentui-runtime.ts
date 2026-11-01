@@ -46,8 +46,13 @@ function run(command: readonly string[], cwd: string, quiet = false, env?: NodeJ
   }
 }
 export function checkZig(zig: string, runtime: string, expected = openTuiZigVersion()) {
-  const version = Bun.spawnSync([zig, "version"], { stdout: "pipe", stderr: "ignore" });
-  const found = version.exitCode === 0 ? version.stdout.toString().trim() : undefined;
+  let found: string | undefined;
+  try {
+    const version = Bun.spawnSync([zig, "version"], { stdout: "pipe", stderr: "ignore" });
+    found = version.exitCode === 0 ? version.stdout.toString().trim() : undefined;
+  } catch (error) {
+    if (!isCode(error, "ENOENT")) throw error;
+  }
   if (found !== expected)
     throw new Error(
       `The ${runtime} builds OpenTUI's core with Zig ${expected}; ${found ? `${zig} is ${found}` : `${zig} was not found`}. Set ZIG to a Zig ${expected} executable.`,
