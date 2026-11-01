@@ -159,7 +159,7 @@ index 792bfbf..1c519d0 100644
    ot_session_drain_output: { args: ["ptr", "buffer", "u32", "buffer", "ptr", "ptr"], returns: "i32" },
    ot_session_drain_stdout: { args: ["ptr", "buffer", "u32", "buffer"], returns: "i32" },
 diff --git a/packages/core/src/renderer.ts b/packages/core/src/renderer.ts
-index 01655e0..7b69954 100644
+index 01655e0..c99eb51 100644
 --- a/packages/core/src/renderer.ts
 +++ b/packages/core/src/renderer.ts
 @@ -1087,6 +1087,30 @@ interface AnimationTicker {
@@ -193,7 +193,7 @@ index 01655e0..7b69954 100644
  export class CliRenderer extends EventEmitter implements RenderContext {
    private static animationFrameId = 0
    private lib: RenderLib
-@@ -1168,6 +1192,207 @@ export class CliRenderer extends EventEmitter implements RenderContext {
+@@ -1168,6 +1192,208 @@ export class CliRenderer extends EventEmitter implements RenderContext {
    private frameCount: number = 0
    // Bumped once per loop() iteration; see RenderContext.frameId.
    private _frameId: number = 0
@@ -330,13 +330,14 @@ index 01655e0..7b69954 100644
 +    await session.beginFrameOutput()
 +    this._isFramePlanPass = true
 +    let complete = false
-+    const sync = this.lib.sessionFrameSyncEnabled(session.context, session.session)
++    let sync = false
 +    const write = (bytes?: Uint8Array) => {
 +      if (!bytes?.length) return
 +      validate(bytes)
 +      if (!session.write(bytes)) throw new Error("Frame commands met output backpressure")
 +    }
 +    try {
++      sync = this.lib.sessionFrameSyncEnabled(session.context, session.session)
 +      if (sync && !session.write(SYNC_SET)) return "retryable-skip"
 +      this.lib.sessionSetFrameSync(session.context, session.session, 1)
 +      write(plan.before)
@@ -401,7 +402,7 @@ index 01655e0..7b69954 100644
    private lastFpsTime: number = 0
    private currentFps: number = 0
    private targetFrameTime: number = 1000 / this._targetFps
-@@ -1898,6 +2123,7 @@ export class CliRenderer extends EventEmitter implements RenderContext {
+@@ -1898,6 +2124,7 @@ export class CliRenderer extends EventEmitter implements RenderContext {
    }
  
    public requestRender() {
@@ -409,7 +410,7 @@ index 01655e0..7b69954 100644
      if (this._isDestroyed || this._controlState === RendererControlState.EXPLICIT_SUSPENDED) {
        return
      }
-@@ -3810,6 +4036,7 @@ export class CliRenderer extends EventEmitter implements RenderContext {
+@@ -3810,6 +4037,7 @@ export class CliRenderer extends EventEmitter implements RenderContext {
          this._keyHandler.processParsedKey(event.key)
          return
        case "mouse":
@@ -417,7 +418,7 @@ index 01655e0..7b69954 100644
          if (this._useMouse && this.processSingleMouseEvent(event.event)) {
            return
          }
-@@ -3936,7 +4163,11 @@ export class CliRenderer extends EventEmitter implements RenderContext {
+@@ -3936,7 +4164,11 @@ export class CliRenderer extends EventEmitter implements RenderContext {
      }
    }
  
@@ -430,7 +431,7 @@ index 01655e0..7b69954 100644
      // A left drag belongs to the node that got the left press: the first motion report can already be past it.
      // Every left down or up ends the record, also one that returns early; other events keep it.
      const pressed = this.pressedRenderable
-@@ -3969,7 +4200,7 @@ export class CliRenderer extends EventEmitter implements RenderContext {
+@@ -3969,7 +4201,7 @@ export class CliRenderer extends EventEmitter implements RenderContext {
      }
  
      if (mouseEvent.type === "scroll") {
@@ -439,7 +440,7 @@ index 01655e0..7b69954 100644
        const maybeRenderable = Renderable.renderablesByNumber.get(maybeRenderableId)
        const fallbackTarget =
          this._currentFocusedRenderable &&
-@@ -3986,7 +4217,7 @@ export class CliRenderer extends EventEmitter implements RenderContext {
+@@ -3986,7 +4218,7 @@ export class CliRenderer extends EventEmitter implements RenderContext {
        return true
      }
  
@@ -448,7 +449,7 @@ index 01655e0..7b69954 100644
      const sameElement = maybeRenderableId === this.lastOverRenderableNum
      this.lastOverRenderableNum = maybeRenderableId
      const maybeRenderable = Renderable.renderablesByNumber.get(maybeRenderableId)
-@@ -4175,7 +4406,10 @@ export class CliRenderer extends EventEmitter implements RenderContext {
+@@ -4175,7 +4407,10 @@ export class CliRenderer extends EventEmitter implements RenderContext {
    }
  
    public hitTest(x: number, y: number): number {
@@ -460,7 +461,7 @@ index 01655e0..7b69954 100644
    }
  
    private takeMemorySnapshot(): void {
-@@ -5237,6 +5471,7 @@ export class CliRenderer extends EventEmitter implements RenderContext {
+@@ -5237,6 +5472,7 @@ export class CliRenderer extends EventEmitter implements RenderContext {
          return
        // Bump before any work so all callers this iteration see the new id.
        this._frameId++
@@ -468,7 +469,7 @@ index 01655e0..7b69954 100644
  
        const now = this.normalizeClockTime(this.clock.now(), this.lastTime)
        const elapsed = this.getElapsedMs(now, this.lastTime)
-@@ -5288,6 +5523,14 @@ export class CliRenderer extends EventEmitter implements RenderContext {
+@@ -5288,6 +5524,14 @@ export class CliRenderer extends EventEmitter implements RenderContext {
        // Callbacks can start terminal setup; a frame step is invalid until it settles.
        if (this.nativeTerminalTransition && !(await this.waitForTerminalTransition())) return
        if (!this.canRender || this.currentControlState === RendererControlState.EXPLICIT_SUSPENDED) return
@@ -483,7 +484,7 @@ index 01655e0..7b69954 100644
        const sceneStart = performance.now()
        const requestedBeforeScene = this.immediateRerenderRequested
        try {
-@@ -5320,7 +5563,9 @@ export class CliRenderer extends EventEmitter implements RenderContext {
+@@ -5320,7 +5564,9 @@ export class CliRenderer extends EventEmitter implements RenderContext {
  
        // If destroy() was requested during this frame, skip native work and scheduling.
        if (this.canRender && !this.nativeSplitFlush) {
@@ -494,7 +495,7 @@ index 01655e0..7b69954 100644
          if (!this.canRender || this.currentControlState === RendererControlState.EXPLICIT_SUSPENDED) return
          if (nativeStatus === "rendered") this.frameCount++
          if (this.getElapsedMs(now, this.lastFpsTime) >= 1000) {
-@@ -5332,7 +5577,7 @@ export class CliRenderer extends EventEmitter implements RenderContext {
+@@ -5332,7 +5578,7 @@ export class CliRenderer extends EventEmitter implements RenderContext {
  
          if (nativeStatus === "rendered") {
            // The presented frame's hits may have moved under the pointer.
@@ -503,7 +504,7 @@ index 01655e0..7b69954 100644
              this.recheckHoverState()
            }
            if (!this.canRender) return
-@@ -5398,22 +5643,27 @@ export class CliRenderer extends EventEmitter implements RenderContext {
+@@ -5398,22 +5644,27 @@ export class CliRenderer extends EventEmitter implements RenderContext {
        const completion = this.renderingCompletion
        this.renderingCompletion = null
        try {
@@ -1708,10 +1709,10 @@ index ea61a58..cb4b4c7 100644
      assert(ot_scene_get_layout(context, &box, OT_LAYOUT_PUBLIC, &layout) == OT_OK);
      assert(layout.width == 4 && layout.height == 2);
 diff --git a/packages/native/src/tests/scene_frame_test.zig b/packages/native/src/tests/scene_frame_test.zig
-index 05b0e37..eb14e1b 100644
+index 05b0e37..d3ecf41 100644
 --- a/packages/native/src/tests/scene_frame_test.zig
 +++ b/packages/native/src/tests/scene_frame_test.zig
-@@ -2855,3 +2855,101 @@ test "Scene viewport inside a culled row filters as the full walk does" {
+@@ -2855,3 +2855,145 @@ test "Scene viewport inside a culled row filters as the full walk does" {
      }
      try twins[0].expectSameCells(twins[1]);
  }
@@ -1810,6 +1811,50 @@ index 05b0e37..eb14e1b 100644
 +                    try testing.expectEqual(enabled and !external, std.mem.indexOf(u8, bytes[0..count], "\x1b[?2026l") != null);
 +                }
 +            }
++        }
++    }
++}
++
++test "Pixel bar hits keep capture eligibility through retained and banded paint" {
++    for ([_]bool{ false, true }) |overlay| {
++        const f = try Fixture.init(testing.allocator, 6, 4, .{});
++        defer f.deinit();
++        const box = try f.owner.sceneCreateNode(f.id, c.OT_SCENE_BOX, 42);
++        try f.owner.sceneSetStyle(box, c.OT_STYLE_DIMENSION, 0, 0, c.OT_UNIT_POINT, 6, 1);
++        try f.owner.sceneSetStyle(box, c.OT_STYLE_DIMENSION, 1, 0, c.OT_UNIT_POINT, 4, 1);
++        try f.owner.sceneMoveNode(box, f.root, 0);
++        try f.owner.sceneSetScroll(box, .{ .bars = .{ .{}, .{ .arrows = true, .overlay = overlay } } });
++        try f.owner.sceneSetDebugFlags(f.id, c.OT_SCENE_DEBUG_VERIFY);
++        var rows: [10]context.Handle = undefined;
++        for (&rows, 0..) |*row, index| {
++            row.* = try f.owner.sceneCreateNode(f.id, c.OT_SCENE_TEXT, @intCast(100 + index));
++            try f.owner.sceneSetText(row.*, "xxxxxx");
++            try f.owner.sceneSetTextOptions(row.*, .{ .wrap_mode = .none });
++            try f.owner.sceneMoveNode(row.*, box, @intCast(index));
++        }
++        var expected: [24]u32 = undefined;
++        for (0..3) |pass| {
++            if (pass == 2) try f.owner.sceneSetPaint(rows[1], .{ .foreground = .{ 250, 0, 0, 255 } });
++            try @import("scene_fixture_test.zig").repaint(f.owner, f.id, options.background, true, 42);
++            var ordinary: [24]u32 = undefined;
++            var drop: [24]u32 = undefined;
++            try f.owner.sceneCopyHits(f.id, 1, &ordinary);
++            try f.owner.sceneCopyHits(f.id, 3, &drop);
++            try testing.expectEqual(@as(u32, 42), ordinary[11]);
++            try testing.expect(drop[11] != 42);
++            var bar_and_body: usize = 0;
++            const token = (try f.owner.raw().getRenderable(box)).scene_node.?.token;
++            for (f.state.hits.items) |hit| {
++                if (hit.token == token) {
++                    bar_and_body += 1;
++                    try testing.expect(!hit.drop);
++                }
++            }
++            try testing.expectEqual(@as(usize, 2), bar_and_body);
++            if (pass == 0) expected = ordinary else try testing.expectEqualSlices(u32, &expected, &ordinary);
++            if (pass == 1) try testing.expectEqual(@as(u32, 0), f.state.frame_work.members_painted);
++            _ = try @import("scene_fixture_test.zig").present(f.owner, f.id, false);
++            try drain(f.owner, f.id);
 +        }
 +    }
 +}

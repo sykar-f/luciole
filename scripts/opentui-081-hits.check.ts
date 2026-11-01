@@ -111,13 +111,17 @@ test(
       onlyFiles: true,
     }))
       discovered.push(file);
-    const files = discovered
-      .filter((file) =>
+    const files: string[] = [];
+    for (const file of discovered.sort()) {
+      const named =
         /\/(?:renderer\.[^/]+|native-session(?:\.sim)?|native-detached-session|native-scene-buffer|scene-observation-cache|pixel-seams|Timeline\.renderer|test-renderer\.wait|native-abi)\.test\.ts$/.test(
           file,
-        ),
-      )
-      .sort();
+        );
+      const caller = /NativeSession|CliRenderer|nativeScene/.test(
+        await Bun.file(join(checkout, file)).text(),
+      );
+      if (named || caller) files.push(file);
+    }
     expect(files.length).toBeGreaterThan(45);
     // Each path is explicit and printed, including the patch's ported seam tests.
     await run([process.execPath, "test", "--timeout", "20000", ...files]);
