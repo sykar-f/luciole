@@ -17,19 +17,27 @@ index 55571b8..5084a2a 100644
    ot_session_read_output: { 0: context, 1: buffer, 2: empty, 4: buffer },
    ot_session_drain_output: {
 diff --git a/packages/core/src/NativeScene.ts b/packages/core/src/NativeScene.ts
-index 4fed49d..6d36d2d 100644
+index 4fed49d..3f9aaf1 100644
 --- a/packages/core/src/NativeScene.ts
 +++ b/packages/core/src/NativeScene.ts
-@@ -379,9 +379,9 @@ export class NativeScene {
+@@ -374,14 +374,17 @@ export class NativeScene {
+ 
+   /** @internal Partial visual writes stage before requested wrapper state is published.
+    * Border appearance and Yoga widths are accepted atomically by native. */
+-  setPaint(renderable: Renderable, paint: NativeScenePaintUpdate): void {
++  setPaint(renderable: Renderable, paint: NativeScenePaintUpdate, invalidateLayoutReads = false): void {
+     this.yogaHost.assertMutable()
      const handle = renderable._getSceneHandle(this)
      if (this.staging.full) this.flushStaged()
      if (this.staging.stagePaint(this.driver.context, handle, paint, renderable)) this.yogaHost.stageScene(this)
 -    // Of paint, only a translation moves layout reads. Constructors send the current values.
--    const { translateX = renderable.translateX, translateY = renderable.translateY } = paint
++    // A projection restore can equal the unchanged wrapper value while cached
++    // observations still describe its override. Ordinary constructor writes keep
++    // their existing no-invalidation behavior.
+     const { translateX = renderable.translateX, translateY = renderable.translateY } = paint
 -    if (translateX !== renderable.translateX || translateY !== renderable.translateY) this.changeLayout()
-+    // Explicit translations may restore a paint-only override to the wrapper's
-+    // unchanged value. Invalidate reads on both entry and restoration.
-+    if (paint.translateX !== undefined || paint.translateY !== undefined) this.changeLayout()
++    if (invalidateLayoutReads || translateX !== renderable.translateX || translateY !== renderable.translateY)
++      this.changeLayout()
    }
  
    setBackground(renderable: Renderable, color: RGBA): void {
@@ -178,7 +186,7 @@ index 792bfbf..b9f2005 100644
    ot_session_drain_output: { args: ["ptr", "buffer", "u32", "buffer", "ptr", "ptr"], returns: "i32" },
    ot_session_drain_stdout: { args: ["ptr", "buffer", "u32", "buffer"], returns: "i32" },
 diff --git a/packages/core/src/renderer.ts b/packages/core/src/renderer.ts
-index 01655e0..35fc73c 100644
+index 01655e0..e213a39 100644
 --- a/packages/core/src/renderer.ts
 +++ b/packages/core/src/renderer.ts
 @@ -1087,6 +1087,30 @@ interface AnimationTicker {
@@ -392,7 +400,7 @@ index 01655e0..35fc73c 100644
 +        status = await this.presentNativeScene()
 +        if (status === "rendered") projection.onHitMap?.(projected)
 +      } finally {
-+        this.nativeScene.setPaint(target, saved)
++        this.nativeScene.setPaint(target, saved, true)
 +      }
 +      validatePlan()
 +      write(projection.after)
@@ -500,8 +508,8 @@ index 01655e0..35fc73c 100644
 +      // Staging the new plan then starts synchronously and cannot freeze input on a sink.
 +      if (this.framePlan && this._splitHeight === 0) {
 +        await this.nativeSession.idle()
-+        // Canonical painting can yield too. Its cells and the following plan
-+        // must describe the same logical input state.
++        // Defer input through canonical paint and the following plan so their
++        // captured cells describe the same logical input state.
 +        this._isFramePlanPass = true
 +      }
        const sceneStart = performance.now()
