@@ -36,7 +36,9 @@ reste entière. Le descripteur `{ renderable: boîte, scrollContent: true, origi
 ne déplace que le contenu pendant la passe de peinture : viewport et barres
 restent fixes. Les hits des barres identifient la boîte propriétaire. Les passes
 invalident la préparation et les données retenues incompatibles, puis restaurent
-l'observation canonique. Les versions actives restent à 0.6.8 ; la bascule des
+l'observation canonique, y compris pour une projection générique de la boîte
+ou d'un ancêtre, après succès comme après abandon. Les versions actives
+restent à 0.6.8 ; la bascule des
 versions activera ce port complet.
 
 La preuve sélectionnée est `orch test run scripts/opentui-081-hits.check.ts` :
