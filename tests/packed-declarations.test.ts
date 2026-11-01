@@ -1,5 +1,14 @@
 import { afterAll, expect, test } from "bun:test";
-import { cpSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import {
+  cpSync,
+  linkSync,
+  mkdirSync,
+  mkdtempSync,
+  rmSync,
+  symlinkSync,
+  unlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { checkCoreTypes } from "../scripts/pack-check";
@@ -70,10 +79,19 @@ test("packed core resolves every entry to declarations in a strict consumer", as
   cpSync("tests/fixtures/strict-consumer/app", join(consumer, "app"), { recursive: true });
   cpSync("tests/fixtures/strict-consumer/index.ts", join(consumer, "index.ts"));
   // If TypeScript follows runtime targets, this implementation error must fail the check.
+  const implementation = join(consumer, "node_modules/@luciole-sh/core/src/server.ts");
+  const shared = join(temp, "shared-server.ts");
+  const original = await Bun.file(implementation).text();
+  // Model Bun's Linux install: another installation and its cache share this inode.
+  linkSync(implementation, shared);
+  // Replace our directory entry before writing: truncating a hard link would poison
+  // Bun's cache and every consumer sharing it (macOS clones hide that mistake).
+  unlinkSync(implementation);
   writeFileSync(
-    join(consumer, "node_modules/@luciole-sh/core/src/server.ts"),
+    implementation,
     "const mustNotBeChecked: string = 42;\nexport { mustNotBeChecked };\n",
   );
+  expect(await Bun.file(shared).text()).toBe(original);
   const resolved: string[] = [];
   expect(await checkCoreTypes(consumer, (line) => resolved.push(line))).toEqual([]);
   expect(resolved).toHaveLength(13);
