@@ -16,14 +16,15 @@ import { COMPILE_TARGETS, type CompileTarget, defaultCache, hostTarget } from ".
 import {
   OPENTUI_TAG,
   OPENTUI_REPOSITORY,
-  PIXEL_SCROLL_PATCH,
   prepareOpenTuiCheckout,
   buildOpenTuiLibrary,
   publishRuntimeEntry,
   checkZig,
+  openTuiZigVersion,
+  nativePatches,
+  type OpenTuiTag,
 } from "./opentui-runtime";
 
-const ZIG_VERSION = "0.16.0";
 const LAYOUT_VERSION = 1;
 const HASH_PREFIX = 16;
 const MANIFEST = "native-runtime.json";
@@ -86,25 +87,30 @@ const digest = (value: string | Buffer) => createHash("sha256").update(value).di
 /** Ordered patch digests preserve byte and order changes without framework invalidations. */
 export function nativeRuntimeIdentity(
   target: string,
-  patches: readonly Buffer[] = [readFileSync(PIXEL_SCROLL_PATCH)],
+  patches?: readonly Buffer[],
+  tag: OpenTuiTag = OPENTUI_TAG,
 ) {
   const selected = checkedTarget(target);
   return {
     layout: LAYOUT_VERSION,
-    tag: OPENTUI_TAG,
-    patches: patches.map(digest),
-    zigVersion: ZIG_VERSION,
+    tag,
+    patches: (patches ?? nativePatches(tag).map((patch) => readFileSync(patch))).map(digest),
+    zigVersion: openTuiZigVersion(tag),
     target: selected,
     zigTarget: NATIVE_TARGETS[selected].zig,
     libc: NATIVE_TARGETS[selected].libc,
   };
 }
 
-export function nativeRuntimeDirectory(target = hostTarget(), cache = defaultCache()) {
+export function nativeRuntimeDirectory(
+  target = hostTarget(),
+  cache = defaultCache(),
+  tag: OpenTuiTag = OPENTUI_TAG,
+) {
   return join(
     cache,
     "native",
-    `${target}-${digest(JSON.stringify(nativeRuntimeIdentity(target))).slice(0, HASH_PREFIX)}`,
+    `${target}-${digest(JSON.stringify(nativeRuntimeIdentity(target, undefined, tag))).slice(0, HASH_PREFIX)}`,
   );
 }
 
@@ -121,8 +127,12 @@ const Manifest = z.object({
 });
 
 /** Validate provenance and every staged file; requires neither Zig nor a source checkout. */
-export function nativeRuntimeComplete(directory: string, target = hostTarget()) {
-  const identity = nativeRuntimeIdentity(target);
+export function nativeRuntimeComplete(
+  directory: string,
+  target = hostTarget(),
+  tag: OpenTuiTag = OPENTUI_TAG,
+) {
+  const identity = nativeRuntimeIdentity(target, undefined, tag);
   try {
     const manifest = Manifest.parse(JSON.parse(readFileSync(join(directory, MANIFEST), "utf8")));
     const { tree, files, ...recorded } = manifest;
@@ -163,9 +173,13 @@ export function nativeRuntimeComplete(directory: string, target = hostTarget()) 
 }
 
 /** The compiler can discover a complete entry without preparing or invoking any tool. */
-export function findNativeRuntime(target = hostTarget(), cache = defaultCache()) {
-  const directory = nativeRuntimeDirectory(target, cache);
-  return nativeRuntimeComplete(directory, target) ? directory : undefined;
+export function findNativeRuntime(
+  target = hostTarget(),
+  cache = defaultCache(),
+  tag: OpenTuiTag = OPENTUI_TAG,
+) {
+  const directory = nativeRuntimeDirectory(target, cache, tag);
+  return nativeRuntimeComplete(directory, target, tag) ? directory : undefined;
 }
 
 async function run(command: string[], cwd: string, env: NodeJS.ProcessEnv) {
@@ -185,17 +199,19 @@ export function prepareNativeRuntimeEntry({
   build,
   sourceTree,
   waiting,
+  tag = OPENTUI_TAG,
 }: {
   target?: string;
   cache?: string;
   build: (temporary: string) => Promise<void>;
   sourceTree: () => string;
   waiting?: () => void;
+  tag?: OpenTuiTag;
 }) {
-  const directory = nativeRuntimeDirectory(target, cache);
-  const identity = nativeRuntimeIdentity(target);
-  const checkout = nativeCheckoutDirectory(cache);
-  const complete = (path: string) => nativeRuntimeComplete(path, target);
+  const directory = nativeRuntimeDirectory(target, cache, tag);
+  const identity = nativeRuntimeIdentity(target, undefined, tag);
+  const checkout = nativeCheckoutDirectory(cache, tag);
+  const complete = (path: string) => nativeRuntimeComplete(path, target, tag);
   let tree = "";
   return publishRuntimeEntry({
     directory,
@@ -223,11 +239,11 @@ export function prepareNativeRuntimeEntry({
   });
 }
 
-function nativeCheckoutDirectory(cache: string) {
+function nativeCheckoutDirectory(cache: string, tag: OpenTuiTag) {
   return join(
     cache,
     "native",
-    `opentui-${OPENTUI_TAG}-${ZIG_VERSION}-${digest(readFileSync(PIXEL_SCROLL_PATCH)).slice(0, HASH_PREFIX)}`,
+    `opentui-${tag}-${openTuiZigVersion(tag)}-${digest(Buffer.concat(nativePatches(tag).map((patch) => readFileSync(patch)))).slice(0, HASH_PREFIX)}`,
   );
 }
 
@@ -236,22 +252,22 @@ export async function prepareNativeRuntime({
   target = hostTarget(),
   cache = defaultCache(),
   zig = process.env["ZIG"] ?? "zig",
-}: { target?: string; cache?: string; zig?: string } = {}) {
+  tag = OPENTUI_TAG,
+}: { target?: string; cache?: string; zig?: string; tag?: OpenTuiTag } = {}) {
   const selected = checkedTarget(target);
   const configuration = NATIVE_TARGETS[selected];
-  const checkout = nativeCheckoutDirectory(cache);
+  const checkout = nativeCheckoutDirectory(cache, tag);
   let tree = "";
   return prepareNativeRuntimeEntry({
     target,
     cache,
+    tag,
     sourceTree: () =>
-      (tree = prepareOpenTuiCheckout(checkout, OPENTUI_REPOSITORY, OPENTUI_TAG, [
-        PIXEL_SCROLL_PATCH,
-      ])),
+      (tree = prepareOpenTuiCheckout(checkout, OPENTUI_REPOSITORY, tag, nativePatches(tag))),
     waiting: () =>
       console.error(`luciole native-runtime: waiting for another preparation of ${target}`),
     async build(temporary) {
-      checkZig(zig, "native runtime");
+      checkZig(zig, "native runtime", openTuiZigVersion(tag));
       // Upstream's ABI/distribution scripts invoke `zig` by name. Honor ZIG there too.
       const toolchain = join(temporary, ".toolchain");
       mkdirSync(toolchain);
@@ -276,6 +292,7 @@ export async function prepareNativeRuntime({
         ),
         options: [`-Dlibrary-target=${configuration.zig}`, "-Doptimize=ReleaseFast"],
         runtime: "native runtime",
+        tag,
         env,
       });
       const core = join(checkout, "packages/core");

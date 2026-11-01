@@ -239,3 +239,24 @@ test("concurrent processes publish once and reuse the entry after waiting", asyn
   expect(readFileSync(started, "utf8")).toBe("build\n");
   expect(findNativeRuntime("bun-darwin-arm64", cache)).toBeDefined();
 }, 15000);
+
+test("0.8.1 preparation has a separate toolchain and leaves the 0.6.8 identity intact", () => {
+  const target = "bun-darwin-arm64";
+  const active = nativeRuntimeIdentity(target);
+  const next = nativeRuntimeIdentity(target, undefined, "v0.8.1");
+  expect(next).toEqual({
+    layout: 1,
+    tag: "v0.8.1",
+    patches: [],
+    zigVersion: "0.17.0",
+    target,
+    zigTarget: "aarch64-macos.13.0",
+    libc: "system",
+  });
+  expect(active.tag).toBe("v0.6.8");
+  expect(active.zigVersion).toBe("0.16.0");
+  expect(active.patches).toHaveLength(1);
+  expect(nativeRuntimeDirectory(target, "/cache")).not.toBe(
+    nativeRuntimeDirectory(target, "/cache", "v0.8.1"),
+  );
+});

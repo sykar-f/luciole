@@ -59,6 +59,7 @@ export function prepareOpenTui(
     artifact: join(checkout, "packages/native/lib/wasm32-wasi/opentui.wasm"),
     options: ["-Dlibrary-target=wasm32-wasi", "-Doptimize=ReleaseSmall"],
     runtime: "web runtime",
+    tag,
   });
 }
 

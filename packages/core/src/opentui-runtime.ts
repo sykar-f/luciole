@@ -14,7 +14,7 @@ import { Database, SQLiteError } from "bun:sqlite";
 import { ABI_PACKAGES } from "./abi";
 import { isCode } from "./launcher/lock";
 
-export const OPENTUI_TAG = `v${ABI_PACKAGES["@opentui/core"]}`;
+export const OPENTUI_TAG = `v${ABI_PACKAGES["@opentui/core"]}` as const;
 export const OPENTUI_REPOSITORY = "https://github.com/anomalyco/opentui";
 export const OPENTUI_PATCH = resolve(import.meta.dir, `../web/opentui-${OPENTUI_TAG}.patch`);
 export const PIXEL_SCROLL_PATCH = resolve(
@@ -22,7 +22,15 @@ export const PIXEL_SCROLL_PATCH = resolve(
   `../web/opentui-${OPENTUI_TAG}-pixel-scroll.patch`,
 );
 
-const ZIG_VERSION = "0.16.0";
+export const OPENTUI_ZIG_VERSIONS = { "v0.6.8": "0.16.0", "v0.8.1": "0.17.0" } as const;
+export type OpenTuiTag = keyof typeof OPENTUI_ZIG_VERSIONS;
+export function openTuiZigVersion(tag: string = OPENTUI_TAG) {
+  return tag === "v0.8.1" ? OPENTUI_ZIG_VERSIONS[tag] : OPENTUI_ZIG_VERSIONS["v0.6.8"];
+}
+/** The 0.8.1 pixel port is prepared separately before activation. */
+export function nativePatches(tag: OpenTuiTag): string[] {
+  return tag === "v0.6.8" ? [PIXEL_SCROLL_PATCH] : [];
+}
 const LOCK_POLL_MS = 25;
 
 function run(command: readonly string[], cwd: string, quiet = false, env?: NodeJS.ProcessEnv) {
@@ -37,12 +45,12 @@ function run(command: readonly string[], cwd: string, quiet = false, env?: NodeJ
     throw new Error(`${command.join(" ")} failed (${result.exitCode})`);
   }
 }
-export function checkZig(zig: string, runtime: string) {
+export function checkZig(zig: string, runtime: string, expected = openTuiZigVersion()) {
   const version = Bun.spawnSync([zig, "version"], { stdout: "pipe", stderr: "ignore" });
   const found = version.exitCode === 0 ? version.stdout.toString().trim() : undefined;
-  if (found !== ZIG_VERSION)
+  if (found !== expected)
     throw new Error(
-      `The ${runtime} builds OpenTUI's core with Zig ${ZIG_VERSION}; ${found ? `${zig} is ${found}` : `${zig} was not found`}. Set ZIG to a Zig ${ZIG_VERSION} executable.`,
+      `The ${runtime} builds OpenTUI's core with Zig ${expected}; ${found ? `${zig} is ${found}` : `${zig} was not found`}. Set ZIG to a Zig ${expected} executable.`,
     );
 }
 
@@ -80,7 +88,7 @@ function patchedSourceTree(checkout: string, tag: string, patches: readonly stri
 export function prepareOpenTuiCheckout(
   checkout: string,
   repository = OPENTUI_REPOSITORY,
-  tag = OPENTUI_TAG,
+  tag: string = OPENTUI_TAG,
   patches: readonly string[] = [],
 ) {
   mkdirSync(dirname(checkout), { recursive: true });
@@ -116,6 +124,7 @@ export function buildOpenTuiLibrary({
   options,
   runtime,
   env,
+  tag = OPENTUI_TAG,
 }: {
   checkout: string;
   zig: string;
@@ -124,11 +133,12 @@ export function buildOpenTuiLibrary({
   options: readonly string[];
   runtime: string;
   env?: NodeJS.ProcessEnv;
+  tag?: string;
 }) {
   const native = join(checkout, "packages/native");
   const record = `${artifact}.source-tree`;
   if (existsSync(artifact) && readSourceTree(record) === tree) return artifact;
-  checkZig(zig, runtime);
+  checkZig(zig, runtime, openTuiZigVersion(tag));
   // A failed rebuild cannot leave a previously accepted provenance record.
   rmSync(record, { force: true });
   rmSync(artifact, { force: true });

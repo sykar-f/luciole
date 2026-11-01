@@ -554,6 +554,23 @@ exceptions C++, interrompt le module sur un `bad_alloc` au lieu de retourner
 vérifie les cellules, le texte modifié sur plusieurs frames et une croissance
 mémoire dans la même session.
 
+La préparation de la migration 0.8.1 reste indépendante des versions actives.
+`prepareOpenTui(checkout, zig, { tag: "v0.8.1", patch })` utilise
+`web/opentui-v0.8.1.patch` et Zig 0.17.0 ;
+`prepareNativeRuntime({ tag: "v0.8.1", zig })` prépare la bibliothèque native
+et son JavaScript dans une entrée distincte. Les layouts ABI sont générés depuis
+ces sources, sans réutiliser ceux de 0.6.8. Le port pixel 0.8.1 est préparé
+séparément : ces runtimes ne l'incluent pas encore. Les commandes publiques et
+les clés de cache natives et OpenTUI 0.6.8 gardent leurs valeurs actuelles.
+
+Les contrôles explicites `scripts/web/opentui-081-wasm.check.ts` et
+`scripts/web/opentui-081-native.check.ts` demandent Zig 0.17.0 et le réseau ;
+le premier demande aussi Chrome et vérifie cellules, couleurs, mesure et
+croissance mémoire. Les exécuter séparément, avec `ZIG` pointant vers le bon
+exécutable. Le navigateur ne fournit pas de lecteur vidéo. La bibliothèque
+native est construite sans `-Drequire-video` : sans préfixe FFmpeg compatible,
+les opérations vidéo restent indisponibles.
+
 **R1 — OpenTUI en WASM : le modèle mémoire.** Upstream n'a ni cible wasm
 (`packages/native/build.zig` : Linux, macOS, Windows) ni paquet web, et s'en est éloigné
 (Yoga intégré au binaire, roadmap #821). Mesure initiale avant le passage à l’ABI C, sources extraites des
