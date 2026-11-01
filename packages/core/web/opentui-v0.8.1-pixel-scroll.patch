@@ -159,7 +159,7 @@ index 792bfbf..1c519d0 100644
    ot_session_drain_output: { args: ["ptr", "buffer", "u32", "buffer", "ptr", "ptr"], returns: "i32" },
    ot_session_drain_stdout: { args: ["ptr", "buffer", "u32", "buffer"], returns: "i32" },
 diff --git a/packages/core/src/renderer.ts b/packages/core/src/renderer.ts
-index 01655e0..c99eb51 100644
+index 01655e0..2660a45 100644
 --- a/packages/core/src/renderer.ts
 +++ b/packages/core/src/renderer.ts
 @@ -1087,6 +1087,30 @@ interface AnimationTicker {
@@ -193,7 +193,7 @@ index 01655e0..c99eb51 100644
  export class CliRenderer extends EventEmitter implements RenderContext {
    private static animationFrameId = 0
    private lib: RenderLib
-@@ -1168,6 +1192,208 @@ export class CliRenderer extends EventEmitter implements RenderContext {
+@@ -1168,6 +1192,211 @@ export class CliRenderer extends EventEmitter implements RenderContext {
    private frameCount: number = 0
    // Bumped once per loop() iteration; see RenderContext.frameId.
    private _frameId: number = 0
@@ -383,8 +383,11 @@ index 01655e0..c99eb51 100644
 +      this._isProjectionPass = false
 +      this._projection = null
 +      try {
-+        if (sync) session.write(SYNC_RESET)
-+        this.lib.sessionSetFrameSync(session.context, session.session, 0)
++        try {
++          if (sync) while (!session.write(SYNC_RESET)) await session.idle()
++        } finally {
++          this.lib.sessionSetFrameSync(session.context, session.session, 0)
++        }
 +      } finally {
 +        try {
 +          // Geometry is canonical now. Input must resume before the real sink can stall.
@@ -402,7 +405,7 @@ index 01655e0..c99eb51 100644
    private lastFpsTime: number = 0
    private currentFps: number = 0
    private targetFrameTime: number = 1000 / this._targetFps
-@@ -1898,6 +2124,7 @@ export class CliRenderer extends EventEmitter implements RenderContext {
+@@ -1898,6 +2127,7 @@ export class CliRenderer extends EventEmitter implements RenderContext {
    }
  
    public requestRender() {
@@ -410,7 +413,7 @@ index 01655e0..c99eb51 100644
      if (this._isDestroyed || this._controlState === RendererControlState.EXPLICIT_SUSPENDED) {
        return
      }
-@@ -3810,6 +4037,7 @@ export class CliRenderer extends EventEmitter implements RenderContext {
+@@ -3810,6 +4040,7 @@ export class CliRenderer extends EventEmitter implements RenderContext {
          this._keyHandler.processParsedKey(event.key)
          return
        case "mouse":
@@ -418,7 +421,7 @@ index 01655e0..c99eb51 100644
          if (this._useMouse && this.processSingleMouseEvent(event.event)) {
            return
          }
-@@ -3936,7 +4164,11 @@ export class CliRenderer extends EventEmitter implements RenderContext {
+@@ -3936,7 +4167,11 @@ export class CliRenderer extends EventEmitter implements RenderContext {
      }
    }
  
@@ -431,7 +434,7 @@ index 01655e0..c99eb51 100644
      // A left drag belongs to the node that got the left press: the first motion report can already be past it.
      // Every left down or up ends the record, also one that returns early; other events keep it.
      const pressed = this.pressedRenderable
-@@ -3969,7 +4201,7 @@ export class CliRenderer extends EventEmitter implements RenderContext {
+@@ -3969,7 +4204,7 @@ export class CliRenderer extends EventEmitter implements RenderContext {
      }
  
      if (mouseEvent.type === "scroll") {
@@ -440,7 +443,7 @@ index 01655e0..c99eb51 100644
        const maybeRenderable = Renderable.renderablesByNumber.get(maybeRenderableId)
        const fallbackTarget =
          this._currentFocusedRenderable &&
-@@ -3986,7 +4218,7 @@ export class CliRenderer extends EventEmitter implements RenderContext {
+@@ -3986,7 +4221,7 @@ export class CliRenderer extends EventEmitter implements RenderContext {
        return true
      }
  
@@ -449,7 +452,7 @@ index 01655e0..c99eb51 100644
      const sameElement = maybeRenderableId === this.lastOverRenderableNum
      this.lastOverRenderableNum = maybeRenderableId
      const maybeRenderable = Renderable.renderablesByNumber.get(maybeRenderableId)
-@@ -4175,7 +4407,10 @@ export class CliRenderer extends EventEmitter implements RenderContext {
+@@ -4175,7 +4410,10 @@ export class CliRenderer extends EventEmitter implements RenderContext {
    }
  
    public hitTest(x: number, y: number): number {
@@ -461,7 +464,7 @@ index 01655e0..c99eb51 100644
    }
  
    private takeMemorySnapshot(): void {
-@@ -5237,6 +5472,7 @@ export class CliRenderer extends EventEmitter implements RenderContext {
+@@ -5237,6 +5475,7 @@ export class CliRenderer extends EventEmitter implements RenderContext {
          return
        // Bump before any work so all callers this iteration see the new id.
        this._frameId++
@@ -469,7 +472,7 @@ index 01655e0..c99eb51 100644
  
        const now = this.normalizeClockTime(this.clock.now(), this.lastTime)
        const elapsed = this.getElapsedMs(now, this.lastTime)
-@@ -5288,6 +5524,14 @@ export class CliRenderer extends EventEmitter implements RenderContext {
+@@ -5288,6 +5527,14 @@ export class CliRenderer extends EventEmitter implements RenderContext {
        // Callbacks can start terminal setup; a frame step is invalid until it settles.
        if (this.nativeTerminalTransition && !(await this.waitForTerminalTransition())) return
        if (!this.canRender || this.currentControlState === RendererControlState.EXPLICIT_SUSPENDED) return
@@ -484,7 +487,7 @@ index 01655e0..c99eb51 100644
        const sceneStart = performance.now()
        const requestedBeforeScene = this.immediateRerenderRequested
        try {
-@@ -5320,7 +5564,9 @@ export class CliRenderer extends EventEmitter implements RenderContext {
+@@ -5320,7 +5567,9 @@ export class CliRenderer extends EventEmitter implements RenderContext {
  
        // If destroy() was requested during this frame, skip native work and scheduling.
        if (this.canRender && !this.nativeSplitFlush) {
@@ -495,7 +498,7 @@ index 01655e0..c99eb51 100644
          if (!this.canRender || this.currentControlState === RendererControlState.EXPLICIT_SUSPENDED) return
          if (nativeStatus === "rendered") this.frameCount++
          if (this.getElapsedMs(now, this.lastFpsTime) >= 1000) {
-@@ -5332,7 +5578,7 @@ export class CliRenderer extends EventEmitter implements RenderContext {
+@@ -5332,7 +5581,7 @@ export class CliRenderer extends EventEmitter implements RenderContext {
  
          if (nativeStatus === "rendered") {
            // The presented frame's hits may have moved under the pointer.
@@ -504,7 +507,7 @@ index 01655e0..c99eb51 100644
              this.recheckHoverState()
            }
            if (!this.canRender) return
-@@ -5398,22 +5644,27 @@ export class CliRenderer extends EventEmitter implements RenderContext {
+@@ -5398,22 +5647,27 @@ export class CliRenderer extends EventEmitter implements RenderContext {
        const completion = this.renderingCompletion
        this.renderingCompletion = null
        try {
@@ -590,10 +593,10 @@ index 6519943..b5aa76b 100644
 +})
 diff --git a/packages/core/src/tests/pixel-seams.test.ts b/packages/core/src/tests/pixel-seams.test.ts
 new file mode 100644
-index 0000000..0123dd0
+index 0000000..e0b88a6
 --- /dev/null
 +++ b/packages/core/src/tests/pixel-seams.test.ts
-@@ -0,0 +1,765 @@
+@@ -0,0 +1,795 @@
 +import { expect, spyOn, test } from "bun:test"
 +import { Writable } from "node:stream"
 +import { NativeSession } from "../NativeSession.js"
@@ -1359,6 +1362,36 @@ index 0000000..0123dd0
 +    }
 +  })
 +}
++
++test("the final sync reset retries admission pressure before committing a plan", async () => {
++  const stdout = createTestStdout(8, 2)
++  const chunks: Buffer[] = []
++  stdout._write = (chunk, _encoding, done) => {
++    chunks.push(Buffer.from(chunk))
++    done()
++  }
++  const driver = new NativeSession(stdout)
++  const f = await createTestRenderer({ width: 8, height: 2, stdout, nativeSession: driver, bufferedOutput: "stdout" })
++  const accept = driver.write.bind(driver)
++  let resets = 0
++  const admission = spyOn(driver, "write").mockImplementation((batch) => {
++    if (new TextDecoder().decode(batch) === end && ++resets === 1) return false
++    return accept(batch)
++  })
++  try {
++    f.renderer.setFramePlan(() => ({ before: bytes("planned") }))
++    await f.renderOnce()
++    await f.renderer.idle()
++    expect(resets).toBe(2)
++    const wire = Buffer.concat(chunks).toString()
++    expect(wire).toContain("planned")
++    expect(wire.split(start)).toHaveLength(2)
++    expect(wire.split(end)).toHaveLength(2)
++  } finally {
++    admission.mockRestore()
++    await f.dispose()
++  }
++})
 diff --git a/packages/core/src/zig.ts b/packages/core/src/zig.ts
 index 18a7f06..671b97a 100644
 --- a/packages/core/src/zig.ts
