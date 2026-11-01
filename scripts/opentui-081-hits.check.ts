@@ -10,6 +10,9 @@ const root = resolve(import.meta.dir, "..");
 const scratch = mkdtempSync(join(process.env["TMPDIR"] ?? tmpdir(), "opentui-081-hits-"));
 const checkout = join(scratch, "opentui");
 const native = join(checkout, "packages/native");
+const core = join(checkout, "packages/core");
+const simulation = "src/tests/native-session.sim.test.ts";
+const typeScriptEnv = { OTUI_TREE_SITTER_WORKER_PATH: join(core, "dist/parser.worker.js") };
 const zig = process.env["ZIG"] ?? "zig";
 // Debug native tests include allocator stack traces and can take several minutes.
 const TIMEOUT_MS = 1_800_000;
@@ -28,11 +31,15 @@ function stopGroup(pid: number): void {
   }
 }
 
-async function run(command: string[], cwd = checkout): Promise<void> {
-  console.log(`0.8.1 check: ${command.join(" ")}`);
+async function run(
+  command: string[],
+  cwd = checkout,
+  extraEnv: NodeJS.ProcessEnv = {},
+): Promise<void> {
+  console.log(`0.8.1 check [${cwd}]: ${command.join(" ")}`);
   const child = Bun.spawn(command, {
     cwd,
-    env: { ...process.env, PATH: `${dirname(zig)}:${process.env["PATH"] ?? ""}` },
+    env: { ...process.env, ...extraEnv, PATH: `${dirname(zig)}:${process.env["PATH"] ?? ""}` },
     stdout: "inherit",
     stderr: "inherit",
     detached: true,
@@ -95,16 +102,20 @@ test(
 );
 
 test(
-  "0.8.1 pixel hits: OpenTUI native tests and C ABI",
+  "0.8.1 pixel hits: native tests, C ABI and upstream release library",
   async () => {
     expect(prepared).toBe(true);
     await run([zig, "build", "test", "-Drequire-video", "--summary", "all"], native);
     await run([zig, "build", "test-abi", "-Drequire-video", "--summary", "all"], native);
-    await run([zig, "build", "-Doptimize=Debug", "-Drequire-video"], native);
+    // CI downloads the release library: build-core.yml -> native-bottle.ts ->
+    // core/scripts/build.ts defaults to ReleaseFast. Native unit tests above
+    // retain their upstream default Debug mode.
+    await run([zig, "build", "-Doptimize=ReleaseFast", "-Drequire-video"], native);
     await run(
-      [process.execPath, "scripts/build.ts", "--native", "--skip-zig", "--dev"],
-      join(checkout, "packages/core"),
+      [process.execPath, "scripts/build.ts", "--native", "--skip-zig", "--skip-symbols"],
+      core,
     );
+    await run([process.execPath, "run", "build:lib"], core);
     libraryReady = true;
   },
   TIMEOUT_MS,
@@ -130,11 +141,31 @@ test(
         /NativeSession|CliRenderer|nativeScene|NativeScene|createTestRenderer|translateX|translateY/.test(
           await Bun.file(join(checkout, file)).text(),
         );
-      if (named || caller) files.push(file);
+      if (named || caller) files.push(file.slice("packages/core/".length));
     }
     expect(files.length).toBeGreaterThan(MIN_SELECTED_FILES);
-    // Each path is explicit and printed, including the patch's ported seam tests.
-    await run([process.execPath, "test", "--timeout", "20000", ...files]);
+    expect(files).toContain(simulation);
+    // Match core/package.json test:js: run from Core, with its bunfig.toml
+    // preload and Bun's default per-test timeout (5000 ms; bun test --help).
+    // That preload wakes Bun's setImmediate poll every 10 ms. CI also points
+    // tree-sitter at the built parser worker (build-core.yml).
+    await run(
+      [process.execPath, "test", ...files.filter((file) => file !== simulation)],
+      core,
+      typeScriptEnv,
+    );
+  },
+  TIMEOUT_MS,
+);
+
+// The only selected file defining a live simulate() loop owns process.stdout
+// and render-lib mocks. Keep it in a separate process per mission question 2;
+// upstream's test:js runs it with the same Core preload/default timeout.
+test(
+  "0.8.1 pixel hits: isolated upstream NativeSession simulation",
+  async () => {
+    expect(libraryReady).toBe(true);
+    await run([process.execPath, "test", simulation], core, typeScriptEnv);
   },
   TIMEOUT_MS,
 );
