@@ -1,4 +1,4 @@
-/** Selected proof of the inactive 0.8.1 hit/output port. Run via orch test run.
+/** Selected proof of the inactive 0.8.1 pixel-scroll port. Run via orch test run.
  * Keeps the upstream checkout and logs under TMPDIR for mission cleanup.
  */
 import { expect, test } from "bun:test";
@@ -138,7 +138,7 @@ test(
           file,
         );
       const caller =
-        /NativeSession|CliRenderer|nativeScene|NativeScene|createTestRenderer|translateX|translateY/.test(
+        /NativeSession|CliRenderer|nativeScene|NativeScene|createTestRenderer|translateX|translateY|ScrollBox|ScrollableViewport|scrollOnce|wheelDirection|scrollByWheel|scrollableViewport/.test(
           await Bun.file(join(checkout, file)).text(),
         );
       if (named || caller) files.push(file.slice("packages/core/".length));
