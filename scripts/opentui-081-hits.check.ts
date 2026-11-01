@@ -11,12 +11,14 @@ const scratch = mkdtempSync(join(process.env["TMPDIR"] ?? tmpdir(), "opentui-081
 const checkout = join(scratch, "opentui");
 const native = join(checkout, "packages/native");
 const zig = process.env["ZIG"] ?? "zig";
-const TIMEOUT_MS = 600_000;
+// Debug native tests include allocator stack traces and can take several minutes.
+const TIMEOUT_MS = 1_800_000;
 const CLEANUP_MS = 5_000;
 const MIN_SELECTED_FILES = 45;
 const upstream = "9a09079c0c7ad0fb2d55404f66a5c453204328dd";
 const spike = "a64f24c75b98c76a75064e02fc8c45916cde487d";
 let prepared = false;
+let libraryReady = false;
 
 function stopGroup(pid: number): void {
   try {
@@ -103,6 +105,7 @@ test(
       [process.execPath, "scripts/build.ts", "--native", "--skip-zig", "--dev"],
       join(checkout, "packages/core"),
     );
+    libraryReady = true;
   },
   TIMEOUT_MS,
 );
@@ -110,7 +113,7 @@ test(
 test(
   "0.8.1 pixel hits: scene, renderer, NativeSession and pixel TypeScript tests",
   async () => {
-    expect(prepared).toBe(true);
+    expect(libraryReady).toBe(true);
     const discovered: string[] = [];
     for await (const file of new Bun.Glob("packages/core/**/*.test.ts").scan({
       cwd: checkout,
