@@ -362,7 +362,14 @@ function diffChunks(text: string, palette: Palette) {
 
 function code(token: Tokens.Code, palette: Palette) {
   const fence = FENCE_OPEN.exec(token.raw)?.[1];
-  if (!fence) return { kind: "code" as const, text: token.text, lang: "", closed: true };
+  // Indented code lost terminal newlines before Marked 18; fenced code keeps them.
+  if (!fence)
+    return {
+      kind: "code" as const,
+      text: token.text.replace(TRAILING_NEWLINES, ""),
+      lang: "",
+      closed: true,
+    };
   const lines = token.raw.replace(TRAILING_NEWLINES, "").split("\n");
   const last = (lines.at(-1) ?? "").trim();
   const closed =

@@ -77,7 +77,14 @@ function blocksOf(token: Token, context: Context): Block[] {
     case "code":
       return [
         place(
-          { type: "code", lang: token.lang ?? "", text: token.text, source: sourceOf(token) },
+          {
+            type: "code",
+            lang: token.lang ?? "",
+            // Marked 18 keeps a terminal newline for indented code. Preserve the
+            // old content boundary without removing intentional fenced blank lines.
+            text: token.codeBlockStyle === "indented" ? token.text.replace(/\n+$/, "") : token.text,
+            source: sourceOf(token),
+          },
           context,
         ),
       ];

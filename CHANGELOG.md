@@ -26,6 +26,9 @@ and marked **Breaking**.
 
 ### Fixed
 
+- An edit at the end of indented code stays on its last content line.
+  Code panels do not add an empty row for a terminal newline.
+  Fenced code keeps its blank lines.
 - Markdown Editor keeps numeric control references within the same paragraph
   after an edit. The Markdown component preserves literal character references.
 
