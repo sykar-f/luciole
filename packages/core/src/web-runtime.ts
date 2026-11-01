@@ -49,7 +49,10 @@ const openTuiPatches = (patch: string) =>
 export function prepareOpenTui(
   checkout: string,
   zig: string,
-  { tag = OPENTUI_TAG, patch = OPENTUI_PATCH }: { tag?: string; patch?: string } = {},
+  {
+    tag = OPENTUI_TAG,
+    patch = resolve(import.meta.dir, `../web/opentui-${tag}.patch`),
+  }: { tag?: string; patch?: string } = {},
 ) {
   const tree = prepareOpenTuiCheckout(checkout, OPENTUI_REPOSITORY, tag, openTuiPatches(patch));
   return buildOpenTuiLibrary({
