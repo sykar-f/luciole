@@ -112,9 +112,9 @@ sans entrée préparée, `--native-dir` reste disponible.
 
 Un prototype d'hôte : une fenêtre [Electrobun](https://framework.blackboard.sh/electrobun/)
 dont le processus principal est Bun (`build.mainProcess: "bun"`), et une vue xterm.js
-dans le webview du système. Electrobun 2 prend par défaut Cottontail, son propre runtime
-(JavaScriptCore, API Bun) : il a `Bun.Terminal` et un vrai PTY, mais pèse autant que Bun
-(~60 Mo) et `@luciole-sh/core/pty` n'a été éprouvé que sous Bun.
+dans le webview du système. Depuis Electrobun 2.0.4, Bun est aussi le choix par défaut.
+Cottontail (JavaScriptCore, API Bun) reste une option expérimentale : il a `Bun.Terminal`
+et un vrai PTY, mais `@luciole-sh/core/pty` n'a été éprouvé que sous Bun.
 
 ```text
 fenêtre (webview système)          processus principal (Bun)            PTY
@@ -176,8 +176,9 @@ l'hôte le lance ensuite sans cette variable (`src/host/session.ts`). Il est dé
 `MacOS/` parce qu'Electrobun charge ses bibliothèques à côté de l'exécutable en cours.
 L'hôte lance directement `MacOS/<app>` sur macOS. `native/` est un vrai répertoire :
 l'extracteur du bundle compacté d'Electrobun ne conserve pas les liens symboliques.
-Le bundle passe de 140 à 80 Mo (55 à 31 Mo en zip). En contrepartie, Electrobun tourne
-sur le Bun de l'app (1.4.2) plutôt que sur celui qu'il fixe (1.4.0) : `bun run smoke`
+Le bundle passe de 140 à 80 Mo (55 à 31 Mo en zip), selon la mesure du prototype avec
+Bun 1.4.2 et Electrobun 2.0.2. Electrobun tourne sur le Bun de l'app plutôt que sur
+celui qu'il fixe : `bun run smoke`
 le vérifie après chaque build. Le smoke lance une copie temporaire du bundle stable
 compacté (`Resources/<hash>.tar.zst`) : le lanceur Electrobun 2.0.2 l'extrait sur place,
 et le build reste intact. Avec un HOME privé et le seul PATH système, il vérifie le
