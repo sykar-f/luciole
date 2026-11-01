@@ -291,7 +291,7 @@ function block(token: MarkedToken, out: Builder, palette: Palette, base: readonl
     }
     case "text":
       if (token.tokens) inline(tokensOf(token.tokens), out, [], palette);
-      else out.text(token.text);
+      else out.text(token.raw);
       return;
     case "heading": {
       const level = headingLevel(token);
@@ -362,7 +362,14 @@ function diffChunks(text: string, palette: Palette) {
 
 function code(token: Tokens.Code, palette: Palette) {
   const fence = FENCE_OPEN.exec(token.raw)?.[1];
-  if (!fence) return { kind: "code" as const, text: token.text, lang: "", closed: true };
+  // Indented code lost terminal newlines before Marked 18; fenced code keeps them.
+  if (!fence)
+    return {
+      kind: "code" as const,
+      text: token.text.replace(TRAILING_NEWLINES, ""),
+      lang: "",
+      closed: true,
+    };
   const lines = token.raw.replace(TRAILING_NEWLINES, "").split("\n");
   const last = (lines.at(-1) ?? "").trim();
   const closed =
@@ -453,7 +460,8 @@ function inline(
     switch (token.type) {
       case "text":
         if (token.tokens) inline(tokensOf(token.tokens), out, groups, palette, link);
-        else out.text(token.text, groups, link);
+        // Keep references as written, as before Marked 18 decoded numeric ones.
+        else out.text(token.raw, groups, link);
         break;
       case "escape":
         out.text(token.text, groups, link);

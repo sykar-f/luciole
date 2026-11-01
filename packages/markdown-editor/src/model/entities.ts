@@ -1,6 +1,6 @@
 // HTML character references in Markdown text (`&amp;`, `&#35;`, `&eacute;`): the editor
 // shows the character, and writes a literal `&` that would read as one escaped. marked
-// leaves them undecoded (its HTML output lets the browser decode them).
+// may decode them in token text; the editor reads token source to decode only once.
 
 const HEX = 16;
 

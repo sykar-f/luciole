@@ -42,7 +42,7 @@ export const ABI_PACKAGES = {
   "@opentui/core": "0.6.6",
   "@opentui/react": "0.6.6",
   "@opentui/keymap": "0.6.6",
-  "@tanstack/react-router": "1.170.45",
+  "@tanstack/react-router": "1.170.46",
   "react-server-dom-webpack": "19.3.1",
   zod: "4.6.7",
 } as const;

@@ -17,7 +17,7 @@
  * Electrobun signs the bundle, so the signature covers this layout. macOS only for now:
  * other platforms keep both runtimes.
  *
- * Run by Hutch (Cottontail): Node's APIs only.
+ * Run by Hutch: Node's APIs only, for either script runtime.
  */
 import {
   chmodSync,

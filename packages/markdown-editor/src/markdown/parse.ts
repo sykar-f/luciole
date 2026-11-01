@@ -77,7 +77,14 @@ function blocksOf(token: Token, context: Context): Block[] {
     case "code":
       return [
         place(
-          { type: "code", lang: token.lang ?? "", text: token.text, source: sourceOf(token) },
+          {
+            type: "code",
+            lang: token.lang ?? "",
+            // Marked 18 keeps a terminal newline for indented code. Preserve the
+            // old content boundary without removing intentional fenced blank lines.
+            text: token.codeBlockStyle === "indented" ? token.text.replace(/\n+$/, "") : token.text,
+            source: sourceOf(token),
+          },
           context,
         ),
       ];
@@ -220,7 +227,9 @@ function spansOf(token: Token, marks: Marks): Span[] {
   ];
   switch (token.type) {
     case "text":
-      return token.tokens?.length ? nested(token.tokens, {}) : textSpans(token.text, marks);
+      // Marked 18 decodes numeric references in text. Read the source so our
+      // reference decoder can keep control characters verbatim and decode once.
+      return token.tokens?.length ? nested(token.tokens, {}) : textSpans(token.raw, marks);
     case "escape":
       return [{ text: token.text, marks: cleanMarks({ ...marks, escaped: true }) }];
     case "strong":

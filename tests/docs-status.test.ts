@@ -62,7 +62,7 @@ test("a version changed in a manifest, the ABI or .bun-version fails", async () 
   ).toHaveLength(2);
   const catalog = changed(
     files.workspace,
-    `"@tanstack/react-router": "1.170.45"`,
+    `"@tanstack/react-router": "1.170.46"`,
     `"@tanstack/react-router": "1.171.0"`,
   );
   expectLines(await problems(page, { ...files, workspace: catalog }), [
@@ -90,7 +90,7 @@ test("a version with no mark, a mark of nothing and a page with no mark fail", a
 
 test("only the main's text counts, not its scripts nor the page around it", async () => {
   const html = `<p>9.9.9</p><main><script>"9.9.9"</script>
-    <span data-version-of="bun-version"> 1.4.3 </span></main><footer>9.9.9</footer>`;
+    <span data-version-of="bun-version"> 1.4.4 </span></main><footer>9.9.9</footer>`;
   expect(await problems(html)).toEqual([]);
 });
 

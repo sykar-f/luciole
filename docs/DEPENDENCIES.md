@@ -1,7 +1,9 @@
 # Dépendances — 22 septembre 2026
 
 OpenTUI a été porté à 0.6.6 le 18 octobre 2026 ; les deux sondes ont été rejouées
-avec Bun 1.4.3. Les autres versions ci-dessous ne font pas partie de ce contrôle.
+avec Bun 1.4.3, comme le consignent les relevés [RSC](../probes/rsc/README.md) et
+[RPC](../probes/rpc/README.md). Les autres versions ci-dessous ne font pas partie
+de ce contrôle historique. Le framework utilise actuellement Bun 1.4.4.
 
 Les versions stables ont été comparées aux tags `latest` du registre npm, aux
 versions PyPI et aux releases officielles des outils. Les versions expérimentales
@@ -10,12 +12,12 @@ des deux sondes d'origine (`probes/rsc`, `probes/rpc`) étaient à jour ; `bun o
 
 | Dépendance                                   | Version  |
 | -------------------------------------------- | -------- |
-| Bun / @types/bun                             | 1.4.3    |
+| Bun / @types/bun                             | 1.4.4    |
 | @opentui/core / @opentui/react               | 0.6.6    |
 | @opentui/keymap                              | 0.6.6    |
 | react / react-dom / react-server-dom-webpack | 19.3.1   |
 | react-reconciler                             | 0.33.0   |
-| @tanstack/react-router                       | 1.170.45 |
+| @tanstack/react-router                       | 1.170.46 |
 | @tanstack/react-form (exemples)              | 1.33.5   |
 | @types/react / @types/react-dom              | 19.3.0   |
 | typescript                                   | 7.0.2    |
@@ -31,11 +33,11 @@ Ajoutées au catalogue après ce contrôle, sans comparaison aux tags `latest` :
 
 | Dépendance                                     | Version                  | Utilisée par                            |
 | ---------------------------------------------- | ------------------------ | --------------------------------------- |
-| @sqlite.org/sqlite-wasm                        | 3.53.4-build2            | framework, runtime navigateur           |
+| @sqlite.org/sqlite-wasm                        | 3.54.1-build1            | framework, runtime navigateur           |
 | @xterm/xterm / @xterm/addon-fit                | 6.0.0 / 0.11.0           | framework, runtime navigateur ; desktop |
 | @xterm/addon-webgl                             | 0.19.0                   | source du renderer vendored du core     |
-| electrobun                                     | 2.0.2                    | desktop                                 |
-| marked                                         | 17.0.1                   | framework (`<Markdown>`), mdreader      |
+| electrobun                                     | 2.0.5                    | desktop                                 |
+| marked                                         | 18.1.2                   | framework (`<Markdown>`), mdreader      |
 | sharp                                          | 0.35.5                   | files                                   |
 | tree-sitter-bash / -c / -cpp                   | 0.25.1 / 0.24.1 / 0.23.4 | framework (`@luciole-sh/core/grammars`) |
 | tree-sitter-css / -go / -html                  | 0.25.0 / 0.25.0 / 0.23.2 | framework (`@luciole-sh/core/grammars`) |
@@ -43,7 +45,7 @@ Ajoutées au catalogue après ce contrôle, sans comparaison aux tags `latest` :
 | tree-sitter-python / -ruby                     | 0.25.0 / 0.23.1          | framework (`@luciole-sh/core/grammars`) |
 | tree-sitter-rust                               | 0.24.0                   | framework (`@luciole-sh/core/grammars`) |
 | @tree-sitter-grammars/tree-sitter-toml / -yaml | 0.7.0 / 0.7.1            | framework (`@luciole-sh/core/grammars`) |
-| @anthropic-ai/claude-agent-sdk                 | 0.3.283                  | harness (couplé à Claude Code 2.1.283)  |
+| @anthropic-ai/claude-agent-sdk                 | 0.3.316                  | harness (couplé à Claude Code 2.1.316)  |
 
 Les grammaires Tree-sitter (`@luciole-sh/core/grammars`, licence MIT) sont les paquets officiels :
 chacun livre son WebAssembly et ses requêtes de coloration à la même version. Seul le

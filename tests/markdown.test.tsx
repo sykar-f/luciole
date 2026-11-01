@@ -422,3 +422,25 @@ test("however many blocks a transcript holds, the renderer hears one listener pe
   expect(setup.renderer.listenerCount("capabilities")).toBeLessThanOrEqual(1);
   expect(setup.renderer.listenerCount("theme_mode")).toBeLessThanOrEqual(1);
 });
+
+test("numeric references retain their literal terminal text", async () => {
+  const content = "foo&#10;&#10;bar &#38;copy; &amp;";
+  const setup = await render(<StyledMarkdown content={content} streaming={false} />);
+  expect(await settled(setup, content)).toContain(content);
+});
+
+test("indented code panels have no extra row while fenced blank lines remain", async () => {
+  const panel = RGBA.fromHex(color.panel);
+  for (const [content, rows] of [
+    ["    foo\n", 3],
+    ["\tfoo\n", 3],
+    ["```\nfoo\n\n```\n", 4],
+  ] as const) {
+    const setup = await render(<StyledMarkdown content={content} streaming={false} />, 30, 8);
+    await settled(setup, "foo");
+    const spans = await renderSpans(setup);
+    expect(
+      Array.from({ length: 6 }, (_, row) => backgroundAt(spans, row, 0)?.equals(panel) ?? false),
+    ).toEqual(Array.from({ length: 6 }, (_, row) => row < rows));
+  }
+});

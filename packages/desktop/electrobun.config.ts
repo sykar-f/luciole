@@ -31,7 +31,7 @@ export default {
   },
   build: {
     // Bun, the runtime @luciole-sh/core/pty is written and tested for, and the one the app binary
-    // carries: scripts/single-runtime.ts has the host run on it. Cottontail, the default,
+    // carries: scripts/single-runtime.ts has the host run on it. Optional Cottontail
     // has Bun.Terminal too but cannot be replaced by the app binary.
     mainProcess: "bun",
     bun: { entrypoint: "src/host/index.ts" },
