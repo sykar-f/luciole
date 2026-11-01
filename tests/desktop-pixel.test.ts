@@ -6,6 +6,9 @@ import { decode, encode, type PixelOperation } from "../packages/core/src/pixel-
 
 async function launch(mode: string, desktop = true, prepared = false, pixelFlag?: string) {
   const directory = await mkdtemp(join(process.env.TMPDIR ?? "/tmp", "desktop-pixel-"));
+  const started = performance.now();
+  let stage: string | undefined;
+  const timeline: { ms: number; kind: string; value: unknown }[] = [];
   let output = "";
   const events: unknown[] = [];
   const child = Bun.spawn([process.execPath, "tests/desktop-pixel-client.ts"], {
@@ -23,11 +26,14 @@ async function launch(mode: string, desktop = true, prepared = false, pixelFlag?
       cols: 40,
       rows: 10,
       data(_terminal, data) {
-        output += Buffer.from(data).toString();
+        const text = Buffer.from(data).toString();
+        timeline.push({ ms: performance.now() - started, kind: "terminal", value: text });
+        output += text;
       },
     },
     stderr: "pipe",
     ipc(message: unknown) {
+      timeline.push({ ms: performance.now() - started, kind: "ipc", value: message });
       events.push(message);
     },
   });
@@ -38,15 +44,43 @@ async function launch(mode: string, desktop = true, prepared = false, pixelFlag?
     directory,
     errors,
     output: () => output,
-    wait: (condition: () => boolean) =>
-      until(() => {
+    async wait(condition: () => boolean) {
+      stage = condition.toString();
+      await until(() => {
         if (child.exitCode !== null) throw new Error(`Client exited ${child.exitCode}: ${output}`);
         return condition();
-      }),
+      });
+      stage = undefined;
+    },
+    async exited() {
+      stage = "child exit";
+      const code = await child.exited;
+      stage = undefined;
+      return code;
+    },
     async close() {
+      const pending = stage;
       if (child.exitCode === null) child.kill("SIGKILL");
       await child.exited;
       child.terminal?.close();
+      if (pending)
+        console.error(
+          "desktop pixel wait diagnostics:",
+          JSON.stringify(
+            {
+              mode,
+              prepared,
+              pixelFlag,
+              stage: pending,
+              elapsedMs: performance.now() - started,
+              timeline,
+              output,
+              stderr: await errors,
+            },
+            null,
+            2,
+          ),
+        );
     },
   };
 }
@@ -65,12 +99,12 @@ for (const mode of [
     const f = await launch(mode, mode !== "plain");
     try {
       if (mode === "reject") {
-        expect(await f.child.exited).toBe(1);
+        expect(await f.exited()).toBe(1);
         const errors = (await f.errors) + f.output();
         expect(f.events).toContainEqual({ failure: "desktop control write rejected" });
         expect(errors).not.toContain("Unhandled");
       } else {
-        await until(() => {
+        await f.wait(() => {
           if (f.child.exitCode !== null)
             throw new Error(`Client exited ${f.child.exitCode}: ${f.output()}`);
           return f.events.some((event) => JSON.stringify(event) === '{"ready":true}');
@@ -79,9 +113,9 @@ for (const mode of [
           mode === "attached",
         );
         if (mode === "stock") {
-          await until(() => f.output().includes("Desktop row"));
+          await f.wait(() => f.output().includes("Desktop row"));
           f.child.terminal?.write("\x1b[<65;3;3M");
-          await until(() =>
+          await f.wait(() =>
             f.events.some(
               (event) =>
                 typeof event === "object" &&
@@ -94,7 +128,7 @@ for (const mode of [
           expect(operations(f.output())).toHaveLength(0);
         }
         f.child.send({ quit: true });
-        expect(await f.child.exited, await f.errors).toBe(0);
+        expect(await f.exited(), await f.errors).toBe(0);
       }
       expect(f.events).toContainEqual({
         destroyed: true,
@@ -182,7 +216,7 @@ test.skipIf(!process.env.LUCIOLE_DESKTOP_PIXEL_CORE)(
       f.child.terminal?.write("\x1b[<65;3;3M");
       await f.wait(() => f.events.some((event) => JSON.stringify(event) === '{"observed":true}'));
       f.child.send({ quit: true });
-      expect(await f.child.exited, await f.errors).toBe(0);
+      expect(await f.exited(), await f.errors).toBe(0);
       expect(f.events).toContainEqual({ destroyed: true, detached: true, observed: 1 });
       const trace = process.env.LUCIOLE_DESKTOP_PIXEL_TRACE ?? join(f.directory, "pty-trace.json");
       await writeFile(
@@ -230,7 +264,7 @@ for (const [mode, flag, attached] of [
         expect(operations(f.output())).toHaveLength(0);
       }
       f.child.send({ quit: true });
-      expect(await f.child.exited, await f.errors).toBe(0);
+      expect(await f.exited(), await f.errors).toBe(0);
     } finally {
       await f.close();
     }
