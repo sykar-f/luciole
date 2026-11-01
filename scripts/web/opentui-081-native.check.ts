@@ -70,6 +70,7 @@ test(
     });
     if (!built.success) throw new Error(built.logs.map(String).join("\n"));
     const loaded = Bun.spawn([process.execPath, join(cache, "bundle/load.js")], {
+      cwd: join(cache, "bundle"),
       stdout: "inherit",
       stderr: "inherit",
       signal: AbortSignal.timeout(TIMEOUT_MS),
