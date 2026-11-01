@@ -1,4 +1,4 @@
-# Choose an installed OpenTUI widget (0.6.6)
+# Choose an installed OpenTUI widget (0.6.8)
 
 Before composing controls, read
 `node_modules/@luciole-sh/core/docs/reference/upstream-libraries.md` for luciole's boundaries.
@@ -124,7 +124,11 @@ starts cleanup synchronously; `closed` can reject if output fails.
 
 ## Layout updates and custom drawing
 
-- In 0.6.6, removing a React layout prop, or writing `null`/`undefined`, restores the omitted
+Use a character that fills one terminal cell for `customBorderChars` and `drawGrid`.
+OpenTUI 0.6.8 rejects default-ignorable characters such as U+200E or U+FFA0;
+a space is valid. Direction marks take zero cells in ordinary text.
+
+- In 0.6.8, removing a React layout prop, or writing `null`/`undefined`, restores the omitted
   option’s default. Clearing an edge spacing override lets its shorthand apply again;
   `0` sets an explicit edge. Built-in intrinsic widths/heights restore their class size,
   but other class defaults need not return (for example `flexShrink` resets to `1`).

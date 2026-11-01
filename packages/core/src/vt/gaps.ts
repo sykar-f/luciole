@@ -1,5 +1,5 @@
 /**
- * Legacy-key fallback for EmbeddedTerminalRenderable. OpenTUI 0.6.6 encodes
+ * Legacy-key fallback for EmbeddedTerminalRenderable. OpenTUI 0.6.8 encodes
  * Alt/meta and function keys natively and answers device/color queries itself.
  * Keep the fallback for a key only when the native encoder returns no bytes.
  */

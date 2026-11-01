@@ -13,13 +13,13 @@ import { browserNode } from "../../packages/core/src/web/node/plugin";
 import { opentuiWasm } from "../../packages/core/src/web/opentui/plugin";
 import { Browser } from "./cdp";
 
-const VERSION = "0.6.6";
+const VERSION = "0.6.8";
 const TIMEOUT_MS = 240_000;
 const NOT_FOUND = 404;
 const Result = z.object({ ok: z.literal(true) });
 
 test(
-  "OpenTUI 0.6.6 wasm32: box, changing text, and cells after memory growth",
+  "OpenTUI 0.6.8 wasm32: box, changing text, and cells after memory growth",
   async () => {
     const patch = join(import.meta.dir, `../../packages/core/web/opentui-v${VERSION}.patch`);
     const checkout = openTuiCheckoutDirectory();
@@ -85,7 +85,7 @@ test(
     try {
       await using browser = await Browser.start();
       await browser.open(`http://127.0.0.1:${server.port}/`);
-      const result = await browser.waitFor("globalThis.__opentui066", "OpenTUI 0.6.6 WASM results");
+      const result = await browser.waitFor("globalThis.__opentui066", "OpenTUI 0.6.8 WASM results");
       console.log(
         JSON.stringify({ ua: await browser.evaluate("navigator.userAgent"), result }, null, 2),
       );

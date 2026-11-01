@@ -117,9 +117,9 @@
     "./package.json": "./package.json"
   },
   "dependencies": {
-    "@opentui/core": "^0.6.6",
-    "@opentui/keymap": "^0.6.6",
-    "@opentui/react": "^0.6.6",
+    "@opentui/core": "^0.6.8",
+    "@opentui/keymap": "^0.6.8",
+    "@opentui/react": "^0.6.8",
     "@tanstack/react-router": "^1.170.46",
     "@typescript/typescript6": "^6.0.2",
     "marked": "^18.1.2",

@@ -5,6 +5,9 @@ avec Bun 1.4.3, comme le consignent les relevés [RSC](../probes/rsc/README.md) 
 [RPC](../probes/rpc/README.md). Les autres versions ci-dessous ne font pas partie
 de ce contrôle historique. Le framework utilise actuellement Bun 1.4.4.
 
+Le runtime actuel épingle OpenTUI 0.6.8 avec Zig 0.16.0. Les contrôles web,
+natifs et du défilement pixel utilisent Bun 1.4.4.
+
 Les versions stables ont été comparées aux tags `latest` du registre npm, aux
 versions PyPI et aux releases officielles des outils. Les versions expérimentales
 et canary ne sont pas sélectionnées. Les manifests et lockfiles du framework et
@@ -13,8 +16,8 @@ des deux sondes d'origine (`probes/rsc`, `probes/rpc`) étaient à jour ; `bun o
 | Dépendance                                   | Version  |
 | -------------------------------------------- | -------- |
 | Bun / @types/bun                             | 1.4.4    |
-| @opentui/core / @opentui/react               | 0.6.6    |
-| @opentui/keymap                              | 0.6.6    |
+| @opentui/core / @opentui/react               | 0.6.8    |
+| @opentui/keymap                              | 0.6.8    |
 | react / react-dom / react-server-dom-webpack | 19.3.1   |
 | react-reconciler                             | 0.33.0   |
 | @tanstack/react-router                       | 1.170.46 |
@@ -82,7 +85,7 @@ Les réglages VS Code activent le serveur natif avec l’extension recommandée 
 conservent un SDK classique de repli ; voir [TOOLING.md](TOOLING.md).
 
 `react-reconciler` est épinglé à 0.33.0, dans la plage `^0.33.0` déclarée par
-OpenTUI 0.6.6 ; sa `peerDependency` `react ^19.2.0` accepte React 19.3.1. Un
+OpenTUI 0.6.8 ; sa `peerDependency` `react ^19.2.0` accepte React 19.3.1. Un
 override vers 0.34.0 a existé : il a été retiré, car ce reconciler appelle
 `suspendOnActiveViewTransition` à chaque commit de transition, méthode absente du host
 config d'OpenTUI, ce qui faisait planter les navigations TanStack en production.

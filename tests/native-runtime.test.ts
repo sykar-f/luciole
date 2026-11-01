@@ -160,7 +160,7 @@ test("cache identity tracks ordered patch bytes, target and upstream toolchain",
   expect(new Set(COMPILE_TARGETS.map((target) => nativeRuntimeDirectory(target))).size).toBe(6);
   expect(nativeRuntimeIdentity(hostTarget())).toMatchObject({
     layout: 1,
-    tag: "v0.6.6",
+    tag: "v0.6.8",
     zigVersion: "0.16.0",
   });
 });
@@ -197,13 +197,13 @@ test("a framework source change keeps the native entry key", async () => {
   // import.meta.dir in the private bundle locates its own patch, as a published install does.
   mkdirSync(join(root, "web"));
   cpSync(
-    resolve("packages/core/web/opentui-v0.6.6-pixel-scroll.patch"),
-    join(root, "web/opentui-v0.6.6-pixel-scroll.patch"),
+    resolve("packages/core/web/opentui-v0.6.8-pixel-scroll.patch"),
+    join(root, "web/opentui-v0.6.8-pixel-scroll.patch"),
   );
   const before = await key();
   writeFileSync(frameworkSource, "export const framework = 2;\n");
   expect(await key()).toBe(before);
-  writeFileSync(join(root, "web/opentui-v0.6.6-pixel-scroll.patch"), "changed patch");
+  writeFileSync(join(root, "web/opentui-v0.6.8-pixel-scroll.patch"), "changed patch");
   expect(await key()).not.toBe(before);
 });
 

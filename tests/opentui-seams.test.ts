@@ -151,7 +151,7 @@ test("input observer and control writer detections are independent and reject mi
 });
 
 test.skipIf(process.env["LUCIOLE_OPENTUI_INTEGRATION"] !== "1")(
-  "pixel patch alone applies at v0.6.6 and passes native ABI and pixel groups",
+  "pixel patch alone applies at v0.6.8 and passes native ABI and pixel groups",
   async () => {
     const directory = await mkdtemp(
       join(process.env["TMPDIR"] ?? tmpdir(), "opentui-native-seams-"),
@@ -171,7 +171,7 @@ test.skipIf(process.env["LUCIOLE_OPENTUI_INTEGRATION"] !== "1")(
       "--eval",
       `
       import { prepareOpenTuiCheckout } from ${JSON.stringify(join(root, "packages/core/src/web-runtime.ts"))};
-      const tree = prepareOpenTuiCheckout(${JSON.stringify(checkout)}, "https://github.com/anomalyco/opentui", "v0.6.6", [${JSON.stringify(join(root, "packages/core/web/opentui-v0.6.6-pixel-scroll.patch"))}]);
+      const tree = prepareOpenTuiCheckout(${JSON.stringify(checkout)}, "https://github.com/anomalyco/opentui", "v0.6.8", [${JSON.stringify(join(root, "packages/core/web/opentui-v0.6.8-pixel-scroll.patch"))}]);
       console.log("native pixel-only source tree:", tree);
     `,
     ]);

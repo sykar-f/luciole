@@ -1,7 +1,7 @@
 import { renderCaptureWithoutAct } from "../packages/core/src/test/capture";
 /** @jsxImportSource @opentui/react */
 import { expect, test } from "bun:test";
-import { Suspense, startTransition, use, useEffect, useState } from "react";
+import { act, Suspense, startTransition, use, useEffect, useState } from "react";
 import { createTestRenderer } from "@opentui/core/testing";
 import { createRoot } from "@opentui/react";
 import { WAIT_MS, until } from "./helpers";
@@ -12,7 +12,7 @@ declare global {
 }
 
 // TanStack Router commits navigations with startTransition, which act() hides.
-// react-reconciler 0.34 calls a host method OpenTUI 0.6.6 lacks on such commits:
+// react-reconciler 0.34 calls a host method OpenTUI 0.6.8 lacks on such commits:
 // keep the reconciler within OpenTUI's declared range until this test says otherwise.
 test("OpenTUI commits React transitions with the pinned reconciler", async () => {
   const previous = globalThis.IS_REACT_ACT_ENVIRONMENT;
@@ -66,5 +66,90 @@ test("OpenTUI commits React transitions with the pinned reconciler", async () =>
     root.unmount();
     renderer.destroy();
     globalThis.IS_REACT_ACT_ENVIRONMENT = previous;
+  }
+});
+
+// These widgets back luciole's fields; invisible content must remain editable.
+test("OpenTUI inputs can delete text with no terminal cells", async () => {
+  const { InputRenderable, TextareaRenderable } = await import("@opentui/core");
+  const { renderer, renderOnce } = await createTestRenderer({ width: 20, height: 3 });
+  try {
+    for (const text of ["\u200b", "\u200d", "\u0301", "\u200e"]) {
+      for (const Widget of [InputRenderable, TextareaRenderable]) {
+        const field = new Widget(renderer, { id: "zero-width", width: 20 });
+        renderer.root.add(field);
+        try {
+          for (const action of ["deleteChar", "deleteCharBackward", "deleteLine"] as const) {
+            field.setText(text);
+            await renderOnce();
+            if (action === "deleteCharBackward") field.gotoBufferEnd();
+            else field.gotoBufferHome();
+            field[action]();
+            expect({ widget: Widget.name, action, text, value: field.plainText }).toEqual({
+              widget: Widget.name,
+              action,
+              text,
+              value: "",
+            });
+          }
+          // Native range deletion also removes a line whose endpoints share cell 0.
+          field.setText(text);
+          field.editBuffer.deleteRange(0, 0, 0, 0);
+          expect(field.plainText).toBe("");
+          if (Widget === TextareaRenderable) {
+            field.setText("\u200b\n\u200fnext");
+            field.gotoBufferHome();
+            field.deleteLine();
+            expect(field.plainText).toBe("\u200fnext");
+          }
+        } finally {
+          field.destroy();
+        }
+      }
+    }
+  } finally {
+    renderer.destroy();
+  }
+});
+
+test("a repeated root render keeps state and cleans up on replacement", async () => {
+  const ui = await createTestRenderer({ width: 20, height: 2 });
+  const root = createRoot(ui.renderer);
+  let mounts = 0;
+  let cleanups = 0;
+  function Value({ label }: { label: string }) {
+    const [state] = useState(() => ++mounts);
+    useEffect(
+      () => () => {
+        cleanups++;
+      },
+      [],
+    );
+    return (
+      <text>
+        {label}:{state}
+      </text>
+    );
+  }
+  try {
+    await act(async () => {
+      root.render(<Value label="before" />);
+    });
+    await act(async () => {
+      root.render(<Value label="after" />);
+    });
+    await ui.renderOnce();
+    expect(ui.captureCharFrame()).toContain("after:1");
+    expect(mounts).toBe(1);
+    expect(cleanups).toBe(0);
+    await act(async () => {
+      root.render(<text>replacement</text>);
+    });
+    expect(cleanups).toBe(1);
+  } finally {
+    await act(async () => {
+      root.unmount();
+    });
+    ui.renderer.destroy();
   }
 });

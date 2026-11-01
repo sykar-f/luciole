@@ -79,7 +79,7 @@ luciole native-runtime                              # cible de la machine
 luciole native-runtime --target bun-linux-x64-musl    # autre cible
 ```
 
-La commande prépare un couple JavaScript et bibliothèque native OpenTUI v0.6.6 avec
+La commande prépare un couple JavaScript et bibliothèque native OpenTUI v0.6.8 avec
 le patch partagé du défilement en pixels. Elle demande git, le réseau et Zig 0.16.0
 au premier lancement ; `ZIG=/chemin/vers/zig` choisit l'exécutable. Sur macOS, le SDK
 des Command Line Tools est utilisé par défaut lorsqu'il est installé ; `DEVELOPER_DIR`

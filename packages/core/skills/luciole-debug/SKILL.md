@@ -119,7 +119,7 @@ can mean a position outside finite signed 32-bit integers: round at the draw cal
 check the range. Negative positions clip; `fillRect`/`drawBox` with non-positive sizes draw
 nothing. Unsigned fields such as `drawFrameBuffer` source coordinates reject negatives.
 A node that reappears after a prop change may have received `visible={null}`; use `false` to hide it.
-Removed layout props restore defaults in 0.6.6. Read the `luciole-tui` skill’s
+Removed layout props restore defaults in 0.6.8. Read the `luciole-tui` skill’s
 `references/opentui.md` for these rules and the editor control-character offset changes.
 
 ## Slow screens and extra renders

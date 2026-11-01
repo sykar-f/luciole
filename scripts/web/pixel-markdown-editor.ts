@@ -161,7 +161,7 @@ try {
   await browser.evaluate(
     "{const r=probe.state().rect;probe.pointer('mousedown',r.x+4.5,r.y+.1,1);probe.pointer('mouseup',r.x+4.5,r.y+.1)}",
   );
-  // Focus is logical; OpenTUI 0.6.6 delivers its cursor bytes asynchronously.
+  // Focus is logical; OpenTUI 0.6.8 delivers its cursor bytes asynchronously.
   await wait(
     "probe.editor.focused && probe.state().cursor===1",
     "editor focus and cursor by click",

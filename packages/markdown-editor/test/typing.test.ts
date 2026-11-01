@@ -280,3 +280,24 @@ for (const [name, keyboard] of Object.entries(keyboards))
         }
       });
   });
+
+test("zero-width Markdown text can be deleted without losing the next text", () => {
+  for (const text of ["\u200b", "\u200d", "\u0301", "\u200e"]) {
+    const editor = new EditorController(text);
+    editor.moveTo({ block: 0, offset: 0 });
+    editor.deleteForward();
+    expect(editor.markdown).toBe("");
+    editor.load(text);
+    editor.end();
+    editor.backspace();
+    expect(editor.markdown).toBe("");
+    editor.load(`${text}next`);
+    editor.moveTo({ block: 0, offset: 0 });
+    editor.deleteForward();
+    expect(editor.markdown).toBe("next");
+    editor.load(text);
+    editor.selectAll();
+    editor.cut();
+    expect(editor.markdown).toBe("");
+  }
+});
