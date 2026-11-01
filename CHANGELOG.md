@@ -30,8 +30,8 @@ and marked **Breaking**.
 - **Breaking:** ScrollBox clips overflow and accepts whole-cell viewport
   padding. Check part options and use integer padding values.
 - **Breaking:** Render hooks are cached when the class is constructed.
-  Call `refreshHooks()` after a change through reflection. Use prototype
-  methods for hook overrides.
+  Call `refreshHooks()` after a change through reflection. Assign
+  `renderBefore`, `renderAfter` and `onLifecyclePass` in the constructor.
 
 - **Breaking:** Remove `nativeSceneWorkBudget`, `NativeSceneFrame.Yield` and
   frame-step work budgets. Remove `geometryRevision` from frame requests.
