@@ -7,6 +7,7 @@ import { createRootRoute } from "@tanstack/react-router";
 import { Application } from "../packages/core/src/client";
 
 const mode = process.env.QUIT_FAILURE;
+const operation = process.env.QUIT_OUTPUT_OPERATION ?? "ot_session_post_stdout";
 const createRenderer = core.createCliRenderer;
 void mock.module(resolve("packages/core/src/connect.ts"), () => ({
   serverUrl: async () => "http://localhost",
@@ -21,16 +22,16 @@ void mock.module(resolve("packages/core/src/connect.ts"), () => ({
         if (mode === "closed-output") closeSync(1);
         else {
           const lib = core.resolveRenderLib();
-          lib.sessionPostStdout = () => {
-            if (mode === "lookalike")
-              throw new Error("ot_session_post_stdout failed: OutputFailed");
-            throw new core.NativeError(
-              mode === "other-operation" ? "ot_scene_flush" : "ot_session_post_stdout",
-              mode === "internal"
-                ? core.NativeStatus.InternalError
-                : core.NativeStatus.OutputFailed,
-            );
-          };
+          lib[operation === "ot_session_post_stdout" ? "sessionPostStdout" : "sessionDrainStdout"] =
+            () => {
+              if (mode === "lookalike") throw new Error(`${operation} failed: OutputFailed`);
+              throw new core.NativeError(
+                mode === "other-operation" ? "ot_scene_flush" : operation,
+                mode === "internal"
+                  ? core.NativeStatus.InternalError
+                  : core.NativeStatus.OutputFailed,
+              );
+            };
         }
       },
     },
