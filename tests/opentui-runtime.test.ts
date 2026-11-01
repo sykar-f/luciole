@@ -117,3 +117,21 @@ test("library builds accept target options and an inherited toolchain environmen
     rmSync(checkout, { recursive: true, force: true });
   }
 });
+
+test("0.8.1 Zig diagnostics name the selected toolchain", async () => {
+  const { checkZig, openTuiZigVersion } = await import("../packages/core/src/opentui-runtime");
+  expect(openTuiZigVersion("v0.6.8")).toBe("0.16.0");
+  expect(openTuiZigVersion("v0.8.1")).toBe("0.17.0");
+  expect(() => checkZig("/missing/zig", "web runtime", openTuiZigVersion("v0.8.1"))).toThrow(
+    "Set ZIG to a Zig 0.17.0 executable.",
+  );
+  const version = Bun.spawnSync([process.execPath, "--eval", "console.log('0.16.0')"]);
+  const commands = spyOn(Bun, "spawnSync").mockReturnValue(version);
+  try {
+    expect(() => checkZig("old-zig", "native runtime", openTuiZigVersion("v0.8.1"))).toThrow(
+      "The native runtime builds OpenTUI's core with Zig 0.17.0; old-zig is 0.16.0.",
+    );
+  } finally {
+    commands.mockRestore();
+  }
+});

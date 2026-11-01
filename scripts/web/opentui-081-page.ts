@@ -1,0 +1,127 @@
+/* eslint-disable no-magic-numbers -- Fixed cell geometry, colors and a bounded memory-growth proof. */
+// This page exercises the prepared 0.8.1 sources and their WebAssembly port.
+import { renderCaptureWithoutAct } from "../../packages/core/src/test/capture";
+import { growMemory } from "./opentui-066-setup";
+import { BoxRenderable, TextRenderable, StyledText, fg } from "@opentui/core";
+import { createTestRenderer } from "@opentui/core/testing";
+
+type Cells = { char: Uint32Array; fg: Uint16Array };
+function hasScopedBuffers(value: unknown): value is {
+  withBuffers<T>(read: (cells: Cells) => T): T;
+} {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "withBuffers" in value &&
+    typeof value.withBuffers === "function"
+  );
+}
+
+async function check() {
+  const ui = await createTestRenderer({
+    width: 20,
+    height: 5,
+  });
+  const { renderer } = ui;
+  try {
+    const box = new BoxRenderable(renderer, {
+      id: "box",
+      width: 12,
+      height: 3,
+      border: true,
+      borderStyle: "single",
+      borderColor: "#ff0000",
+    });
+    const measured = new BoxRenderable(renderer, {
+      id: "measured",
+      position: "absolute",
+      top: 3,
+      left: 0,
+      width: "auto",
+      height: "auto",
+    });
+    measured.setMeasureProvider(() => ({ width: 7, height: 1 }));
+    renderer.root.add(measured);
+    const text = new TextRenderable(renderer, { id: "text", content: "hello" });
+    box.add(text);
+    renderer.root.add(box);
+    await renderCaptureWithoutAct(ui, () => undefined);
+    const initialMeasurement = { width: measured.width, height: measured.height };
+    if (initialMeasurement.width !== 7 || initialMeasurement.height !== 1)
+      throw new Error(`Native measurement writes were lost: ${measured.width}x${measured.height}`);
+    const read = () => {
+      const buffer = renderer.currentRenderBuffer;
+      if (!hasScopedBuffers(buffer)) throw new Error("0.8.1 scoped buffer access is missing");
+      return buffer.withBuffers((cells) => ({
+        cornerChar: String.fromCodePoint(cells.char[0]),
+        textChars: Array.from(cells.char.slice(21, 26), (code) => String.fromCodePoint(code)).join(
+          "",
+        ),
+        cornerFg: Array.from(cells.fg.slice(0, 4)),
+        textFg: Array.from(cells.fg.slice(84, 88)),
+        memory: cells.char.buffer,
+        view: cells.char,
+      }));
+    };
+    const frame = async (expected: string, color: number[]) => {
+      // Transient FFI copies are released by a microtask before the next native read.
+      await Promise.resolve();
+      const { cells, shown } = await renderCaptureWithoutAct(ui, () => ({
+        cells: read(),
+        shown: ui.captureCharFrame(),
+      }));
+      const expectedLines = ["┌──────────┐", `│${expected}     │`, "└──────────┘"].map((line) =>
+        line.padEnd(20),
+      );
+      const lines = shown.split("\n");
+      const ok =
+        expectedLines.every((line, i) => lines[i] === line) &&
+        cells.cornerChar === "┌" &&
+        cells.textChars === expected &&
+        JSON.stringify(cells.cornerFg) === JSON.stringify([255, 0, 0, 255]) &&
+        JSON.stringify(cells.textFg) === JSON.stringify(color);
+      if (!ok) throw new Error(`Incorrect frame for ${expected}: ${shown}`);
+      return {
+        text: expected,
+        corner: cells.cornerChar,
+        cornerFg: cells.cornerFg,
+        textFg: cells.textFg,
+        ok,
+      };
+    };
+    const boxCells = await frame("hello", [255, 255, 255, 255]);
+    const changedText = [];
+    for (const value of ["first", "other", "final"]) {
+      text.content = value;
+      changedText.push(await frame(value, [255, 255, 255, 255]));
+      text.content = new StyledText([fg("#00ff00")(value)]);
+      changedText.push(await frame(value, [0, 255, 0, 255]));
+    }
+    const before = await renderCaptureWithoutAct(ui, read);
+    const bytesBefore = before.memory.byteLength;
+    growMemory();
+    measured.setMeasureProvider(() => ({ width: 9, height: 1 }));
+    text.content = "grown";
+    const cellsAfterGrowth = await frame("grown", [255, 255, 255, 255]);
+    if (measured.width !== 9 || measured.height !== 1)
+      throw new Error("Native measurement writes were lost after memory growth");
+    const bytesAfter = (await renderCaptureWithoutAct(ui, read)).memory.byteLength;
+    const detached = before.view.byteLength === 0;
+    if (bytesAfter <= bytesBefore || !detached)
+      throw new Error("The check did not grow WASM memory");
+    return {
+      boxCells,
+      changedText,
+      measuredAfterGrowth: { width: measured.width, height: measured.height },
+      memoryGrowth: { bytesBefore, bytesAfter, detached, cellsAfterGrowth },
+      ok: true,
+    };
+  } finally {
+    renderer.destroy();
+  }
+}
+try {
+  Object.assign(globalThis, { __opentui081: await check() });
+} catch (error) {
+  Object.assign(globalThis, { __opentui081: { ok: false, error: String(error) } });
+}

@@ -10,7 +10,7 @@
  * leaves nothing behind.
  */
 import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { createHash } from "node:crypto";
 import { ABI_KEY, APP_MANIFEST, AppManifest } from "./abi";
 import { defaultCache } from "./targets";
@@ -49,7 +49,10 @@ const openTuiPatches = (patch: string) =>
 export function prepareOpenTui(
   checkout: string,
   zig: string,
-  { tag = OPENTUI_TAG, patch = OPENTUI_PATCH }: { tag?: string; patch?: string } = {},
+  {
+    tag = OPENTUI_TAG,
+    patch = resolve(import.meta.dir, `../web/opentui-${tag}.patch`),
+  }: { tag?: string; patch?: string } = {},
 ) {
   const tree = prepareOpenTuiCheckout(checkout, OPENTUI_REPOSITORY, tag, openTuiPatches(patch));
   return buildOpenTuiLibrary({
@@ -59,6 +62,8 @@ export function prepareOpenTui(
     artifact: join(checkout, "packages/native/lib/wasm32-wasi/opentui.wasm"),
     options: ["-Dlibrary-target=wasm32-wasi", "-Doptimize=ReleaseSmall"],
     runtime: "web runtime",
+    tag,
+    env: { PATH: `${dirname(Bun.which(zig) ?? resolve(zig))}:${process.env["PATH"] ?? ""}` },
   });
 }
 

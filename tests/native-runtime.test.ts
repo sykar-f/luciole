@@ -239,3 +239,52 @@ test("concurrent processes publish once and reuse the entry after waiting", asyn
   expect(readFileSync(started, "utf8")).toBe("build\n");
   expect(findNativeRuntime("bun-darwin-arm64", cache)).toBeDefined();
 }, 15000);
+
+test("0.8.1 preparation has a separate toolchain and leaves the 0.6.8 identity intact", () => {
+  const target = "bun-darwin-arm64";
+  const active = nativeRuntimeIdentity(target);
+  const next = nativeRuntimeIdentity(target, undefined, "v0.8.1");
+  expect(next).toEqual({
+    layout: 1,
+    tag: "v0.8.1",
+    patches: [],
+    zigVersion: "0.17.0",
+    target,
+    zigTarget: "aarch64-macos.13.0",
+    libc: "system",
+  });
+  // Identity emitted at the mission base, before version selection existed.
+  expect(nativeRuntimeDirectory(target, "/cache")).toBe(
+    "/cache/native/bun-darwin-arm64-699b83dd30873b65",
+  );
+  expect(active.tag).toBe("v0.6.8");
+  expect(active.zigVersion).toBe("0.16.0");
+  expect(active.patches).toHaveLength(1);
+  expect(nativeRuntimeDirectory(target, "/cache")).not.toBe(
+    nativeRuntimeDirectory(target, "/cache", "v0.8.1"),
+  );
+});
+
+test("a manifest emitted before tag selection still decodes and reuses", async () => {
+  const cache = scratch();
+  const target = "bun-darwin-arm64";
+  const directory = await prepare(cache, target);
+  const file = join(directory, "native-runtime.json");
+  const recorded = z.record(z.string(), z.unknown()).parse(JSON.parse(readFileSync(file, "utf8")));
+  writeFileSync(
+    file,
+    JSON.stringify({
+      layout: 1,
+      tag: "v0.6.8",
+      patches: ["300a450e11aa80f1a6c22c0b94a5004c0093c10ad932ec891178cd4fd8eef323"],
+      zigVersion: "0.16.0",
+      target,
+      zigTarget: "aarch64-macos.13.0",
+      libc: "system",
+      tree: recorded["tree"],
+      files: recorded["files"],
+    }),
+  );
+  expect(findNativeRuntime(target, cache)).toBe(directory);
+  expect(await prepareNativeRuntime({ target, cache, zig: "/missing/zig" })).toBe(directory);
+});
