@@ -51,7 +51,7 @@ async function check() {
       throw new Error(`Native measurement writes were lost: ${measured.width}x${measured.height}`);
     const read = () => {
       const buffer = renderer.currentRenderBuffer;
-      if (!hasScopedBuffers(buffer)) throw new Error("0.6.8 scoped buffer access is missing");
+      if (!hasScopedBuffers(buffer)) throw new Error("0.8.1 scoped buffer access is missing");
       return buffer.withBuffers((cells) => ({
         cornerChar: String.fromCodePoint(cells.char[0]),
         textChars: Array.from(cells.char.slice(21, 26), (code) => String.fromCodePoint(code)).join(
