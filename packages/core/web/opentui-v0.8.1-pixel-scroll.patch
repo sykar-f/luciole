@@ -1393,16 +1393,16 @@ index 0000000..e0b88a6
 +  }
 +})
 diff --git a/packages/core/src/zig.ts b/packages/core/src/zig.ts
-index 18a7f06..671b97a 100644
+index 18a7f06..bf8df50 100644
 --- a/packages/core/src/zig.ts
 +++ b/packages/core/src/zig.ts
-@@ -6400,6 +6400,38 @@ export class FFIRenderLib {
+@@ -6400,6 +6400,39 @@ export class FFIRenderLib {
      return output[0]
    }
  
-+  /** flags: 1 = the host owns the synchronized-output pair, 2 = keep the published hit grid. */
++  /** Resolve native auto/always/never policy, including remote negotiation. */
 +  public sessionFrameSyncEnabled(context: NativeContextHandle, session: SessionHandle): boolean {
-+    const handle = this.sessionHandleBytes(session)
++    const handle = encodeContextHandle(context, session)
 +    const pointer = this.nativeContextPointer(context, "ot_session_frame_sync_enabled")
 +    const enabled = new Uint8Array(1)
 +    nativeResult(
@@ -1412,6 +1412,7 @@ index 18a7f06..671b97a 100644
 +    return enabled[0] !== 0
 +  }
 +
++  /** flags: 1 = the host owns the synchronized-output pair, 2 = keep the published hit grid. */
 +  public sessionSetFrameSync(context: NativeContextHandle, session: SessionHandle, flags: number): void {
 +    const handle = encodeContextHandle(context, session)
 +    const pointer = this.nativeContextPointer(context, "ot_session_set_frame_sync")
