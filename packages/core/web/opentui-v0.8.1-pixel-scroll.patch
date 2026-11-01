@@ -2,19 +2,37 @@
 # Apply after the v0.8.1 web patch. ScrollBox content projection follows separately.
 
 diff --git a/packages/core/scripts/native-abi-pointers.ts b/packages/core/scripts/native-abi-pointers.ts
-index 55571b8..addea1f 100644
+index 55571b8..5084a2a 100644
 --- a/packages/core/scripts/native-abi-pointers.ts
 +++ b/packages/core/scripts/native-abi-pointers.ts
-@@ -227,6 +227,9 @@ export const nativePointerPolicies = {
+@@ -227,6 +227,10 @@ export const nativePointerPolicies = {
    ot_session_set_palette_state: { 0: context, 1: buffer, 2: buffer, 4: buffer, 5: buffer },
    ot_session_get_capabilities: { 0: context, 1: buffer, 2: buffer },
    ot_session_get_write_limit: { 0: context, 1: buffer, 2: buffer },
 +  ot_session_frame_sync_enabled: { 0: context, 1: buffer, 2: buffer },
 +  ot_session_set_frame_sync: { 0: context, 1: buffer },
++  ot_scene_full_hit_test: { 0: context, 1: buffer, 4: buffer },
 +  ot_scene_copy_hits: { 0: context, 1: buffer, 3: buffer },
    ot_session_write: { 0: context, 1: buffer, 2: empty },
    ot_session_read_output: { 0: context, 1: buffer, 2: empty, 4: buffer },
    ot_session_drain_output: {
+diff --git a/packages/core/src/NativeScene.ts b/packages/core/src/NativeScene.ts
+index 4fed49d..6d36d2d 100644
+--- a/packages/core/src/NativeScene.ts
++++ b/packages/core/src/NativeScene.ts
+@@ -379,9 +379,9 @@ export class NativeScene {
+     const handle = renderable._getSceneHandle(this)
+     if (this.staging.full) this.flushStaged()
+     if (this.staging.stagePaint(this.driver.context, handle, paint, renderable)) this.yogaHost.stageScene(this)
+-    // Of paint, only a translation moves layout reads. Constructors send the current values.
+-    const { translateX = renderable.translateX, translateY = renderable.translateY } = paint
+-    if (translateX !== renderable.translateX || translateY !== renderable.translateY) this.changeLayout()
++    // Explicit translations may restore a paint-only override to the wrapper's
++    // unchanged value. Invalidate reads on both entry and restoration.
++    if (paint.translateX !== undefined || paint.translateY !== undefined) this.changeLayout()
+   }
+ 
+   setBackground(renderable: Renderable, color: RGBA): void {
 diff --git a/packages/core/src/NativeSession.ts b/packages/core/src/NativeSession.ts
 index e523625..fceaa0d 100644
 --- a/packages/core/src/NativeSession.ts
@@ -136,7 +154,7 @@ index e523625..fceaa0d 100644
      } catch (error) {
        this.output = null
 diff --git a/packages/core/src/native-abi.generated.ts b/packages/core/src/native-abi.generated.ts
-index 792bfbf..1c519d0 100644
+index 792bfbf..b9f2005 100644
 --- a/packages/core/src/native-abi.generated.ts
 +++ b/packages/core/src/native-abi.generated.ts
 @@ -1,7 +1,7 @@
@@ -144,22 +162,23 @@ index 792bfbf..1c519d0 100644
  // Run `bun run generate:abi` in packages/core. Do not edit.
  // Inspect audit input: bun scripts/native-abi.ts --audit
 -// ABI audit SHA-256: 1f1e8424bc1216febc37ed16ad59186b66b331cff98c6f8390c1262d97d68142
-+// ABI audit SHA-256: 8d2bcd41396c443a1fb39de5dd4e221e5adbc5c4ed9671e87861aadc3e5b4a65
++// ABI audit SHA-256: 7b61b146ca37bac255a378e0c09da7eb9932bccb13e9d9fe9653f76e9adf5dfa
  
  export const nativeSymbols = {
    ot_scene_set_hooks: { args: ["ptr", "buffer", "buffer"], returns: "i32" },
-@@ -269,6 +269,9 @@ export const nativeSymbols = {
+@@ -269,6 +269,10 @@ export const nativeSymbols = {
    ot_session_input_reset: { args: ["ptr", "buffer", "u32"], returns: "i32" },
    ot_session_get_write_limit: { args: ["ptr", "buffer", "buffer"], returns: "i32" },
    ot_session_write: { args: ["ptr", "buffer", "ptr", "u32"], returns: "i32" },
 +  ot_session_frame_sync_enabled: { args: ["ptr", "buffer", "buffer"], returns: "i32" },
 +  ot_session_set_frame_sync: { args: ["ptr", "buffer", "u32"], returns: "i32" },
++  ot_scene_full_hit_test: { args: ["ptr", "buffer", "i32", "i32", "buffer"], returns: "i32" },
 +  ot_scene_copy_hits: { args: ["ptr", "buffer", "u32", "buffer", "u32"], returns: "i32" },
    ot_session_read_output: { args: ["ptr", "buffer", "ptr", "u32", "buffer"], returns: "i32" },
    ot_session_drain_output: { args: ["ptr", "buffer", "u32", "buffer", "ptr", "ptr"], returns: "i32" },
    ot_session_drain_stdout: { args: ["ptr", "buffer", "u32", "buffer"], returns: "i32" },
 diff --git a/packages/core/src/renderer.ts b/packages/core/src/renderer.ts
-index 01655e0..2660a45 100644
+index 01655e0..35fc73c 100644
 --- a/packages/core/src/renderer.ts
 +++ b/packages/core/src/renderer.ts
 @@ -1087,6 +1087,30 @@ interface AnimationTicker {
@@ -452,19 +471,20 @@ index 01655e0..2660a45 100644
      const sameElement = maybeRenderableId === this.lastOverRenderableNum
      this.lastOverRenderableNum = maybeRenderableId
      const maybeRenderable = Renderable.renderablesByNumber.get(maybeRenderableId)
-@@ -4175,7 +4410,10 @@ export class CliRenderer extends EventEmitter implements RenderContext {
+@@ -4175,7 +4410,11 @@ export class CliRenderer extends EventEmitter implements RenderContext {
    }
  
    public hitTest(x: number, y: number): number {
 -    return this.nativeScene.hitTest(x, y)
 +    // Presented pointer events keep their cell fractions.
-+    return this.capturedRenderable
-+      ? this.captureHitMap(false).hitTest(x, y)
-+      : this.nativeScene.hitTest(Math.floor(x), Math.floor(y))
++    const session = this.nativeSession
++    const id = this.lib.sceneFullHitTest(session.context, session.session, Math.floor(x), Math.floor(y))
++    const node = Renderable.renderablesByNumber.get(id)
++    return node && !node.isDestroyed ? id : 0
    }
  
    private takeMemorySnapshot(): void {
-@@ -5237,6 +5475,7 @@ export class CliRenderer extends EventEmitter implements RenderContext {
+@@ -5237,6 +5476,7 @@ export class CliRenderer extends EventEmitter implements RenderContext {
          return
        // Bump before any work so all callers this iteration see the new id.
        this._frameId++
@@ -472,7 +492,7 @@ index 01655e0..2660a45 100644
  
        const now = this.normalizeClockTime(this.clock.now(), this.lastTime)
        const elapsed = this.getElapsedMs(now, this.lastTime)
-@@ -5288,6 +5527,14 @@ export class CliRenderer extends EventEmitter implements RenderContext {
+@@ -5288,6 +5528,14 @@ export class CliRenderer extends EventEmitter implements RenderContext {
        // Callbacks can start terminal setup; a frame step is invalid until it settles.
        if (this.nativeTerminalTransition && !(await this.waitForTerminalTransition())) return
        if (!this.canRender || this.currentControlState === RendererControlState.EXPLICIT_SUSPENDED) return
@@ -487,7 +507,7 @@ index 01655e0..2660a45 100644
        const sceneStart = performance.now()
        const requestedBeforeScene = this.immediateRerenderRequested
        try {
-@@ -5320,7 +5567,9 @@ export class CliRenderer extends EventEmitter implements RenderContext {
+@@ -5320,7 +5568,9 @@ export class CliRenderer extends EventEmitter implements RenderContext {
  
        // If destroy() was requested during this frame, skip native work and scheduling.
        if (this.canRender && !this.nativeSplitFlush) {
@@ -498,7 +518,7 @@ index 01655e0..2660a45 100644
          if (!this.canRender || this.currentControlState === RendererControlState.EXPLICIT_SUSPENDED) return
          if (nativeStatus === "rendered") this.frameCount++
          if (this.getElapsedMs(now, this.lastFpsTime) >= 1000) {
-@@ -5332,7 +5581,7 @@ export class CliRenderer extends EventEmitter implements RenderContext {
+@@ -5332,7 +5582,7 @@ export class CliRenderer extends EventEmitter implements RenderContext {
  
          if (nativeStatus === "rendered") {
            // The presented frame's hits may have moved under the pointer.
@@ -507,7 +527,7 @@ index 01655e0..2660a45 100644
              this.recheckHoverState()
            }
            if (!this.canRender) return
-@@ -5398,22 +5647,27 @@ export class CliRenderer extends EventEmitter implements RenderContext {
+@@ -5398,22 +5648,27 @@ export class CliRenderer extends EventEmitter implements RenderContext {
        const completion = this.renderingCompletion
        this.renderingCompletion = null
        try {
@@ -593,10 +613,10 @@ index 6519943..b5aa76b 100644
 +})
 diff --git a/packages/core/src/tests/pixel-seams.test.ts b/packages/core/src/tests/pixel-seams.test.ts
 new file mode 100644
-index 0000000..e0b88a6
+index 0000000..53e5956
 --- /dev/null
 +++ b/packages/core/src/tests/pixel-seams.test.ts
-@@ -0,0 +1,795 @@
+@@ -0,0 +1,799 @@
 +import { expect, spyOn, test } from "bun:test"
 +import { Writable } from "node:stream"
 +import { NativeSession } from "../NativeSession.js"
@@ -1348,6 +1368,10 @@ index 0000000..e0b88a6
 +    }
 +    const f = await createTestRenderer({ width: 8, height: 2, stdout, bufferedOutput: "stdout", synchronizedOutput })
 +    try {
++      // This policy belongs to terminal setup; direct test construction skips it.
++      await f.renderer.setupTerminal()
++      await f.renderer.idle()
++      chunks.length = 0
 +      f.renderer.root.add(new TextRenderable(f.renderer, { content: "POLICY", width: 8, height: 1 }))
 +      f.renderer.setFramePlan(() => ({ before: bytes("before"), after: bytes("after") }))
 +      await f.renderOnce()
@@ -1393,7 +1417,7 @@ index 0000000..e0b88a6
 +  }
 +})
 diff --git a/packages/core/src/zig.ts b/packages/core/src/zig.ts
-index 18a7f06..bf8df50 100644
+index 18a7f06..08d3bbd 100644
 --- a/packages/core/src/zig.ts
 +++ b/packages/core/src/zig.ts
 @@ -6400,6 +6400,39 @@ export class FFIRenderLib {
@@ -1436,11 +1460,29 @@ index 18a7f06..bf8df50 100644
    public sessionWrite(context: NativeContextHandle, session: SessionHandle, bytes: Uint8Array): void {
      const handle = encodeContextHandle(context, session)
      const input = sessionBytes(bytes, "Session write length")
+@@ -8321,6 +8354,17 @@ export class FFIRenderLib {
+     return output[0]
+   }
+ 
++  public sceneFullHitTest(context: NativeContextHandle, session: SessionHandle, x: number, y: number): number {
++    const handle = encodeContextHandle(context, session)
++    toFFII32(x, "Scene hit x")
++    toFFII32(y, "Scene hit y")
++    // Hit tests never call back into JavaScript, so one output word serves every test.
++    const output = this.hitTestOutput
++    const pointer = this.nativeContextPointer(context, "ot_scene_full_hit_test")
++    nativeResult("ot_scene_full_hit_test", this.opentui.symbols.ot_scene_full_hit_test(pointer, handle, x, y, output))
++    return output[0]
++  }
++
+   /** @internal Tests set this through `createTestRenderer({ nativeSceneFullFrame })`. */
+   public sceneSetDebugFlags(context: NativeContextHandle, session: SessionHandle, flags: number): void {
+     const handle = encodeContextHandle(context, session)
 diff --git a/packages/native/include/opentui.h b/packages/native/include/opentui.h
-index fb0ced6..d8ffe45 100644
+index fb0ced6..443128f 100644
 --- a/packages/native/include/opentui.h
 +++ b/packages/native/include/opentui.h
-@@ -3307,6 +3307,18 @@ ot_status ot_session_write(
+@@ -3307,6 +3307,21 @@ ot_status ot_session_write(
      const uint8_t *bytes,
      uint32_t byte_count);
  
@@ -1451,6 +1493,9 @@ index fb0ced6..d8ffe45 100644
 + * segments); 2 = presentation keeps the published hit grid instead of this frame's.
 + * Split-footer frames are unaffected. */
 +ot_status ot_session_set_frame_sync(ot_context *context, const ot_handle *session, uint32_t flags);
++/* Full presented point query, including the captured source. Native ot_scene_hit_test
++ * keeps capture exclusion. Both resolve only live scene tokens. */
++ot_status ot_scene_full_hit_test(ot_context *, const ot_handle *session, int32_t x, int32_t y, uint32_t *out_num);
 +/* luciole pixel scroll: copy the published (pending 0) or the painted draft's (pending 1)
 + * hit grid as public node numbers, row-major; bit 2 selects the drop-target grid,
 + * which excludes the captured source. capacity is exactly width * height. */
@@ -1460,7 +1505,7 @@ index fb0ced6..d8ffe45 100644
   * capacity. A successful empty read returns a zero byte_count and request_id.
   * Failure leaves both outputs unchanged. The next read requires completion of
 diff --git a/packages/native/src/context-abi.zig b/packages/native/src/context-abi.zig
-index 3a7cdaa..49fffa7 100644
+index 3a7cdaa..625e17f 100644
 --- a/packages/native/src/context-abi.zig
 +++ b/packages/native/src/context-abi.zig
 @@ -765,6 +765,37 @@ pub fn ot_session_get_write_limit(
@@ -1501,11 +1546,29 @@ index 3a7cdaa..49fffa7 100644
  pub fn ot_session_write(
      context: ?*ContextHandle,
      session_ptr: ?*const c.ot_handle,
+@@ -2493,6 +2524,17 @@ pub fn ot_scene_hit_test(context: ?*ContextHandle, session_ptr: ?*const c.ot_han
+     return c.OT_OK;
+ }
+ 
++pub fn ot_scene_full_hit_test(context: ?*ContextHandle, session_ptr: ?*const c.ot_handle, x: i32, y: i32, out_ptr: ?*u32) callconv(.c) c.ot_status {
++    const status = sessionContextStatus(context);
++    if (status != c.OT_OK) return status;
++    const owner = context.?;
++    const id = session_ptr orelse return sessionError(owner, error.InvalidOptions);
++    const out = out_ptr orelse return sessionError(owner, error.InvalidOptions);
++    const result = owner.core.sceneFullHitTest(handleFromC(id.*), x, y) catch |err| return sessionError(owner, err);
++    out.* = result;
++    return c.OT_OK;
++}
++
+ pub fn ot_scene_get_stats(context: ?*ContextHandle, session_ptr: ?*const c.ot_handle, out_ptr: ?*c.ot_scene_stats) callconv(.c) c.ot_status {
+     const status = sessionContextStatus(context);
+     if (status != c.OT_OK) return status;
 diff --git a/packages/native/src/context.zig b/packages/native/src/context.zig
-index a697a28..2d1ddb3 100644
+index a697a28..ce7bdef 100644
 --- a/packages/native/src/context.zig
 +++ b/packages/native/src/context.zig
-@@ -3087,6 +3087,50 @@ pub const Context = struct {
+@@ -3087,14 +3087,66 @@ pub const Context = struct {
          value.cancelSceneFrame();
      }
  
@@ -1554,10 +1617,27 @@ index a697a28..2d1ddb3 100644
 +    }
 +
      pub fn sceneHitTest(self: *Context, session_handle: Handle, x: i32, y: i32) !u32 {
++        return self.sceneHitTestSnapshot(session_handle, x, y, true);
++    }
++
++    pub fn sceneFullHitTest(self: *Context, session_handle: Handle, x: i32, y: i32) !u32 {
++        return self.sceneHitTestSnapshot(session_handle, x, y, false);
++    }
++
++    fn sceneHitTestSnapshot(self: *Context, session_handle: Handle, x: i32, y: i32, drop_only: bool) !u32 {
          try self.beginMutation();
          defer self.mutating = false;
+         const value = try self.getSession(session_handle);
+         const attached = value.renderer orelse return error.RendererNotAttached;
+         const owned = value.scene orelse return error.SceneNotAttached;
+         if (x < 0 or y < 0) return 0;
+-        const token = owned.hitToken(attached, @intCast(x), @intCast(y));
++        const token = if (drop_only) owned.hitToken(attached, @intCast(x), @intCast(y)) else owned.fullHitToken(attached, @intCast(x), @intCast(y));
+         const handle = owned.tokens.get(token) orelse return 0;
+         const node = self.objects.get(handle, .native_renderable, native_renderable.NativeRenderable) catch return 0;
+         const state = node.scene_node orelse return 0;
 diff --git a/packages/native/src/renderer.zig b/packages/native/src/renderer.zig
-index eb8bdf9..12fe074 100644
+index eb8bdf9..864af1a 100644
 --- a/packages/native/src/renderer.zig
 +++ b/packages/native/src/renderer.zig
 @@ -88,10 +88,10 @@ fn frameContentHash(frame: *const OptimizedBuffer) u64 {
@@ -1584,15 +1664,21 @@ index eb8bdf9..12fe074 100644
  
      lastCursorStyleTag: ?u8 = null,
      lastCursorBlinking: ?bool = null,
-@@ -908,6 +910,7 @@ pub const CliRenderer = struct {
+@@ -908,6 +910,13 @@ pub const CliRenderer = struct {
      }
  
      fn publishHits(self: *CliRenderer, work: ?FrameWork) void {
-+        if (self.retain_hits) return;
++        if (self.retain_hits) {
++            // Cells now describe the projection but hits still describe the canonical
++            // frame. A retained skip must not copy those canonical hits into the next
++            // projected draft. Repaint the scene next time; keep current cells for diffing.
++            self.taint(FrameWork.full_path_unretained);
++            return;
++        }
          self.presented_hits_frame = if (work) |value| value.work_frame_id else 0;
      }
  
-@@ -1056,7 +1059,7 @@ pub const CliRenderer = struct {
+@@ -1056,7 +1065,7 @@ pub const CliRenderer = struct {
                      ansi.ANSI.moveToOutput(writer, 1, self.renderOffset + 1) catch b.failFrame();
                      writer.writeAll(ansi.ANSI.showCursor) catch b.failFrame();
                  }
@@ -1601,7 +1687,7 @@ index eb8bdf9..12fe074 100644
              }
              writer.flush() catch b.failFrame();
          }
-@@ -1726,7 +1729,7 @@ pub const CliRenderer = struct {
+@@ -1726,7 +1735,7 @@ pub const CliRenderer = struct {
      }
  
      fn beginRenderFrame(self: *const CliRenderer, writer: anytype) void {
@@ -1610,7 +1696,7 @@ index eb8bdf9..12fe074 100644
          writer.writeAll(ansi.ANSI.hideCursor) catch {};
      }
  
-@@ -2586,7 +2589,7 @@ pub const CliRenderer = struct {
+@@ -2586,7 +2595,7 @@ pub const CliRenderer = struct {
          // Lazy frame start is the core no-op suppression mechanism. If diffing,
          // cursor state, and pointer state are unchanged, frame_started stays false
          // and we emit nothing at all for this tick.
@@ -1619,7 +1705,7 @@ index eb8bdf9..12fe074 100644
          self.applyPendingSplitFooterTransition(writer, &frame_started);
  
          if ((images_changed or should_force) and (self.hasCommittedProtocol(.kitty) or self.hasNextProtocol(.kitty))) {
-@@ -3005,7 +3008,7 @@ pub const CliRenderer = struct {
+@@ -3005,7 +3014,7 @@ pub const CliRenderer = struct {
          }
  
          // Only close sync if we opened it. This keeps true no-op frames empty.
@@ -1629,10 +1715,10 @@ index eb8bdf9..12fe074 100644
          }
  
 diff --git a/packages/native/src/scene.zig b/packages/native/src/scene.zig
-index 11812d7..2d7778a 100644
+index 11812d7..7472952 100644
 --- a/packages/native/src/scene.zig
 +++ b/packages/native/src/scene.zig
-@@ -722,7 +722,7 @@ pub const PaintSlot = struct {
+@@ -722,16 +722,20 @@ pub const PaintSlot = struct {
  };
  
  /// A painted member's rect within its clip, in screen cells.
@@ -1641,16 +1727,21 @@ index 11812d7..2d7778a 100644
  
  /// The index of the last hit in paint order that covers a cell: what a grid that every
  /// member overwrote in paint order would hold there.
-@@ -731,7 +731,7 @@ pub fn topmostHit(hits: []const Hit, x: u32, y: u32) ?usize {
+ pub fn topmostHit(hits: []const Hit, x: u32, y: u32) ?usize {
++    return findHit(hits, x, y, true);
++}
++
++fn findHit(hits: []const Hit, x: u32, y: u32, drop_only: bool) ?usize {
+     var index = hits.len;
      while (index != 0) {
          index -= 1;
          const hit = hits[index];
 -        if (x >= hit.x and y >= hit.y and x - hit.x < hit.width and y - hit.y < hit.height) return index;
-+        if (hit.drop and x >= hit.x and y >= hit.y and x - hit.x < hit.width and y - hit.y < hit.height) return index;
++        if ((!drop_only or hit.drop) and x >= hit.x and y >= hit.y and x - hit.x < hit.width and y - hit.y < hit.height) return index;
      }
      return null;
  }
-@@ -2480,6 +2480,27 @@ pub const Scene = struct {
+@@ -2480,13 +2484,42 @@ pub const Scene = struct {
          self.hits_frame = 0;
      }
  
@@ -1677,8 +1768,24 @@ index 11812d7..2d7778a 100644
 +
      /// The token of the topmost presented hit rectangle at a cell, or 0.
      pub fn hitToken(self: *Scene, cli: *const renderer.CliRenderer, x: u32, y: u32) u32 {
++        return self.hitTokenForLookup(cli, x, y, true);
++    }
++
++    pub fn fullHitToken(self: *Scene, cli: *const renderer.CliRenderer, x: u32, y: u32) u32 {
++        return self.hitTokenForLookup(cli, x, y, false);
++    }
++
++    fn hitTokenForLookup(self: *Scene, cli: *const renderer.CliRenderer, x: u32, y: u32, drop_only: bool) u32 {
          self.settleHits(cli);
-@@ -2761,7 +2782,10 @@ pub const Scene = struct {
+         // Every hit lies inside the screen.
+         if (x >= cli.width or y >= cli.height or self.presented_hits_frame != cli.presented_hits_frame) return 0;
+         const hits = self.presented_hits.items;
+-        const index = topmostHit(hits, x, y);
++        const index = findHit(hits, x, y, drop_only);
+         if (builtin.is_test) self.test_hit_steps += hits.len - (index orelse 0);
+         return if (index) |found| hits[found].token else 0;
+     }
+@@ -2761,7 +2794,10 @@ pub const Scene = struct {
          defer self.verify_target = null;
          try self.paintMembers(owner, cli, options, recording, refresh_views, false);
          try self.verifyRows(scratch, next, false);
@@ -1690,7 +1797,7 @@ index 11812d7..2d7778a 100644
      }
  
      /// Where paint draws: next, or the scratch buffer of a verified skip.
-@@ -2916,9 +2940,9 @@ pub const Scene = struct {
+@@ -2916,9 +2952,9 @@ pub const Scene = struct {
              self.frame_work.member_cells += @as(u64, drawn.width) * drawn.height;
              try self.drawMember(owner, cli, entry, phases, cells, scissor);
          };
@@ -1702,7 +1809,7 @@ index 11812d7..2d7778a 100644
      }
  
      /// One member's phases and body inside a scissor. A member on several bands prepares its
-@@ -3051,11 +3075,11 @@ pub const Scene = struct {
+@@ -3051,11 +3087,11 @@ pub const Scene = struct {
                  };
              }
          }
@@ -1717,10 +1824,10 @@ index 11812d7..2d7778a 100644
      }
  
 diff --git a/packages/native/src/tests/context-abi.c b/packages/native/src/tests/context-abi.c
-index ea61a58..cb4b4c7 100644
+index ea61a58..88f9e2b 100644
 --- a/packages/native/src/tests/context-abi.c
 +++ b/packages/native/src/tests/context-abi.c
-@@ -145,6 +145,22 @@ static void rendered_output(ot_context *context) {
+@@ -145,6 +145,27 @@ static void rendered_output(ot_context *context) {
      assert(ot_scene_paint(context, &session, background, 1, 0, NULL) == OT_INVALID_ARGUMENT);
      assert(ot_scene_paint(context, &session, background, 1, 0, &frame) == OT_OK);
      assert(frame.kind == OT_SCENE_FRAME_DONE);
@@ -1729,6 +1836,11 @@ index ea61a58..cb4b4c7 100644
 +    assert(frame_sync == 1);
 +    assert(ot_session_frame_sync_enabled(context, NULL, &frame_sync) == OT_INVALID_ARGUMENT);
 +    assert(ot_session_frame_sync_enabled(context, &session, NULL) == OT_INVALID_ARGUMENT);
++    uint32_t full_hit = 0;
++    assert(ot_scene_full_hit_test(context, &session, 0, 0, &full_hit) == OT_OK);
++    assert(full_hit == 0); /* The draft has not presented. */
++    assert(ot_scene_full_hit_test(context, NULL, 0, 0, &full_hit) == OT_INVALID_ARGUMENT);
++    assert(ot_scene_full_hit_test(context, &session, 0, 0, NULL) == OT_INVALID_ARGUMENT);
 +    uint32_t copied_hits[32] = {0};
 +    assert(ot_scene_copy_hits(context, &session, 1, copied_hits, 32) == OT_OK);
 +    assert(copied_hits[0] == 101);
@@ -1744,10 +1856,10 @@ index ea61a58..cb4b4c7 100644
      assert(ot_scene_get_layout(context, &box, OT_LAYOUT_PUBLIC, &layout) == OT_OK);
      assert(layout.width == 4 && layout.height == 2);
 diff --git a/packages/native/src/tests/scene_frame_test.zig b/packages/native/src/tests/scene_frame_test.zig
-index 05b0e37..4ed324a 100644
+index 05b0e37..c8734b9 100644
 --- a/packages/native/src/tests/scene_frame_test.zig
 +++ b/packages/native/src/tests/scene_frame_test.zig
-@@ -2855,3 +2855,149 @@ test "Scene viewport inside a culled row filters as the full walk does" {
+@@ -2855,3 +2855,150 @@ test "Scene viewport inside a culled row filters as the full walk does" {
      }
      try twins[0].expectSameCells(twins[1]);
  }
@@ -1781,6 +1893,7 @@ index 05b0e37..4ed324a 100644
 +    try testing.expectEqualSlices(u32, &draft, &published);
 +    // Native direct callers retain capture exclusion; sceneCopyHits exposes the full JS snapshot.
 +    try testing.expectEqual(@as(u32, 7), try f.owner.sceneHitTest(f.id, 0, 0));
++    try testing.expectEqual(@as(u32, 42), try f.owner.sceneFullHitTest(f.id, 0, 0));
 +    try f.owner.sceneSetPaint(child, .{ .translateX = 1 });
 +    try @import("scene_fixture_test.zig").repaint(f.owner, f.id, options.background, true, 0);
 +    try f.owner.sceneCopyHits(f.id, 1, &draft);
