@@ -54,7 +54,7 @@ test(
   `server/` into `startServer`'s second argument: they run in the Server's process. A setting the
   Notes starter reads that way is `NOTES_AUTOSAVE_MS` (`"0"` turns autosave off).
 - Wait on the screen. `client.waitFor(text)` waits for a text to appear; `eventually(async () =>
-!(await client.frame()).includes(text))` waits for one to go; `client.settled(text)` also waits
+  !(await client.frame()).includes(text))` waits for one to go; `client.settled(text)` also waits
   for highlighting and images to finish. The app's own timers (an autosave, a retry, a message shown
   after 3 s) and streamed chunks update the screen during these waits, which last up to
   30 s. Await the waits directly: the driver manages React’s `act()` scopes for each poll.
@@ -65,7 +65,7 @@ test(
   and numeric `attributes`. Later renders leave it unchanged. Use `await client.frame()`
   for text snapshots; both methods manage `act()` and wait for native presentation.
 - Run every test file you write or change with `bun test <file>` and see it pass: a starter's `bun
-run verify` builds the app but runs no test.
+  run verify` builds the app but runs no test.
 - Pass `TEST_TIMEOUT_MS` as the last argument of every `test()` that opens a Client.
 - Keep a single copy of `react` in `node_modules` (`bun pm ls --all | grep ' react@'` lists one):
   the test renders the built Client with the test's own React, and a second copy fails with "Invalid

@@ -20,9 +20,9 @@ des deux sondes d'origine (`probes/rsc`, `probes/rpc`) étaient à jour ; `bun o
 | @types/react / @types/react-dom              | 19.3.0   |
 | typescript                                   | 7.0.2    |
 | @typescript/typescript6                      | 6.0.2    |
-| oxlint                                       | 1.85.0   |
-| oxlint-tsgolint                              | 7.0.2004 |
-| oxfmt                                        | 0.70.0   |
+| oxlint                                       | 1.90.0   |
+| oxlint-tsgolint                              | 7.0.2005 |
+| oxfmt                                        | 0.75.0   |
 | zod                                          | 4.6.7    |
 | actions/checkout                             | v7.0.1   |
 | oven-sh/setup-bun                            | v2.2.0   |
