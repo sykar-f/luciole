@@ -220,7 +220,9 @@ function spansOf(token: Token, marks: Marks): Span[] {
   ];
   switch (token.type) {
     case "text":
-      return token.tokens?.length ? nested(token.tokens, {}) : textSpans(token.text, marks);
+      // Marked 18 decodes numeric references in text. Read the source so our
+      // reference decoder can keep control characters verbatim and decode once.
+      return token.tokens?.length ? nested(token.tokens, {}) : textSpans(token.raw, marks);
     case "escape":
       return [{ text: token.text, marks: cleanMarks({ ...marks, escaped: true }) }];
     case "strong":

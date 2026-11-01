@@ -140,3 +140,11 @@ test("keys read as intents", () => {
   expect(key("b", { super: true })).toEqual({ type: "mark", mark: "bold" });
   expect(key("escape", { sequence: "\u001b" })).toBeNull();
 });
+
+test("numeric control references stay in one paragraph after an edit", () => {
+  const editor = new EditorController("foo&#10;&#10;bar &#38;copy;");
+  editor.end();
+  editor.type("!");
+  expect(editor.markdown).toBe("foo&#10;&#10;bar \\&copy;!");
+  expect(parseMarkdown(editor.markdown)).toHaveLength(1);
+});

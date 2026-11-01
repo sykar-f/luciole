@@ -22,6 +22,11 @@ and marked **Breaking**.
 - Core uses TanStack Router 1.170.46. Its runtime ABI key changes.
   Rebuild apps before use with the new runtime.
 
+### Fixed
+
+- Markdown Editor keeps numeric control references within the same paragraph
+  after an edit. The Markdown component preserves literal character references.
+
 ## [0.6.1] - 2026-10-30
 
 ### Fixed

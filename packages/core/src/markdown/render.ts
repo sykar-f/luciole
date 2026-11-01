@@ -291,7 +291,7 @@ function block(token: MarkedToken, out: Builder, palette: Palette, base: readonl
     }
     case "text":
       if (token.tokens) inline(tokensOf(token.tokens), out, [], palette);
-      else out.text(token.text);
+      else out.text(token.raw);
       return;
     case "heading": {
       const level = headingLevel(token);
@@ -453,7 +453,8 @@ function inline(
     switch (token.type) {
       case "text":
         if (token.tokens) inline(tokensOf(token.tokens), out, groups, palette, link);
-        else out.text(token.text, groups, link);
+        // Keep references as written, as before Marked 18 decoded numeric ones.
+        else out.text(token.raw, groups, link);
         break;
       case "escape":
         out.text(token.text, groups, link);

@@ -422,3 +422,9 @@ test("however many blocks a transcript holds, the renderer hears one listener pe
   expect(setup.renderer.listenerCount("capabilities")).toBeLessThanOrEqual(1);
   expect(setup.renderer.listenerCount("theme_mode")).toBeLessThanOrEqual(1);
 });
+
+test("numeric references retain their literal terminal text", async () => {
+  const content = "foo&#10;&#10;bar &#38;copy; &amp;";
+  const setup = await render(<StyledMarkdown content={content} streaming={false} />);
+  expect(await settled(setup, content)).toContain(content);
+});
