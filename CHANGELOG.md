@@ -15,16 +15,6 @@ and marked **Breaking**.
 
 ### Changed
 
-- Key help lists app bindings in the mount order of their layers. A layer
-  update no longer changes that order. Framework bindings stay first.
-- Core uses OpenTUI 0.8.1. Pixel scrolling keeps fractional rows, fixed
-  scrollbars and correct pointer targets in nested lists. Native output uses
-  a writer thread on Linux and macOS. Captured output has a size limit.
-- Delete, Backspace, Delete Line and selection delete can remove text that
-  contains only zero-width characters. A left or right wheel step no longer
-  shifts truncated text by one column. Select-all in an Input or Textarea
-  that contains only zero-width text still makes an empty selection.
-  Use Delete, Backspace or Delete Line to remove that text.
 - **Breaking:** Prepared native and web runtimes need Zig 0.17.0.
   Rebuild apps and prepare their runtimes with this compiler.
 - **Breaking:** ScrollBox parts are facades. Children belong to the box.
@@ -33,19 +23,22 @@ and marked **Breaking**.
 - **Breaking:** ScrollBox `getChildrenCount()` counts rows only. Update code
   that counts the box's parts as children. `primaryAxis` now follows the
   content direction. Set the content's `flexDirection` to choose the axis.
-- **Breaking:** Browser video is unavailable. Do not use `VideoRenderable`
-  in a web app.
-- **Breaking:** A node with zero width or height draws nothing and receives
-  no mouse events. Set `flexShrink: 0` on headers above growing ScrollBoxes.
 - **Breaking:** ScrollBox clips overflow and accepts whole-cell viewport
   padding. Check part options and use integer padding values.
+- **Breaking:** A node with zero width or height draws nothing and receives
+  no mouse events. Set `flexShrink: 0` on headers above ScrollBoxes that grow.
+- **Breaking:** Browser video is unavailable. Do not use `VideoRenderable`
+  in a web app.
+- **Breaking:** The optional SQLite WASM peer range starts at 3.54.1-build1.
+  Apps that use the web Server must update `@sqlite.org/sqlite-wasm`.
+- **Breaking:** Core uses TanStack Router 1.170.46. Its runtime ABI key changes.
+  Rebuild apps before use with the new runtime.
 - **Breaking:** Remove calls to `defineNativeIntegration()` and the
   `NativeRenderableIntegration.construction` field. Declare a static
   `nativeIntegration` property on the renderable class instead.
-- **Breaking:** Render hooks are cached when the class is constructed.
+- **Breaking:** OpenTUI caches render hooks at class construction.
   Call `refreshHooks()` after a change through reflection. Assign
   `renderBefore`, `renderAfter` and `onLifecyclePass` in the constructor.
-
 - **Breaking:** Remove `nativeSceneWorkBudget`, `NativeSceneFrame.Yield` and
   frame-step work budgets. Remove `geometryRevision` from frame requests.
 - **Breaking:** Custom `RenderContext` implementations must supply `clock`
@@ -63,14 +56,19 @@ and marked **Breaking**.
   styled-text calls to the current signatures.
 - **Breaking:** OpenTUI rejects default-ignorable characters in `customBorderChars`
   and `drawGrid`. Use a border character that fills one cell, such as a space.
+- Key help lists app bindings in the mount order of their layers. A layer
+  update no longer changes that order. Framework bindings stay first.
+- Core uses OpenTUI 0.8.1. Pixel scroll keeps fractional rows, fixed
+  scrollbars and correct pointer targets in nested lists. Native output uses
+  a writer thread on Linux and macOS. Captured output has a size limit.
+- Delete, Backspace, Delete Line and selection delete can remove text that
+  contains only zero-width characters. A left or right wheel step no longer
+  shifts truncated text by one column. Select-all in an Input or Textarea
+  that contains only zero-width text still makes an empty selection.
+  Use Delete, Backspace or Delete Line to remove that text.
 - New apps pin Bun 1.4.4. The minimum supported Bun version stays at 1.4.1.
-
 - Core and Markdown Editor use marked 18.1.2. The parser includes fixes for
   lists, quotes, links, emphasis, HTML blocks and character references.
-- **Breaking:** The optional SQLite WASM peer range starts at 3.54.1-build1.
-  Apps that use the web Server must update `@sqlite.org/sqlite-wasm`.
-- Core uses TanStack Router 1.170.46. Its runtime ABI key changes.
-  Rebuild apps before use with the new runtime.
 
 ### Fixed
 
