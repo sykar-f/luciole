@@ -40,7 +40,7 @@ test("every version /status/ shows is the repository's", async () => {
 });
 
 test("a version changed on the page fails", async () => {
-  expectLines(await problems(changed(page, ">0.6.8</span", ">0.6.7</span")), [
+  expectLines(await problems(changed(page, ">0.8.1</span", ">0.6.7</span")), [
     /shows 0\.6\.7 for catalog:@opentui\/core, but package\.json/,
     /for catalog:@opentui\/react/,
     /for catalog:@opentui\/keymap/,

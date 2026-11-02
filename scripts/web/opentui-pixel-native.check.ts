@@ -56,13 +56,13 @@ test(
             "--depth",
             "1",
             "--branch",
-            "v0.6.8",
+            "v0.8.1",
             "https://github.com/anomalyco/opentui",
             checkout,
           ],
       root,
     );
-    for (const patch of ["opentui-v0.6.8.patch", "opentui-v0.6.8-pixel-scroll.patch"])
+    for (const patch of ["opentui-v0.8.1.patch", "opentui-v0.8.1-pixel-scroll.patch"])
       await run(["git", "apply", join(root, "packages/core/web", patch)]);
     await run([process.execPath, "install", "--frozen-lockfile"]);
     await run([process.execPath, "packages/core/scripts/native-abi.ts", "--check"]);

@@ -54,12 +54,22 @@ test("frame commands capture the integer origin before projecting and commit onc
   expect(messages(plan.after)).toEqual([
     { op: "register", version: 1, id: 1, generation: 7, rect: frame.rect, origin: 10 },
   ]);
-  expect(plan.projection?.translateY).toBe(-11);
+  expect(plan.projection).toMatchObject({ translateY: -11 });
   expect(messages(plan.projection?.after)).toEqual([
     { op: "step", version: 1, id: 1, generation: 7, fraction: 0.25 },
     { op: "commit", version: 1, generation: 7 },
   ]);
   expect(frame.fraction).toBe(0.25);
+});
+
+test("frame planning forwards a ScrollBox content origin with its owning box", () => {
+  const frame = fixture();
+  const owner = frame.viewport.project(0).renderable;
+  frame.viewport.project = (origin) => ({ renderable: owner, scrollContent: true, origin });
+  const plan = planPixelFrame(frame);
+  expect(plan.projection?.renderable).toBe(owner);
+  expect(plan.projection).toMatchObject({ scrollContent: true, origin: 11 });
+  expect(messages(plan.projection?.after).map((op) => op?.op)).toEqual(["step", "commit"]);
 });
 
 test("canonical release follows its complete transaction without a projection", () => {
@@ -197,7 +207,7 @@ test("nested surface rectangles clip to visible content and terminal cells", () 
 test("popup canonical repaint refreshes fixed chrome before the release command", () => {
   const plan = planPixelFrame(fixture(0), true, true);
   expect(messages(plan.after).map((p) => p?.op)).toEqual(["register"]);
-  expect(plan.projection?.translateY).toBe(-10);
+  expect(plan.projection).toMatchObject({ translateY: -10 });
   expect(messages(plan.projection?.after).map((p) => p?.op)).toEqual(["step", "commit", "release"]);
 });
 

@@ -90,7 +90,7 @@ test("library builds accept target options and an inherited toolchain environmen
     if (!Array.isArray(command)) throw new Error("Expected command array");
     calls.push({ command, env: options && "env" in options ? options.env : undefined });
     if (command[1] === "build") writeFileSync(artifact, "native");
-    return spawn([process.execPath, "--eval", "console.log('0.16.0')"]);
+    return spawn([process.execPath, "--eval", "console.log('0.17.0')"]);
   };
   const commands = spyOn(Bun, "spawnSync").mockImplementation(buildCommands);
   try {
@@ -120,7 +120,7 @@ test("library builds accept target options and an inherited toolchain environmen
 
 test("0.8.1 Zig diagnostics name the selected toolchain", async () => {
   const { checkZig, openTuiZigVersion } = await import("../packages/core/src/opentui-runtime");
-  expect(openTuiZigVersion("v0.6.8")).toBe("0.16.0");
+  expect(openTuiZigVersion()).toBe("0.17.0");
   expect(openTuiZigVersion("v0.8.1")).toBe("0.17.0");
   expect(() => checkZig("/missing/zig", "web runtime", openTuiZigVersion("v0.8.1"))).toThrow(
     "Set ZIG to a Zig 0.17.0 executable.",

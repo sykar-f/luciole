@@ -444,7 +444,7 @@ test("help lines are generated from the key layers mounted right now", async () 
     );
     await waitFor("src/report.ts · typescript");
     const reviewing =
-      "] next file · [ previous · c comment · v viewed · s split · e editor · j line · space page";
+      "j line · space page · ] next file · [ previous · c comment · v viewed · s split · e editor";
     expect(await shownIn(forge, "screen-help")).toBe(reviewing);
     expect(await forge.frame()).toContain("tab next tab · shift+tab previous");
     // Moving the cursor re-registers the diff's layer; the help keeps its order.
@@ -454,7 +454,7 @@ test("help lines are generated from the key layers mounted right now", async () 
     await step(() => ui.mockInput.typeText("c"));
     await waitFor("Comment on src/report.ts");
     expect(await shownIn(forge, "screen-help")).toBe(
-      "escape leave · ctrl+s publish · ctrl+x discard",
+      "ctrl+s publish · ctrl+x discard · escape leave",
     );
     expect(await forge.frame()).not.toContain("tab next tab");
     await step(() => ui.mockInput.pressEscape());

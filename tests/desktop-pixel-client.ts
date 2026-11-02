@@ -5,10 +5,17 @@ import { createRootRoute } from "@tanstack/react-router";
 import type { CliRenderer, CliRendererConfig } from "@opentui/core";
 import { detectOpenTuiMouseObserver } from "../packages/core/src/opentui-seams";
 
+const started = performance.now();
+function diagnostic(stage: string, details: Record<string, unknown> = {}) {
+  process.send?.({ diagnostic: { stage, ms: performance.now() - started, ...details } });
+}
+diagnostic("start");
+
 // eslint-disable-next-line typescript/no-unsafe-assignment -- Opt-in entry supplies the same OpenTUI exports as the stock module.
 const core: typeof import("@opentui/core") = await import(
   process.env.DESKTOP_PIXEL_CORE ?? "@opentui/core"
 );
+diagnostic("core-loaded");
 const createRenderer = core.createCliRenderer;
 const mode = process.env.DESKTOP_PIXEL_CASE;
 let active: CliRenderer;
@@ -21,7 +28,9 @@ void mock.module(resolve("packages/core/src/connect.ts"), () => ({
 void mock.module("@opentui/core", () => ({
   ...core,
   createCliRenderer: async (options: CliRendererConfig) => {
+    diagnostic("renderer-creating");
     active = await createRenderer(options);
+    diagnostic("renderer-created");
     const reportError = console.error.bind(console);
     console.error = (error: unknown) => {
       process.send?.({ failure: error instanceof Error ? error.message : String(error) });
@@ -79,13 +88,26 @@ void mock.module("@opentui/react", () => ({
       const scroll = new core.ScrollBoxRenderable(renderer, {
         width: 30,
         height: 6,
-        onMouseScroll() {
+        onMouseScroll(event) {
+          diagnostic("mouse-scroll", { x: event.x, y: event.y, frameId: renderer.frameId });
           queueMicrotask(() => process.send?.({ rowScroll: scroll.scrollTop }));
         },
       });
       for (let i = 0; i < 30; i++)
         scroll.add(new core.TextRenderable(renderer, { content: `Desktop row ${i}`, height: 1 }));
+      let frames = 0;
+      renderer.on(core.CliRenderEvents.FRAME, () => {
+        if (frames++ < 3)
+          diagnostic("frame", {
+            frameId: renderer.frameId,
+            hit: renderer.hitTest(2, 2),
+            scrollTop: scroll.scrollTop,
+            scrollHeight: scroll.scrollHeight,
+            viewportHeight: scroll.viewport.height,
+          });
+      });
       renderer.root.add(scroll);
+      diagnostic("render-requested");
       renderer.requestRender();
       process.send?.({ ready: true });
     },
@@ -94,7 +116,11 @@ void mock.module("@opentui/react", () => ({
 const { Application } = await import("../packages/core/src/client");
 const { run } = await import("../packages/core/src/run");
 let app: InstanceType<typeof Application>;
-process.on("message", () => app.quit?.());
+process.on("message", () => {
+  diagnostic("quit-requested");
+  app.quit?.();
+});
+diagnostic("run-start");
 await run(
   (options) =>
     (app = new Application({
@@ -111,3 +137,5 @@ await run(
     ...(mode?.startsWith("launch-") ? {} : { pixelScroll: mode !== "disabled" }),
   },
 );
+
+diagnostic("run-returned");

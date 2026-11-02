@@ -2,7 +2,7 @@
  * Notes in a browser, against its real Server (docs/WEB.md, step 2): the Server serves the
  * web runtime on its declared origin, headless Chrome opens it, and the journey reads the
  * screen xterm.js draws. Builds examples/notes with `--web`: the web runtime must be
- * prepared (`luciole web-runtime`, Zig 0.16.0 in ZIG) or preparable.
+ * prepared (`luciole web-runtime`, Zig 0.17.0 in ZIG) or preparable.
  *   bun run test:web
  */
 import { join } from "node:path";

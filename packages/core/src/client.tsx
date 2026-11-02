@@ -964,12 +964,14 @@ export function KeyHelp({
     const desc = attrs["desc"];
     if (typeof desc !== "string") return [];
     if (groups && !groups.includes(String(attrs["group"]))) return [];
-    return [{ display: key.display, desc }];
+    return [{ display: key.display, desc, framework: attrs["group"] === "luciole" }];
   });
+  // Display order is independent of upstream layer registration and priority.
+  const ordered = [...keys.filter((key) => key.framework), ...keys.filter((key) => !key.framework)];
   if (inline)
     return (
       <text height={1} wrapMode="none" truncate fg={fg}>
-        {keys.map(({ display, desc }, i) => (
+        {ordered.map(({ display, desc }, i) => (
           <span key={display}>
             {i ? " · " : ""}
             <span fg={accent}>{display}</span> {desc}
@@ -979,7 +981,7 @@ export function KeyHelp({
     );
   return (
     <box flexDirection="column" flexShrink={0}>
-      {keys.map(({ display, desc }) => (
+      {ordered.map(({ display, desc }) => (
         <text key={display} height={1} wrapMode="none" truncate fg={fg}>
           <span fg={accent}>{display}</span> {desc}
         </text>

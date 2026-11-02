@@ -188,7 +188,8 @@ export async function run(
         desktop &&
         voluntary &&
         error instanceof NativeError &&
-        error.operation === "ot_session_drain_stdout" &&
+        (error.operation === "ot_session_drain_stdout" ||
+          error.operation === "ot_session_post_stdout") &&
         error.status === NativeStatus.OutputFailed;
       if (!closedOutput) {
         console.error(messageOf(error));

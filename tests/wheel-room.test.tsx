@@ -7,7 +7,8 @@ import { renderFrame } from "../packages/core/src/test/frame";
  */
 import { afterEach, expect, test } from "bun:test";
 import { act, useMemo, type ComponentProps } from "react";
-import { RGBA } from "@opentui/core";
+import { RGBA, ScrollBoxRenderable, TextRenderable } from "@opentui/core";
+import { createTestRenderer } from "@opentui/core/testing";
 import { useRenderer } from "@opentui/react";
 import { syntaxStyle } from "@luciole-sh/core/client";
 import { testRender } from "@opentui/react/test-utils";
@@ -155,4 +156,34 @@ test("a renderable that handles the wheel itself keeps it, whatever it does with
 test("outside the screen, no room", async () => {
   await screen();
   expect(room({ x: WIDTH + 5, y: HEIGHT + 5 })).toEqual({ up: false, down: false });
+});
+
+test("viewport padding keeps wheel ownership until the native ScrollBox reaches its end", async () => {
+  const scene = await createTestRenderer({ width: WIDTH, height: HEIGHT });
+  try {
+    const box = new ScrollBoxRenderable(scene.renderer, {
+      width: WIDTH,
+      height: LIST,
+      viewportOptions: { paddingTop: 1, paddingBottom: 1 },
+    });
+    for (const line of lines(12))
+      box.add(new TextRenderable(scene.renderer, { content: line, height: 1, flexShrink: 0 }));
+    scene.renderer.root.add(box);
+    await scene.renderOnce();
+    box.scrollTop = box.scrollHeight - box.viewport.height;
+    await scene.renderOnce();
+    const pointer = { x: box.viewport.x + 1, y: box.viewport.y + 1 };
+    expect(wheelRoom(scene.renderer, pointer.x, pointer.y)).toEqual({ up: true, down: true });
+    const before = box.scrollTop;
+    await scene.mockMouse.scroll(pointer.x, pointer.y, "down");
+    await scene.renderOnce();
+    expect(box.scrollTop).toBeGreaterThan(before);
+    box.scrollTo(Infinity);
+    await scene.renderOnce();
+    expect(box.scrollTop).toBe(box.scrollHeight - box.viewport.height + 2);
+    expect(wheelRoom(scene.renderer, pointer.x, pointer.y)).toEqual({ up: true, down: false });
+  } finally {
+    scene.renderer.destroy();
+    await scene.renderer.closed;
+  }
 });

@@ -10,8 +10,11 @@ const cases = [
   })),
   { mode: "closed-output", desktop: false },
 ];
-for (const { mode, desktop } of cases) {
-  test(`${desktop ? "desktop" : "terminal"} voluntary quit with ${mode}`, async () => {
+for (const { mode, desktop, writer } of cases.flatMap((value) =>
+  [true, false].map((writer) => ({ ...value, writer })),
+)) {
+  const operation = writer ? "ot_session_post_stdout" : "ot_session_drain_stdout";
+  test(`${desktop ? "desktop" : "terminal"} voluntary quit with ${mode}${writer ? "" : " through direct stdout"}`, async () => {
     const work = await mkdtemp("/tmp/luciole-quit-");
     let left = false;
     const events = Bun.serve({
@@ -31,6 +34,8 @@ for (const { mode, desktop } of cases) {
         QUIT_EVENTS: events.url.href,
         QUIT_RESULT: join(work, "renderer-error.json"),
         QUIT_FAILURE: mode,
+        OTUI_STDOUT_THREAD: writer ? "1" : "0",
+        QUIT_OUTPUT_OPERATION: operation,
       },
       terminal: { cols: 80, rows: 24, data() {} },
       stderr: "pipe",
@@ -59,7 +64,7 @@ for (const { mode, desktop } of cases) {
         ...(mode === "lookalike"
           ? {}
           : {
-              operation: mode === "other-operation" ? "ot_scene_flush" : "ot_session_drain_stdout",
+              operation: mode === "other-operation" ? "ot_scene_flush" : operation,
             }),
         failure:
           mode === "lookalike"

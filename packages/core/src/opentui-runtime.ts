@@ -22,14 +22,14 @@ export const PIXEL_SCROLL_PATCH = resolve(
   `../web/opentui-${OPENTUI_TAG}-pixel-scroll.patch`,
 );
 
-export const OPENTUI_ZIG_VERSIONS = { "v0.6.8": "0.16.0", "v0.8.1": "0.17.0" } as const;
+export const OPENTUI_ZIG_VERSIONS = { "v0.8.1": "0.17.0" } as const;
 export type OpenTuiTag = keyof typeof OPENTUI_ZIG_VERSIONS;
 export function openTuiZigVersion(tag: string = OPENTUI_TAG) {
-  return tag === "v0.8.1" ? OPENTUI_ZIG_VERSIONS[tag] : OPENTUI_ZIG_VERSIONS["v0.6.8"];
+  return tag === "v0.8.1" ? OPENTUI_ZIG_VERSIONS[tag] : OPENTUI_ZIG_VERSIONS[OPENTUI_TAG];
 }
-/** The 0.8.1 pixel port is prepared separately before activation. */
+/** Native preparation applies the pixel contract without the web-only patch. */
 export function nativePatches(tag: OpenTuiTag): string[] {
-  return tag === "v0.6.8" ? [PIXEL_SCROLL_PATCH] : [];
+  return [resolve(import.meta.dir, `../web/opentui-${tag}-pixel-scroll.patch`)];
 }
 const LOCK_POLL_MS = 25;
 

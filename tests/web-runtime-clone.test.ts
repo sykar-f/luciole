@@ -158,7 +158,7 @@ test("WASM without matching source provenance is rebuilt before reuse", async ()
           builds++;
           writeFileSync(wasm, `built ${builds}`);
         }
-        return spawn([process.execPath, "--eval", "console.log('0.16.0')"]);
+        return spawn([process.execPath, "--eval", "console.log('0.17.0')"]);
       }
       return spawn(command, options);
     };
