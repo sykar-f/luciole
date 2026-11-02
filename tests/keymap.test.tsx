@@ -26,6 +26,7 @@ const FILES: Record<string, string> = {
     include: ["app", "components"],
   }),
   "app/layout.tsx": `"use client";
+import { Collision } from "../components/Collision";
 import { KeyHelp, useBindings, useConnection, type LayoutProps } from "@luciole-sh/core/client";
 export default function Layout({ children }: LayoutProps) {
   const { refresh } = useConnection();
@@ -35,6 +36,7 @@ export default function Layout({ children }: LayoutProps) {
   ] }), [refresh]);
   return (
     <box flexDirection="column" flexGrow={1}>
+      <Collision />
       {children}
       <box id="footer" height={1}><KeyHelp inline groups={["global", "luciole"]} /></box>
     </box>
@@ -43,17 +45,19 @@ export default function Layout({ children }: LayoutProps) {
   "app/page.tsx": "export default function Page(){return <text>home</text>}",
   "app/items/[id]/page.tsx": `import { Editor } from "../../../components/Editor";
 export default function Page(){return <Editor />}`,
-  "app/collision/page.tsx": `import { Collision } from "../../components/Collision";
-export default function Page(){return <Collision />}`,
+  "app/collision/page.tsx": `export default function Page(){return <text>collision page</text>}`,
+  "app/pending/page.tsx": `export default function Page(){return <text>pending page</text>}`,
   "components/Collision.tsx": `"use client";
 import { useState } from "react";
 import { useBindings } from "@luciole-sh/core/client";
 export function Collision() {
   const [count, setCount] = useState(0);
+  const [escapes, setEscapes] = useState(0);
   useBindings(() => ({ bindings: [
     { key: "ctrl+c", cmd: () => setCount((n) => n + 1), desc: "app ctrl+c", group: "collision" },
+    { key: "escape", cmd: () => setEscapes((n) => n + 1), desc: "app escape", group: "collision" },
   ] }), []);
-  return <text>app ctrl+c {count}</text>;
+  return <text height={1} flexShrink={0}>app ctrl+c {count}; app escape {escapes}</text>;
 }`,
   "components/Editor.tsx": `"use client";
 import { KeyHelp, useBindings, useNavigate } from "@luciole-sh/core/client";
@@ -172,6 +176,67 @@ test("framework quit stays reachable when an app also binds Ctrl+C", async () =>
     expect(quits).toBe(1);
     expect(frame).toContain("app ctrl+c 0");
   } finally {
+    await destroy(rendered);
+    await server.stop();
+  }
+});
+
+test("framework cancel runs before an app Escape binding during navigation", async () => {
+  const server = await launch(join(root, ".luciole/server/index.js"));
+  const { createApp, Shell } = await importClient(root, "keymap-cancel-collision");
+  const gate = Promise.withResolvers<void>();
+  let hold = false;
+  let held = false;
+  const app = createApp({
+    url: server.url,
+    fetch: async (url: URL, init: RequestInit) => {
+      if (hold) {
+        hold = false;
+        held = true;
+        await gate.promise;
+      }
+      return fetch(url, init);
+    },
+  });
+  let cancels = 0;
+  const cancel = app.cancel;
+  app.cancel = () => {
+    cancels++;
+    cancel();
+  };
+  let rendered: TestUI | undefined;
+  let navigation: Promise<void> = Promise.resolve();
+  try {
+    await app.router.navigate({ to: "/collision" });
+    const ui = await testRender(<Shell app={app} />, { width: 100, height: 24 });
+    rendered = ui;
+    await ui.renderOnce();
+    hold = true;
+    await act(async () => {
+      navigation = app.router.navigate({ to: "/pending" });
+      await until(() => held);
+    });
+    await ui.renderOnce();
+    expect(app.router.state.status).toBe("pending");
+    const pressed = Promise.withResolvers<void>();
+    ui.renderer.keyInput.on("keypress", (key) => {
+      if (key.name === "escape") pressed.resolve();
+    });
+    await act(async () => {
+      ui.mockInput.pressEscape();
+      await pressed.promise;
+    });
+    const frame = await renderFrame(ui);
+    console.log("Escape collision", {
+      cancels,
+      applicationHandled: frame.includes("app escape 1"),
+    });
+    expect(cancels).toBe(1);
+    expect(frame).toContain("app escape 1");
+  } finally {
+    cancel();
+    gate.resolve();
+    await Promise.allSettled([navigation]);
     await destroy(rendered);
     await server.stop();
   }

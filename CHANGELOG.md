@@ -15,6 +15,8 @@ and marked **Breaking**.
 
 ### Changed
 
+- Key help lists app bindings in the mount order of their layers. A layer
+  update no longer changes that order. Framework bindings stay first.
 - Core uses OpenTUI 0.8.1. Pixel scrolling keeps fractional rows, fixed
   scrollbars and correct pointer targets in nested lists. Native output uses
   a writer thread on Linux and macOS. Captured output has a size limit.
