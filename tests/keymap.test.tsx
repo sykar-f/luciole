@@ -2,7 +2,7 @@
 import { renderFrame } from "../packages/core/src/test/frame";
 import { afterAll, expect, test } from "bun:test";
 import { act } from "react";
-import { Renderable } from "@opentui/core";
+import { Renderable, TextRenderable } from "@opentui/core";
 import { testRender } from "@opentui/react/test-utils";
 import { mkdir, rm } from "node:fs/promises";
 import { join } from "node:path";
@@ -57,7 +57,7 @@ export function Collision() {
     { key: "ctrl+c", cmd: () => setCount((n) => n + 1), desc: "app ctrl+c", group: "collision" },
     { key: "escape", cmd: () => setEscapes((n) => n + 1), desc: "app escape", group: "collision" },
   ] }), []);
-  return <text height={1} flexShrink={0}>app ctrl+c {count}; app escape {escapes}</text>;
+  return <text id="collision-counts" height={1} flexShrink={0}>app ctrl+c {count}; app escape {escapes}</text>;
 }`,
   "components/Editor.tsx": `"use client";
 import { KeyHelp, useBindings, useNavigate } from "@luciole-sh/core/client";
@@ -218,14 +218,14 @@ test("framework cancel runs before an app Escape binding during navigation", asy
     });
     await ui.renderOnce();
     expect(app.router.state.status).toBe("pending");
-    const pressed = Promise.withResolvers<void>();
-    ui.renderer.keyInput.on("keypress", (key) => {
-      if (key.name === "escape") pressed.resolve();
-    });
     await act(async () => {
       ui.mockInput.pressEscape();
-      await pressed.promise;
     });
+    await until(
+      () =>
+        cancels > 0 ||
+        renderable(ui, "collision-counts", TextRenderable).plainText.includes("app escape 1"),
+    );
     const frame = await renderFrame(ui);
     console.log("Escape collision", {
       cancels,
