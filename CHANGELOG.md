@@ -16,7 +16,8 @@ and marked **Breaking**.
 ### Fixed
 
 - Keep the Client's exit code when a late close restores the terminal.
-  Write a warning when queued output is dropped. Other close failures still exit with code 1.
+  The Client writes a warning when the native driver drops queued output.
+  Other close failures still exit with code 1.
 
 ## [0.7.0] - 2026-11-02
 
