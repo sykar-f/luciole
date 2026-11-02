@@ -13,6 +13,8 @@ and marked **Breaking**.
 
 ## [Unreleased]
 
+## [0.7.1] - 2026-11-02
+
 ### Fixed
 
 - Keep the Client's exit code when a late close restores the terminal.
@@ -434,7 +436,8 @@ First public release, on npm. Five packages share this version: `luciole.sh`,
 - No multi-user load test and no public TLS proxy test. See
   <https://luciole.sh/status/>.
 
-[Unreleased]: https://github.com/sykar-f/luciole/compare/v0.7.0...HEAD
+[Unreleased]: https://github.com/sykar-f/luciole/compare/v0.7.1...HEAD
+[0.7.1]: https://github.com/sykar-f/luciole/releases/tag/v0.7.1
 [0.7.0]: https://github.com/sykar-f/luciole/releases/tag/v0.7.0
 [0.6.1]: https://github.com/sykar-f/luciole/releases/tag/v0.6.1
 [0.6.0]: https://github.com/sykar-f/luciole/releases/tag/v0.6.0
