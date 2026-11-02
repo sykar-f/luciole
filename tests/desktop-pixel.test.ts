@@ -4,6 +4,22 @@ import { join } from "node:path";
 import { until } from "./helpers";
 import { decode, encode, type PixelOperation } from "../packages/core/src/pixel-scroll/protocol";
 
+// Native stdout can expose frame bytes before its hit map is published.
+// The client reports FRAME with a hit at the wheel event's coordinates.
+function hasPublishedHit(event: unknown): boolean {
+  if (typeof event !== "object" || event === null || !("diagnostic" in event)) return false;
+  const diagnostic = event.diagnostic;
+  return (
+    typeof diagnostic === "object" &&
+    diagnostic !== null &&
+    "stage" in diagnostic &&
+    diagnostic.stage === "frame" &&
+    "hit" in diagnostic &&
+    typeof diagnostic.hit === "number" &&
+    diagnostic.hit > 0
+  );
+}
+
 // Bun can end a test before its polling promise settles. Report live state
 // from the hook as well as cleanup, so that timeout diagnostics cannot hang.
 const pendingDiagnostics = new Set<() => string | undefined>();
@@ -160,7 +176,7 @@ for (const mode of [
           mode === "attached",
         );
         if (mode === "stock") {
-          await f.wait(() => f.output().includes("Desktop row"));
+          await f.wait(() => f.events.some(hasPublishedHit));
           f.child.terminal?.write("\x1b[<65;3;3M");
           await f.wait(() =>
             f.events.some(
@@ -297,7 +313,7 @@ for (const [mode, flag, attached] of [
         attached,
       );
       if (!attached) {
-        await f.wait(() => f.output().includes("Desktop row"));
+        await f.wait(() => f.events.some(hasPublishedHit));
         f.child.terminal?.write("\x1b[<65;3;3M");
         await f.wait(() =>
           f.events.some(
