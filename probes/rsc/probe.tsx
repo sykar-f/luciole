@@ -1,7 +1,5 @@
 /** @jsxImportSource @opentui/react */
-import corePackage from "./node_modules/@opentui/core/package.json";
-import reactPackage from "./node_modules/react/package.json";
-import flightPackage from "./node_modules/react-server-dom-webpack/package.json";
+import { z } from "zod";
 import { renderFrame } from "../../packages/core/src/test/frame";
 import { testRender } from "@opentui/react/test-utils";
 import { act, isValidElement, useState, useEffect } from "react";
@@ -60,9 +58,24 @@ function Shell() {
 const ui = await testRender(<Shell />, { width: 40, height: 5 });
 const results: Record<string, unknown> = {
   versions: {
-    opentui: corePackage.version,
-    react: reactPackage.version,
-    flight: flightPackage.version,
+    opentui: z
+      .object({ version: z.string() })
+      .parse(
+        await Bun.file(
+          new URL("./node_modules/@opentui/core/package.json", import.meta.url),
+        ).json(),
+      ).version,
+    react: z
+      .object({ version: z.string() })
+      .parse(await Bun.file(new URL("./node_modules/react/package.json", import.meta.url)).json())
+      .version,
+    flight: z
+      .object({ version: z.string() })
+      .parse(
+        await Bun.file(
+          new URL("./node_modules/react-server-dom-webpack/package.json", import.meta.url),
+        ).json(),
+      ).version,
   },
   handwrittenManifest: true,
   serverFunctionsTested: false,

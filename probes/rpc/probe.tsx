@@ -1,6 +1,5 @@
 /** @jsxImportSource @opentui/react */
-import corePackage from "./node_modules/@opentui/core/package.json";
-import reactPackage from "./node_modules/react/package.json";
+import { z } from "zod";
 import { renderFrame } from "../../packages/core/src/test/frame";
 import { testRender } from "@opentui/react/test-utils";
 import { act, useState, useEffect } from "react";
@@ -26,7 +25,19 @@ async function next(): Promise<Record<string, unknown>> {
 const ready = await next();
 assert.notEqual(ready.pid, process.pid);
 const results: Record<string, unknown> = {
-  versions: { core: corePackage.version, react: reactPackage.version },
+  versions: {
+    core: z
+      .object({ version: z.string() })
+      .parse(
+        await Bun.file(
+          new URL("./node_modules/@opentui/core/package.json", import.meta.url),
+        ).json(),
+      ).version,
+    react: z
+      .object({ version: z.string() })
+      .parse(await Bun.file(new URL("./node_modules/react/package.json", import.meta.url)).json())
+      .version,
+  },
   separatePids: true,
 };
 try {
