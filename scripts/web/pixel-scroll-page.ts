@@ -111,3 +111,6 @@ Object.assign(window, {
     glError: () => gl.getError(),
   },
 });
+
+// Signal after the module has installed the probe, before CDP asks for it.
+await fetch("/fixture-ready");

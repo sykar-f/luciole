@@ -28,10 +28,15 @@ const css = await Bun.file(
 ).text();
 
 async function verify(dpr: number) {
+  const ready = Promise.withResolvers<void>();
   const site = Bun.serve({
     port: 0,
     fetch: (request) => {
       const path = new URL(request.url).pathname;
+      if (path === "/fixture-ready") {
+        ready.resolve();
+        return new Response(null, { status: 204 });
+      }
       return path === "/fixture.js"
         ? new Response(script, { headers: { "content-type": "text/javascript" } })
         : new Response(
@@ -50,6 +55,7 @@ async function verify(dpr: number) {
       mobile: false,
     });
     await browser.open(site.url.href);
+    await ready.promise;
     await browser.waitFor("!!window.probe", "the synthetic host fixture");
     await browser.evaluate(
       `probe.write('\\x1b[?1049h'+probe.sync(probe.paint(0) + probe.op({op:'query',version:1,nonce:'browser'})) + probe.mode)`,
@@ -74,7 +80,9 @@ async function verify(dpr: number) {
     );
     // Every onRender framebuffer is checked, not just the eventual screenshot.
     // Band colors identify every physical content row; chrome stays pixel-identical.
-    const proof = await browser.evaluate(`(async () => {
+    // Keep the transaction state in a generator, advancing one inspected frame
+    // per CDP command. The expiry wait belongs to the driver, outside CDP.
+    await browser.evaluate(`probe.proof = (async function* () {
       const {width,height,cellHeight:H,cellWidth:W} = probe.dimensions();
       const r = probe.rect;
       const errors = [];
@@ -101,9 +109,11 @@ async function verify(dpr: number) {
         const origin=Math.floor(position), fraction=position-origin;
         await probe.write(probe.sync(probe.transaction(++generation,origin,fraction)));
         inspect(origin,fraction,generation);
+        yield 0;
         probe.redraw();
         await probe.write('');
         inspect(origin,fraction,generation);
+        yield 0;
       }
       // A moved/chrome-changing half-frame stays invisible, including an expired
       // synchronized-output envelope and a cursor/partial refresh.
@@ -111,29 +121,35 @@ async function verify(dpr: number) {
       await probe.write('\\x1b[?2026h'+probe.op({op:'begin',version:1,generation:++generation})+probe.paint(7,true)+
         probe.op({op:'register',version:1,generation,id:1,rect:{x:1,y:1,width:5,height:3},origin:7}));
       probe.redraw();
-      await new Promise(resolve=>setTimeout(resolve,1100));
+      yield 1100;
       await probe.write('');
       inspect(3,.1,active);
+      yield 0;
       // Stale step and rejected commit retain the entire old frame.
       await probe.write(probe.op({op:'step',version:1,generation:active,id:1,fraction:.7})+
         probe.op({op:'commit',version:1,generation})+'\\x1b[?2026l');
       inspect(3,.1,active);
+      yield 0;
       // A valid ready frame survives a later begin before the render.
       const ready=++generation;
       await probe.write(probe.sync(probe.transaction(ready,4,.25)+
         probe.op({op:'begin',version:1,generation:++generation})+probe.paint(9,true)));
       inspect(4,.25,ready);
+      yield 0;
       // A fractional release, even at a rounded-zero offset, is rejected.
       const zero=++generation;
       await probe.write(probe.sync(probe.transaction(zero,5,.001)+probe.op({op:'release',version:1,id:1,generation:zero})));
       inspect(5,.001,zero);
+      yield 0;
       // Canonical release with intervening painting is refused.
       const dirty=++generation;
       await probe.write(probe.sync(probe.transaction(dirty,6,0)+probe.paint(7,true)+probe.op({op:'release',version:1,id:1,generation:dirty})));
       inspect(6,0,dirty);
+      yield 0;
       const canonical=++generation;
       await probe.write(probe.sync(probe.transaction(canonical,8,0)+probe.op({op:'release',version:1,id:1,generation:canonical})));
       inspect(8,0,0);
+      yield 0;
       // Release is accepted before ordinary output advances the canonical grid,
       // all in one parser task before the next presentation.
       const advanced=++generation;
@@ -142,8 +158,10 @@ async function verify(dpr: number) {
       if (!probe.frames.length) errors.push('advanced release did not render');
       inspect(10,0,0);
       if (probe.pixels.present()) errors.push('advanced release retained a frame');
+      yield 0;
       probe.redraw(); await probe.write('');
       inspect(10,0,0);
+      yield 0;
       // A new incomplete transaction after an accepted release must still hold
       // the prior image, including on a later ordinary redraw.
       const held=++generation, incomplete=++generation;
@@ -152,12 +170,23 @@ async function verify(dpr: number) {
         probe.transaction(incomplete,12,.25,false)));
       if (!probe.frames.length) errors.push('incomplete transaction did not render');
       inspect(11,0,held);
+      yield 0;
       probe.redraw(); await probe.write('');
       inspect(11,0,held);
+      yield 0;
       await probe.write(probe.sync(probe.op({op:'commit',version:1,generation:incomplete})));
       inspect(12,.25,incomplete);
+      yield 0;
       return {errors,checked,glError:probe.glError(),H,W};
-    })()`);
+    })(); undefined`);
+    const Step = z.object({ done: z.boolean(), value: z.unknown() });
+    let step = Step.parse(await browser.evaluate(`probe.proof.next()`));
+    while (!step.done) {
+      const delay = z.number().parse(step.value);
+      if (delay) await Bun.sleep(delay);
+      step = Step.parse(await browser.evaluate(`probe.proof.next()`));
+    }
+    const proof = step.value;
     expect(proof).toMatchObject({ errors: [], glError: 0 });
     expect(z.object({ checked: z.number() }).parse(proof).checked).toBeGreaterThanOrEqual(29);
     const cursor = await browser.evaluate(`(async () => {
