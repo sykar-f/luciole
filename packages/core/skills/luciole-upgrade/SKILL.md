@@ -34,20 +34,63 @@ Run every command from the app's directory. The upgrade guide is
    Plain `bun update` never crosses a 0.x minor.
 5. **Install**, then **check the renderer pins**. The app pins `@opentui/core`,
    `@opentui/keymap` and `@opentui/react` to one exact version, which must satisfy the range
-   the new core asks for (this release: `0.6.8` for all three). When `node_modules/@luciole-sh/core/node_modules/@opentui/core`
+   the new core asks for (this release: `0.8.1` for all three). When `node_modules/@luciole-sh/core/node_modules/@opentui/core`
    exists, the pins fell outside that range and the app runs two renderers; `tsc` then reports
    "Types have separate declarations" on `@opentui/core` types. Set all three pins
    to the `version` of that nested copy's `package.json`, run `bun install` again, and check
    that the nested folder is gone.
-   When crossing from OpenTUI older than 0.6.6 to 0.6.8, audit native styles for a renderer owner, await
-   `suspend()`/`resume()` and `closed` at terminal handoff/shutdown, and move frame loops
-   and timelines onto their renderer. Audit paint hooks for recording-buffer reads and
-   round draw positions to finite signed 32-bit integers. Negative positions clip;
-   `fillRect`/`drawBox` with non-positive sizes draw nothing. Unsigned fields such as
-   `drawFrameBuffer` source coordinates reject negatives. Check conditional layout props (removal resets the
-   default; `visible={null}` shows), style reads (renderable getters), and editor offsets
-   (`measureEditText` accounts for controls). Read the `luciole-tui` skill’s
-   `references/opentui.md` and the installed upstream boundary guide for the exact rules.
+   For an app that upgrades from OpenTUI 0.6.x, complete these checks before step 6:
+   - Prepare web and native runtimes again with Zig 0.17.0. Rebuild the app after
+     `luciole web-runtime` or `luciole native-runtime --target <target>`.
+   - ScrollBox parts are facades; children belong to the box. Replace scrollbar
+     `slider` and arrow access with `scrollPosition` and viewport geometry. Check
+     part options, overflow clipping and whole-cell viewport padding. `getChildrenCount()`
+     counts only content rows. `primaryAxis` follows the content direction.
+     Check code that counts ScrollBox children or assumes its axis.
+   - Check custom editor logic, workarounds and test expectations for these changes:
+     Delete, Backspace, Delete Line and selection delete remove text that contains
+     only zero-width characters. Select-all in an Input or Textarea with only
+     those characters still creates an empty selection. A sideways wheel step
+     no longer moves truncated text by one column.
+   - A zero-width or zero-height node draws nothing and receives no mouse events.
+     Set `flexShrink: 0` on headers above ScrollBoxes that grow. Test resize.
+   - OpenTUI caches hooks at class construction. Call `refreshHooks()` after changes
+     through reflection. Assign `renderBefore`, `renderAfter` and `onLifecyclePass`
+     in the constructor.
+   - Keep `translateX` and `translateY` within the 32-bit float range. Values
+     outside that range throw `RangeError`.
+   - Browser video is unavailable. Remove `VideoRenderable` from web paths.
+     Prepared native builds use no `-Drequire-video`; video is unavailable without
+     an FFmpeg prefix for Zig 0.17.0.
+   - Key help lists the `luciole` group first, then app layers in mount order.
+     Updates keep that order. Test the help line and collisions with Runtime's
+     Ctrl+C and Escape. The framework layer has priority above ordinary app layers;
+     Escape then lets the app handle the key. Keep focused Terminal Ctrl+C and
+     `quitOnCtrlC: false` behavior.
+   - Remove `nativeSceneWorkBudget`, `NativeSceneFrame.Yield`, frame-step work
+     budgets and `geometryRevision` in frame requests. A custom `RenderContext`
+     must supply `clock` and `onAnimationTick`.
+   - Remove reads of `_textBufferSyntaxStyle`; use styles in the text buffer.
+     Replace `_hasFocusedDescendant` with `hasFocusedDescendant`, and
+     `contextDrawSceneText()` with `contextDrawSceneBody()`. Replace
+     `defineNativeIntegration()` with a typed static `nativeIntegration`
+     description and remove its `construction` field.
+   - For custom native bindings, generate them again from the 0.8.1 header.
+     The context ABI is version 2. Scene statistics need 224 bytes; renderer state
+     needs 40 bytes. Update scene-body calls and record fields.
+   - For custom Zig code, render through a Session. Remove standalone renderer
+     calls and `BufferedOutput`. Update frame-step and styled-text signatures.
+   - Use a one-cell character for `customBorderChars` and `drawGrid`, such as a
+     space. OpenTUI rejects default-ignorable characters.
+   - For the web Server, update `@sqlite.org/sqlite-wasm` to a version that satisfies
+     the new peer range, which starts at `3.54.1-build1`. Rebuild apps for the new
+     TanStack Router runtime ABI key.
+
+   Read the `luciole-tui` skill's `references/opentui.md` and the installed upstream
+   boundary guide for the drawing and resource ownership rules. Keep
+   `react-reconciler` at 0.33.0: 0.34.0 fails the transition test because the
+   OpenTUI host config has no `suspendOnActiveViewTransition`.
+
 6. **Verify**: `bun run verify`. Fix each failure from the new docs, starting with
    `node_modules/@luciole-sh/core/docs/reference/api.md` and the Breaking entries of step 3.
 7. **Refresh the agent material**, then check it:

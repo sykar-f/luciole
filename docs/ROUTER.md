@@ -71,9 +71,19 @@ attendues et que les fichiers des exemples sont à jour. Le bundle Client résou
   déjà un `window` minimal ; `createApplication` ajoute un `scrollTo` no-op.
 - **Reconciler.** TanStack commit ses navigations via `startTransition`. Le
   reconciler 0.34 appelle alors `suspendOnActiveViewTransition`, absent du host
-  config d'OpenTUI 0.6.8. Le framework reste donc sur reconciler 0.33.0, dans la
+  config d'OpenTUI 0.8.1. Le framework reste donc sur reconciler 0.33.0, dans la
   plage déclarée par OpenTUI, sans override ni patch ; `tests/renderer.test.tsx`
   garde ce point (le chemin est invisible sous `act()`).
+
+## Touches du Runtime
+
+Le groupe `luciole` lie seulement Ctrl+C (quitter) et Échap (annuler une
+navigation en attente). Sa priorité explicite, supérieure aux couches applicatives
+ordinaires, conserve la priorité du framework. Échap laisse ensuite passer la
+touche à l'application. Le Ctrl+C d'un `Terminal` focalisé et `quitOnCtrlC: false`
+gardent leurs exceptions. `<KeyHelp />` affiche les raccourcis actifs du groupe
+`luciole` en premier, puis ceux de l'application dans l'ordre de montage des
+couches. Une mise à jour de couche ne change plus cet ordre.
 
 ## Comportements choisis
 

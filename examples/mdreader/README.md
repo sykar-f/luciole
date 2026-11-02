@@ -107,7 +107,7 @@ The Server reads both.
 
 ## Limits
 
-- Code highlighting: OpenTUI 0.6.8 bundles only the JavaScript, TypeScript, Markdown and Zig
+- Code highlighting: OpenTUI 0.8.1 bundles only the JavaScript, TypeScript, Markdown and Zig
   grammars. Other languages show without color.
 - The outline and `{` `}` know only the top-level headings of a document, not those inside a
   list or a quote. They read the internal state of `MarkdownRenderable` (`_parseState`,

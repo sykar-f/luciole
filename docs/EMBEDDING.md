@@ -286,7 +286,7 @@ Probe : 15/15 assertions (shell, vim, application OpenTUI enfant, deux vues côt
 - **PTY** : `Bun.Terminal` (Bun 1.4.2), sans dépendance. `detached: true` est
   obligatoire : sans lui le PTY n'est pas le terminal de contrôle, `Ctrl+C`
   n'interrompt pas un `sleep 30` et le shell avertit « no job control ».
-- **Émulateur** : OpenTUI 0.6.8 embarque libghostty-vt dans sa bibliothèque native,
+- **Émulateur** : OpenTUI 0.8.1 embarque libghostty-vt dans sa bibliothèque native,
   exposée en `EmbeddedTerminalRenderable`. Retenu : aucune dépendance à télécharger ou à
   signer, composition native.
 
@@ -308,7 +308,7 @@ application OpenTUI enfant prête ≈ 91 ms, `seq 1..100000` à 16 Mo/s (limité
 et le PTY). Taille du PTY = boîte intérieure ; le redimensionnement atteint le programme
 (`stty size`).
 
-OpenTUI 0.6.8 encode nativement Alt (`ESC b` pour Alt+b), les touches F1–F12
+OpenTUI 0.8.1 encode nativement Alt (`ESC b` pour Alt+b), les touches F1–F12
 et répond aux requêtes DA1, DA2, DA3 et OSC 10/11/12. Le répondant côté hôte a
 été retiré pour éviter les réponses en double. `packages/core/src/vt/gaps.ts`
 garde seulement un repli de touches lorsque l’encodeur natif ne produit rien.

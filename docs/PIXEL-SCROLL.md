@@ -39,15 +39,19 @@ invalident la préparation et les données retenues incompatibles, puis restaure
 l'observation canonique, y compris pour une projection générique de la boîte
 ou d'un ancêtre, après succès comme après abandon. Une mutation différée
 refusée par le moteur n'empêche ni la restauration native ni l'invalidation
-des observations ; son erreur initiale reste propagée. Les versions actives
-restent à 0.6.8 ; la bascule des
-versions activera ce port complet.
+des observations ; son erreur initiale reste propagée. OpenTUI Core, React et Keymap
+0.8.1 sont les versions actives. Le runtime web applique
+`packages/core/web/opentui-v0.8.1.patch`, puis le patch pixel ; le runtime natif
+préparé applique le patch pixel. Les deux préparations demandent Zig 0.17.0.
 
 La preuve sélectionnée est `orch test run scripts/opentui-081-hits.check.ts` :
 clone propre de v0.8.1, application des deux patches, ABI générée, tests natifs
-et tests TypeScript du renderer, de la scène, de `NativeSession` et de `ScrollBox`. Tant que le
-patch web de production n'est pas présent, ce script prend son prédécesseur exact
-dans le commit du spike `a64f24c7`.
+et tests TypeScript du renderer, de la scène, de `NativeSession` et de `ScrollBox`.
+Le script utilise les deux patchs de production. Les parties de `ScrollBox` sont
+des façades : les enfants appartiennent à la boîte, les hits des barres aussi.
+Le code applicatif lit `scrollPosition` et la géométrie du viewport ; il n'accède
+plus aux parties `slider` ou flèches. Le viewport accepte des paddings entiers en
+cellules et coupe le contenu qui déborde.
 
 ## Transport et numéros expérimentaux
 

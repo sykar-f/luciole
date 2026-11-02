@@ -68,6 +68,10 @@ pas du texte, restent liées dans les formulaires). La ligne d'aide de chaque é
 générée (`components/Help.tsx`, `<KeyHelp />` filtré par groupe) : la page Server nomme
 les groupes de ses Client Components, les touches affichées sont celles actives à
 l'instant (les lettres disparaissent pendant l'édition, les onglets aussi).
+Le groupe `luciole` apparaît en premier ; les groupes applicatifs suivent
+l'ordre de montage de leurs couches. Une mise à jour conserve cet ordre.
+Le Runtime donne une priorité explicite à ses touches Ctrl+C et Échap ;
+Échap continue de laisser passer la touche après l'annulation.
 
 ## Ouvrir le fichier dans son éditeur (`client-only`)
 

@@ -5,7 +5,7 @@ description: Screens and rich interaction in a luciole app with OpenTUI. Use for
 
 # luciole terminal UI
 
-The screen is OpenTUI 0.6.8, rendered by React 19. Routes, pages and data belong to `luciole-app`.
+OpenTUI 0.8.1 and React 19 render the screen. Routes, pages and data belong to `luciole-app`.
 
 Before composing a screen, read [references/opentui.md](references/opentui.md), survey the
 installed components and reuse the widget's own behaviour. Then read the app's
@@ -76,8 +76,10 @@ field limits and lifetime rules.
 ## Keys
 
 The framework binds only Ctrl+C (quit) and Esc (cancel a pending navigation), in the group
-`luciole`. Every other key is the app's. Give refresh and debug visible controls calling the same
-functions as their bindings. Bind with `useBindings` from
+`luciole`. This layer has priority above ordinary app layers. Escape cancels first,
+then lets the app handle the key. Focused Terminal Ctrl+C and `quitOnCtrlC: false`
+keep their behavior. Every other key is the app's. Give refresh and debug visible controls.
+Each control must call the same function as its binding. Bind with `useBindings` from
 `@luciole-sh/core/client`, not with `useKeyboard`:
 
 ```tsx
@@ -97,6 +99,8 @@ useBindings(
   `@luciole-sh/core/client`, fed by the bindings' `desc` and `group`. It follows the bindings
   that are mounted now; never write the shortcuts out by hand. Put `"luciole"` in `groups` to
   list Ctrl+C. Give `desc` and `group` to existing bindings you want listed.
+  Help lists the `luciole` group first, then app layers in mount order. An update
+  keeps the layer in that position.
 - A layer lives with its component: the page's keys and their help leave with the page.
 - The second argument is the dependency list, as for `useEffect`: list what `cmd` reads.
 - A sequence is written glued: `"ctrl+oo"` is Ctrl+O, then O.

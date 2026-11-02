@@ -37,8 +37,8 @@ A declaration file can mention internal symbols that the package does not export
 | `@tanstack/router-core`  | `src/router.ts` and `src/load-client.ts`                                         |
 | `@tanstack/react-form`   | `README.md`, `src/index.ts`, `src/useForm.tsx`, `src/useField.tsx`               |
 
-These boundaries were checked with OpenTUI `0.6.8`, Router `1.170.46` and Form `1.33.5`.
-Recheck the installed signatures when upgrading.
+These checks used OpenTUI `0.8.1`, Router `1.170.46` and Form `1.33.5`.
+Check the installed signatures again before an upgrade.
 
 OpenTUI also publishes an [agent skill](https://github.com/anomalyco/opentui/blob/main/packages/web/src/content/SKILL.md).
 Use its release docs for component recipes, native resource APIs and custom drawing;
@@ -67,7 +67,7 @@ after pausing. See [animation and timelines](https://opentui.com/docs/applicatio
 
 ### Layout resets, drawing and editor offsets
 
-OpenTUI 0.6.8 restores layout defaults when a React prop disappears or a layout setter
+OpenTUI 0.8.1 restores layout defaults when a React prop disappears or a layout setter
 receives `null`/`undefined`. Clearing an edge spacing override exposes its shorthand again;
 zero remains an explicit value. Built-in intrinsic dimensions restore their class size,
 while other defaults can differ: clearing `flexShrink` gives `1`. Hide with
@@ -311,3 +311,28 @@ checking in the app that uses them; they were not exercised here.
 For restoring and clearing unsaved text when submitting, follow
 [Session restore](/docs/concepts/session-restore/#use-a-form-library).
 Validate submitted values again on the Server.
+
+## OpenTUI 0.8.1 changes
+
+ScrollBox parts are facades. Children belong to the box. Replace scrollbar
+`slider` and arrow access with `scrollPosition` and viewport geometry. Check part
+options and use whole-cell viewport padding. `getChildrenCount()` counts only content rows. `primaryAxis`
+follows the content direction. Check code that counts ScrollBox children or
+assumes its axis. ScrollBox clips overflow.
+
+A node with zero width or height draws nothing and receives no mouse events.
+Set `flexShrink: 0` on headers above ScrollBoxes that grow.
+
+OpenTUI caches hooks at class construction. After a change through reflection,
+call `refreshHooks()`. Assign `renderBefore`, `renderAfter` and `onLifecyclePass`
+in the constructor. Keep `translateX` and `translateY` within the 32-bit float range;
+values outside that range throw `RangeError`.
+
+Prepare web and native runtimes with Zig 0.17.0. The web runtime applies
+`web/opentui-v0.8.1.patch`, then `web/opentui-v0.8.1-pixel-scroll.patch`.
+The prepared native runtime applies the pixel patch. Browser video is unavailable.
+Prepared native builds use no `-Drequire-video`; video is unavailable without an
+FFmpeg prefix for Zig 0.17.0.
+
+Keep `react-reconciler` at 0.33.0. Version 0.34.0 fails the transition test:
+the OpenTUI host config has no `suspendOnActiveViewTransition`.

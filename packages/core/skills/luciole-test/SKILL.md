@@ -77,7 +77,10 @@ test(
 
 ## Native UI regressions
 
-For OpenTUI 0.6.8 changes, exercise the affected transition: remove a layout override and
+For OpenTUI 0.8.1, test zero-size nodes and headers above ScrollBoxes that grow.
+Check that `flexShrink: 0` keeps the header visible. Test key help after a layer
+update: framework bindings stay first, and app layers keep mount order.
+For layout changes, exercise the affected transition: remove a layout override and
 check the resulting geometry, toggle visibility with `false` then a nullish value, or mount
 two Clients to catch shared native styles and animation engines. Each Client needs its own
 renderer-owned resources. For editor cursor/selection tests, include control characters:
