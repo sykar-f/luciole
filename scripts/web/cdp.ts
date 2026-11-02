@@ -93,6 +93,7 @@ export async function chromePort(
   }
 }
 
+const EXPRESSION_PREVIEW_LENGTH = 200;
 class CommandTimeout extends Error {}
 
 export class Browser implements AsyncDisposable {
@@ -200,7 +201,7 @@ export class Browser implements AsyncDisposable {
         this.pending.delete(id);
         reject(
           new CommandTimeout(
-            `${method}: CDP target ${this.socket.url} exceeded ${this.commandTimeoutMs} ms`,
+            `${method}: CDP target ${this.socket.url} exceeded ${this.commandTimeoutMs} ms${method === "Runtime.evaluate" && typeof params.expression === "string" ? `; expression: ${params.expression.slice(0, EXPRESSION_PREVIEW_LENGTH)}` : ""}`,
           ),
         );
       }, this.commandTimeoutMs);
