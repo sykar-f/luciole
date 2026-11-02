@@ -27,16 +27,17 @@ const FILES: Record<string, string> = {
   }),
   "app/layout.tsx": `"use client";
 import { Collision } from "../components/Collision";
-import { KeyHelp, useBindings, useConnection, type LayoutProps } from "@luciole-sh/core/client";
+import { KeyHelp, useBindings, useConnection, useLocation, type LayoutProps } from "@luciole-sh/core/client";
 export default function Layout({ children }: LayoutProps) {
   const { refresh } = useConnection();
+  const path = useLocation({ select: (location) => location.pathname });
   useBindings(() => ({ bindings: [
     { key: "ctrl+r", cmd: () => void refresh(), desc: "reconnect", group: "global" },
     { key: "ctrl+t", cmd: () => {}, desc: "requests", group: "global" },
   ] }), [refresh]);
   return (
     <box flexDirection="column" flexGrow={1}>
-      <Collision />
+      {path === "/collision" || path === "/pending" ? <Collision /> : null}
       {children}
       <box id="footer" height={1}><KeyHelp inline groups={["global", "luciole"]} /></box>
     </box>

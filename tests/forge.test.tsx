@@ -454,7 +454,7 @@ test("help lines are generated from the key layers mounted right now", async () 
     await step(() => ui.mockInput.typeText("c"));
     await waitFor("Comment on src/report.ts");
     expect(await shownIn(forge, "screen-help")).toBe(
-      "escape leave · ctrl+s publish · ctrl+x discard",
+      "ctrl+s publish · ctrl+x discard · escape leave",
     );
     expect(await forge.frame()).not.toContain("tab next tab");
     await step(() => ui.mockInput.pressEscape());
