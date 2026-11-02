@@ -127,10 +127,12 @@ starts cleanup synchronously; `closed` can reject if output fails.
 ScrollBox parts are facades. Children belong to the box. Use the scrollbar's
 `scrollPosition` and the box's viewport geometry. Remove access to `slider` and
 arrow parts. Check part options against the installed declarations. Use whole-cell
-viewport padding. ScrollBox clips content that extends outside it.
+viewport padding. `getChildrenCount()` counts only content rows. `primaryAxis`
+follows the content direction. Check code that counts ScrollBox children or
+assumes its axis. ScrollBox clips content that extends outside it.
 
 A node with zero width or height draws nothing and receives no mouse events.
-Set `flexShrink: 0` on a header above a growing ScrollBox.
+Set `flexShrink: 0` on a header above a ScrollBox that grows.
 
 `KeyHelp` lists active `luciole` bindings first, then app bindings in layer mount
 order. A `useBindings` update keeps that order. Runtime gives its Ctrl+C and Escape
@@ -148,9 +150,9 @@ Use a character that fills one terminal cell for `customBorderChars` and `drawGr
 OpenTUI 0.8.1 rejects default-ignorable characters such as U+200E or U+FFA0;
 a space is valid. Direction marks take zero cells in ordinary text.
 
-- In 0.8.1, removing a React layout prop, or writing `null`/`undefined`, restores the omitted
-  option’s default. Clearing an edge spacing override lets its shorthand apply again;
-  `0` sets an explicit edge. Built-in intrinsic widths/heights restore their class size,
+- If you remove a React layout prop or set it to `null`/`undefined`, OpenTUI 0.8.1
+  restores the option's default. If you clear an edge spacing override, its shorthand
+  applies again. `0` sets an explicit edge. Built-in intrinsic widths/heights restore their class size,
   but other class defaults need not return (for example `flexShrink` resets to `1`).
   Use `visible={false}` to hide: `visible={null}` or removing `visible` shows the node.
 - Read declared styles through the renderable’s getters added in 0.6.5, such as
@@ -158,7 +160,7 @@ a space is valid. Direction marks take zero cells in ordinary text.
   These return Yoga values/enums; `width`, `height`, `x` and `y` are computed geometry
   from the last layout. `getLayoutNode()` is removed. Inspect
   `node_modules/@opentui/core/Renderable.d.ts` for signatures.
-- Hooks are cached when the class is constructed. Call `refreshHooks()` after a
+- OpenTUI caches hooks at class construction. Call `refreshHooks()` after a
   change through reflection. Assign `renderBefore`, `renderAfter` and
   `onLifecyclePass` in the constructor.
 - Keep `translateX` and `translateY` within the 32-bit float range. Values outside

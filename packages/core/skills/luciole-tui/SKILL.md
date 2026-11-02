@@ -5,7 +5,7 @@ description: Screens and rich interaction in a luciole app with OpenTUI. Use for
 
 # luciole terminal UI
 
-The screen is OpenTUI 0.8.1, rendered by React 19. Routes, pages and data belong to `luciole-app`.
+OpenTUI 0.8.1 and React 19 render the screen. Routes, pages and data belong to `luciole-app`.
 
 Before composing a screen, read [references/opentui.md](references/opentui.md), survey the
 installed components and reuse the widget's own behaviour. Then read the app's
@@ -78,8 +78,8 @@ field limits and lifetime rules.
 The framework binds only Ctrl+C (quit) and Esc (cancel a pending navigation), in the group
 `luciole`. This layer has priority above ordinary app layers. Escape cancels first,
 then lets the app handle the key. Focused Terminal Ctrl+C and `quitOnCtrlC: false`
-keep their behavior. Every other key is the app's. Give refresh and debug visible controls calling the same
-functions as their bindings. Bind with `useBindings` from
+keep their behavior. Every other key is the app's. Give refresh and debug visible controls.
+Each control must call the same function as its binding. Bind with `useBindings` from
 `@luciole-sh/core/client`, not with `useKeyboard`:
 
 ```tsx

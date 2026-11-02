@@ -77,7 +77,7 @@ test(
 
 ## Native UI regressions
 
-For OpenTUI 0.8.1, test zero-size nodes and headers above growing ScrollBoxes.
+For OpenTUI 0.8.1, test zero-size nodes and headers above ScrollBoxes that grow.
 Check that `flexShrink: 0` keeps the header visible. Test key help after a layer
 update: framework bindings stay first, and app layers keep mount order.
 For layout changes, exercise the affected transition: remove a layout override and

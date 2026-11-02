@@ -44,10 +44,17 @@ Run every command from the app's directory. The upgrade guide is
      `luciole web-runtime` or `luciole native-runtime --target <target>`.
    - ScrollBox parts are facades; children belong to the box. Replace scrollbar
      `slider` and arrow access with `scrollPosition` and viewport geometry. Check
-     part options, overflow clipping and whole-cell viewport padding.
+     part options, overflow clipping and whole-cell viewport padding. `getChildrenCount()`
+     counts only content rows. `primaryAxis` follows the content direction.
+     Check code that counts ScrollBox children or assumes its axis.
+   - Check custom editor logic, workarounds and test expectations for these changes:
+     Delete, Backspace, Delete Line and selection delete remove text that contains
+     only zero-width characters. Select-all in an Input or Textarea with only
+     those characters still creates an empty selection. A sideways wheel step
+     no longer moves truncated text by one column.
    - A zero-width or zero-height node draws nothing and receives no mouse events.
-     Set `flexShrink: 0` on headers above growing ScrollBoxes. Test resize.
-   - Hooks are cached at class construction. Call `refreshHooks()` after changes
+     Set `flexShrink: 0` on headers above ScrollBoxes that grow. Test resize.
+   - OpenTUI caches hooks at class construction. Call `refreshHooks()` after changes
      through reflection. Assign `renderBefore`, `renderAfter` and `onLifecyclePass`
      in the constructor.
    - Keep `translateX` and `translateY` within the 32-bit float range. Values
@@ -74,7 +81,7 @@ Run every command from the app's directory. The upgrade guide is
    - For custom Zig code, render through a Session. Remove standalone renderer
      calls and `BufferedOutput`. Update frame-step and styled-text signatures.
    - Use a one-cell character for `customBorderChars` and `drawGrid`, such as a
-     space. Default-ignorable characters are rejected.
+     space. OpenTUI rejects default-ignorable characters.
    - For the web Server, update `@sqlite.org/sqlite-wasm` to a version that satisfies
      the new peer range, which starts at `3.54.1-build1`. Rebuild apps for the new
      TanStack Router runtime ABI key.

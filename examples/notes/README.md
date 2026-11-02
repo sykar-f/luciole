@@ -78,4 +78,4 @@ Open these first:
 bun run test:web
 ```
 
-It drives a headless browser. It needs Google Chrome (`CHROME=` sets another path) and the web runtime, built with Zig 0.17.0 (`ZIG=` sets the path).
+It drives a headless browser. It needs Google Chrome (`CHROME=` sets another path) and the web runtime. Build the runtime with Zig 0.17.0 (`ZIG=` sets the path).
