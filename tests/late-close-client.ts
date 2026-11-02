@@ -8,7 +8,16 @@ import { Application } from "../packages/core/src/client";
 
 const message = "NativeSession graceful close ran late; queued output was dropped";
 const late = new Error(message);
-const rejection = process.env.CLOSE_KIND === "lookalike" ? new Error(message) : late;
+const rejection =
+  process.env.CLOSE_KIND === "lookalike" || process.env.CLOSE_KIND === "message-getter-throws"
+    ? new Error(message)
+    : late;
+if (process.env.CLOSE_KIND === "message-getter-throws")
+  Object.defineProperty(rejection, "message", {
+    get() {
+      throw new Error("Close error message unavailable");
+    },
+  });
 const closed = Promise.withResolvers<void>();
 const session = {
   late,

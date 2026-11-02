@@ -32,6 +32,7 @@ for (const ending of ["quit", "SIGINT", "SIGTERM", "SIGHUP", "SIGQUIT", "failure
     "method-throws",
     "session-getter-throws",
     "method-getter-throws",
+    ...(ending === "quit" ? ["message-getter-throws"] : []),
   ]) {
     test(`${ending} with ${kind} close keeps the correct exit code`, async () => {
       const work = await mkdtemp(`${process.env.TMPDIR ?? "/tmp"}/luciole-late-close-`);
@@ -71,7 +72,7 @@ for (const ending of ["quit", "SIGINT", "SIGTERM", "SIGHUP", "SIGQUIT", "failure
           expect(errors).toContain("Terminal close was late; queued output was dropped.");
         else {
           expect(errors).not.toContain("Terminal close was late;");
-          expect(errors).toContain(lateMessage);
+          if (kind !== "message-getter-throws") expect(errors).toContain(lateMessage);
           expect(errors).not.toContain("Close detector failed");
         }
         if (ending === "failure") expect(errors).toContain(lateMessage);

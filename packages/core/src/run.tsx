@@ -211,11 +211,15 @@ export async function run(
           error.operation === "ot_session_post_stdout") &&
         error.status === NativeStatus.OutputFailed;
       const late = restoredLateClose(active, error);
-      if (late) {
-        console.error("Terminal close was late; queued output was dropped.");
-      } else if (!closedOutput) {
-        console.error(messageOf(error));
-        code = 1;
+      if (!late && !closedOutput) code = 1;
+      try {
+        if (late) {
+          console.error("Terminal close was late; queued output was dropped.");
+        } else if (!closedOutput) {
+          console.error(messageOf(error));
+        }
+      } catch {
+        // Reporting must not change the exit code or prevent process.exit().
       }
     } finally {
       connection.close();
