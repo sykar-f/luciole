@@ -13,6 +13,12 @@ and marked **Breaking**.
 
 ## [Unreleased]
 
+### Fixed
+
+- Keep the Client's exit code when a late close restores the terminal.
+  The Client writes a warning when the native driver drops queued output.
+  Other close failures still exit with code 1.
+
 ## [0.7.0] - 2026-11-02
 
 ### Changed

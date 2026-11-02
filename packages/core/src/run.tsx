@@ -176,9 +176,28 @@ export async function run(
   let creating: Promise<CliRenderer> | undefined;
   // A hangup may reach the Client twice. Every exit waits for terminal restoration.
   let ending = false;
-  const stop = async (code: number, voluntary = false) => {
+  const restoredLateClose = (active: CliRenderer | undefined, error: unknown): boolean => {
+    // In pinned OpenTUI 0.8.1, closed rejects with a close interruption only
+    // after the native pump reports Closed. Transition interruptions reject
+    // their own wait, never closed. Detect the private session conservatively.
     try {
-      const active = renderer ?? (await creating);
+      const session: unknown = active && Reflect.get(active, "nativeSession");
+      const isCloseInterruption: unknown =
+        typeof session === "object" && session !== null
+          ? Reflect.get(session, "isCloseInterruption")
+          : undefined;
+      return (
+        typeof isCloseInterruption === "function" &&
+        isCloseInterruption.call(session, error) === true
+      );
+    } catch {
+      return false;
+    }
+  };
+  const stop = async (code: number, voluntary = false) => {
+    let active: CliRenderer | undefined;
+    try {
+      active = renderer ?? (await creating);
       active?.destroy();
       await active?.closed;
     } catch (error) {
@@ -191,9 +210,16 @@ export async function run(
         (error.operation === "ot_session_drain_stdout" ||
           error.operation === "ot_session_post_stdout") &&
         error.status === NativeStatus.OutputFailed;
-      if (!closedOutput) {
-        console.error(messageOf(error));
-        code = 1;
+      const late = restoredLateClose(active, error);
+      if (!late && !closedOutput) code = 1;
+      try {
+        if (late) {
+          console.error("Terminal close was late; queued output was dropped.");
+        } else if (!closedOutput) {
+          console.error(messageOf(error));
+        }
+      } catch {
+        // Reporting must not change the exit code or prevent process.exit().
       }
     } finally {
       connection.close();
