@@ -13,6 +13,8 @@ and marked **Breaking**.
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-11-02
+
 ### Changed
 
 - **Breaking:** Prepared native and web runtimes need Zig 0.17.0.
@@ -424,7 +426,8 @@ First public release, on npm. Five packages share this version: `luciole.sh`,
 - No multi-user load test and no public TLS proxy test. See
   <https://luciole.sh/status/>.
 
-[Unreleased]: https://github.com/sykar-f/luciole/compare/v0.6.1...HEAD
+[Unreleased]: https://github.com/sykar-f/luciole/compare/v0.7.0...HEAD
+[0.7.0]: https://github.com/sykar-f/luciole/releases/tag/v0.7.0
 [0.6.1]: https://github.com/sykar-f/luciole/releases/tag/v0.6.1
 [0.6.0]: https://github.com/sykar-f/luciole/releases/tag/v0.6.0
 [0.5.1]: https://github.com/sykar-f/luciole/releases/tag/v0.5.1
