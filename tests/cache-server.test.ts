@@ -55,7 +55,7 @@ test("the Server reports cache operations, sends a render's tags and an action's
     await render();
     const failure = await rejectionOf(transport.call("a.ts#bad", []));
     expect(failure instanceof TransportError && failure.outcome).toBe("unknown");
-    await until(() => received.filter((e) => e.op === "write").length === 2);
+    await until(() => received.filter((e) => e.op === "miss").length === 2);
     await until(() => tags.length === 3);
     expect(tags).toEqual([["count"], ["count"], ["count"]]);
     expect(invalidated).toEqual([[["/"], ["count"]]]);
