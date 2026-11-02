@@ -47,7 +47,7 @@ let app: Application;
 process.on("message", () => {
   if (process.env.CLOSE_END === "quit") app.quit?.();
   else if (process.env.CLOSE_END === "failure") closed.reject(rejection);
-  else process.kill(process.pid, process.env.CLOSE_END as NodeJS.Signals);
+  else process.kill(process.pid, process.env.CLOSE_END);
 });
 await run(
   (options) =>
