@@ -69,6 +69,8 @@ and marked **Breaking**.
   that contains only zero-width text still makes an empty selection.
   Use Delete, Backspace or Delete Line to remove that text.
 - New apps pin Bun 1.4.4. The minimum supported Bun version stays at 1.4.1.
+- New apps pin Oxfmt 0.75.0, Oxlint 1.90.0 and `oxlint-tsgolint` 7.0.2005.
+  Oxfmt now uses a native Markdown formatter. Markdown output can change.
 - Core and Markdown Editor use marked 18.1.2. The parser includes fixes for
   lists, quotes, links, emphasis, HTML blocks and character references.
 
