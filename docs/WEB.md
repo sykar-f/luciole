@@ -47,7 +47,7 @@ d'OpenTUI passe en WebAssembly.
 ## Mode d'emploi (Client web)
 
 ```sh
-ZIG=/chemin/zig-0.16.0 luciole web-runtime        # une fois par ABI et framework : ~30 s, réseau
+ZIG=/chemin/zig-0.17.0 luciole web-runtime        # une fois par ABI et framework : ~30 s, réseau
 luciole build --web                                # .luciole/web/ à côté de server/, client/, app/
 LUCIOLE_WEB_ORIGIN=https://notes.example.com PORT=3000 bun --conditions=react-server .luciole/server/index.js
 ```
@@ -71,8 +71,8 @@ aussi du code du framework. `luciole build --web` le prépare s'il manque. En lo
 | `src/web/build.ts`                      | Bundle de la page : variantes, OpenTUI depuis ses sources, shims Node, clé d'ABI                                            |
 | `src/web/platform/`                     | Variantes : `run`, `app-bundle`, `host-direct`, `vt/terminal`, `flight/server`                                              |
 | `src/web/opentui/`, `src/web/node/`     | Backend FFI WASM d'OpenTUI, Worker tree-sitter ; built-ins Node d'une page                                                  |
-| `web/opentui-v0.6.8.patch`              | Le patch OpenTUI : scène native et ABI C pour wasm32-wasi                                                                   |
-| `web/opentui-v0.6.8-pixel-scroll.patch` | Les seams de frame, hit maps et viewport, appliquées après le port wasm32                                                   |
+| `web/opentui-v0.8.1.patch`              | Le patch OpenTUI : scène native et ABI C pour wasm32-wasi                                                                   |
+| `web/opentui-v0.8.1-pixel-scroll.patch` | Les seams de frame, hit maps et viewport, appliquées après le port wasm32                                                   |
 | `scripts/web/`                          | Driver CDP et parcours navigateur (`test:web`, `test:web:local`, `test:web:forge`, `test:web:coder`)                        |
 
 ## Mode d'emploi (tout dans le navigateur)
@@ -492,19 +492,22 @@ sortie (signaux, Ctrl+C, quit, erreur fatale de démarrage). SIGINT, SIGTERM et
 SIGHUP gardent leur code 0 ; SIGQUIT, SIGABRT, SIGBUS et SIGBREAK, si la plateforme
 les expose, sortent avec 128 plus le numéro du signal. SIGPIPE reste ignoré.
 Un `process.exit()`
-explicite de l’app passe par le hook natif synchrone d’OpenTUI 0.6.8 ; luciole
+explicite de l’app passe par le hook natif synchrone d’OpenTUI 0.8.1 ; luciole
 n’installe plus de hook `exit` qui détruit le renderer. Le drainage synchrone
 ne fonctionne que vers le vrai fd stdout : une écriture en vol vers une sortie
 empruntée ne peut pas être rejouée. Une erreur de sortie restaure le mode du
 terminal et fait sortir le Client avec le code 1, mais la sortie défaillante
-ne peut pas recevoir les séquences ANSI de reset. Le runtime web attend la
+ne peut pas recevoir les séquences ANSI de reset. Seule une sortie volontaire
+desktop tolère l'erreur native structurée `OutputFailed` d'une sortie déjà fermée,
+avec les backends `ot_session_post_stdout` et `ot_session_drain_stdout`.
+Le runtime web attend la
 fermeture du renderer avant d’écrire son message de fin dans xterm ; il ne
 termine pas le processus hôte et ne prend jamais son terminal. Les exceptions
 et rejets non rattrapés conservent le comportement non fatal d’OpenTUI.
 
-Le runtime épingle OpenTUI 0.6.8 et applique deux patchs dans cet ordre :
-`web/opentui-v0.6.8.patch` pour sa cible wasm32-wasi, puis
-`web/opentui-v0.6.8-pixel-scroll.patch` pour le défilement pixel. Le second
+Le runtime épingle OpenTUI 0.8.1 et applique deux patchs dans cet ordre :
+`web/opentui-v0.8.1.patch` pour sa cible wasm32-wasi, puis
+`web/opentui-v0.8.1-pixel-scroll.patch` pour le défilement pixel. Le second
 reste séparé : il porte les seams de frame, de hit maps et de viewport,
 sans modifier le port wasm32. Les deux entrent dans la clé du checkout source.
 Avant toute réutilisation du checkout, la préparation compare l'arbre source complet au tag
@@ -550,25 +553,24 @@ cellules : une copie perdrait les largeurs des gouttières de code et de diff.
 Yoga, compilé sans
 exceptions C++, interrompt le module sur un `bad_alloc` au lieu de retourner
 `OT_YOGA_OUT_OF_MEMORY`. Le contrôle à la demande
-`bun test scripts/web/opentui-066-wasm.check.ts` (Zig 0.16.0, réseau, Chrome)
+`bun test scripts/web/opentui-066-wasm.check.ts` (Zig 0.17.0, réseau, Chrome)
 vérifie les cellules, le texte modifié sur plusieurs frames et une croissance
 mémoire dans la même session.
 
-La préparation de la migration 0.8.1 reste indépendante des versions actives.
-`prepareOpenTui(checkout, zig, { tag: "v0.8.1", patch })` utilise
-`web/opentui-v0.8.1.patch` et Zig 0.17.0 ;
-`prepareNativeRuntime({ tag: "v0.8.1", zig })` prépare la bibliothèque native
-et son JavaScript dans une entrée distincte. Les layouts ABI sont générés depuis
-ces sources, sans réutiliser ceux de 0.6.8. Le port pixel 0.8.1 est préparé
-séparément : ces runtimes ne l'incluent pas encore. Les commandes publiques et
-les clés de cache natives et OpenTUI 0.6.8 gardent leurs valeurs actuelles.
+Les commandes publiques préparent OpenTUI 0.8.1 avec Zig 0.17.0.
+La préparation web applique `web/opentui-v0.8.1.patch`, puis
+`web/opentui-v0.8.1-pixel-scroll.patch`. La préparation native applique le patch
+pixel et produit la bibliothèque et son JavaScript dans une entrée distincte.
+Les layouts ABI sont générés depuis ces sources. Les clés de cache incluent la
+version du compilateur et les sources patchées ; une ancienne entrée est reconstruite.
+Après la préparation, reconstruire l'application pour embarquer le nouveau runtime.
 
 Les contrôles explicites `scripts/web/opentui-081-wasm.check.ts` et
 `scripts/web/opentui-081-native.check.ts` demandent Zig 0.17.0 et le réseau ;
 le premier demande aussi Chrome et vérifie cellules, couleurs, mesure et
 croissance mémoire. Les exécuter séparément, avec `ZIG` pointant vers le bon
 exécutable. Le navigateur ne fournit pas de lecteur vidéo. La bibliothèque
-native est construite sans `-Drequire-video` : sans préfixe FFmpeg compatible,
+native est construite sans `-Drequire-video` : sans préfixe FFmpeg compatible avec Zig 0.17.0,
 les opérations vidéo restent indisponibles.
 
 **R1 — OpenTUI en WASM : le modèle mémoire.** Upstream n'a ni cible wasm

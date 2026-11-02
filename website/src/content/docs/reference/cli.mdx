@@ -209,23 +209,25 @@ time.
 ### `luciole web-runtime`
 
 Prepares this framework version's web runtime ahead of `luciole build --web` (it needs git,
-the network and Zig 0.16.0).
+the network and Zig 0.17.0).
 
 ### `luciole native-runtime [--target <target>]`
 
-Prepares patched OpenTUI v0.6.8 JavaScript, its native library and ABI metadata in
+Prepares patched OpenTUI v0.8.1 JavaScript, its native library and ABI metadata in
 `$XDG_CACHE_HOME/luciole/native/` (default: `~/.cache/luciole/native/`). The default target
 is the host; `--target` accepts `bun-darwin-arm64`, `bun-darwin-x64`, `bun-linux-x64`,
 `bun-linux-arm64`, `bun-linux-x64-musl` or `bun-linux-arm64-musl`.
 
-The first preparation needs git, the network and Zig 0.16.0 (`ZIG` selects its executable).
+The first preparation needs git, the network and Zig 0.17.0 (`ZIG` selects its executable).
 macOS targets also need a macOS SDK. Subsequent runs validate the manifest and file
 digests and reuse the entry without Zig or sources. A framework-only change keeps the
 entry; a patch change gives it a new key. Concurrent preparations share a lock.
 
 `luciole build --compile` embeds the validated JavaScript/library pair for its target.
 A missing or corrupt entry keeps stock OpenTUI with row scroll and a preparation notice;
-compilation never invokes Zig.
+compilation never invokes Zig. Prepared native builds use no `-Drequire-video`.
+Without an FFmpeg prefix for Zig 0.17.0, video is unavailable. Browser video is
+unavailable in the web runtime.
 
 ### `luciole keys [generate]`
 

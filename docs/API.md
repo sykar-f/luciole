@@ -2,29 +2,29 @@
 
 Entrée `@luciole-sh/core/client` (Client Components uniquement) :
 
-| API                                                                                                                                    | Contrat                                                                                                                                                    |
-| -------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `useNavigate()`, `useRouter()`, `useRouterState()`, `useParams()`, `useSearch()`, `useLocation()`, `useMatchRoute()`, `useCanGoBack()` | Primitives TanStack Router réexportées telles quelles ; TanStack est l'unique état de navigation.                                                          |
-| `useApplication()`                                                                                                                     | `{ setToken(token?), refresh(), invalidate(paths?), cancel(), withSignal(signal, call), onEvent(listener), status, error }` du runtime terminal.           |
-| `<Input name? value onInput />`, `<Textarea name? value onChange />`                                                                   | `input` et `textarea` d'OpenTUI, contrôlés ; un `name` rend leur texte restaurable (voir « Champs restaurables »).                                         |
-| `useRestoredFields(group)`                                                                                                             | `{ submit(action, { failed? }?), clear() }` des champs `group/…` de l'entrée d'historique courante.                                                        |
-| `useRestoredFocus(names)`                                                                                                              | `[focus, setFocus]` : lequel de `names` a le focus, gardé par entrée d'historique.                                                                         |
-| `<ScrollBox name? …>`                                                                                                                  | `scrollbox` d'OpenTUI ; un `name` garde sa position de défilement par entrée.                                                                              |
-| `useConnection()`                                                                                                                      | `{ status, error, buildError, activity, refresh }` pour le chrome de l'application ; `activity` vaut `connect`, `navigate`, `refresh` ou `idle`.           |
-| `useInvalidation(listener)`                                                                                                            | Appelé à chaque invalidation (Server ou Client) avec les chemins et les tags : pour les données lues hors des loaders de routes.                           |
-| `useLive(source, args, { limit }?)`                                                                                                    | `{ items, done, error }` d'une Server Function génératrice, abonnée tant que le composant est monté.                                                       |
-| `useBindings()`, `useActiveKeys()`, `useKeymap()`, `usePendingSequence()`                                                              | Keymap OpenTUI réexportée : couches de raccourcis liées au cycle de vie des composants.                                                                    |
-| `<KeyHelp groups? inline? />`                                                                                                          | Aide générée depuis les raccourcis actifs qui déclarent un `desc` (filtrés par `group`).                                                                   |
-| `<Embed app name active prefix? />`, `openApplication({ bundle, url, instance? })`                                                     | Une autre application luciole dans un pane de celle-ci ; voir « Applications embarquées ».                                                                 |
-| `<Markdown content streaming syntaxStyle onLink? imageBase? />`                                                                        | Markdown rendu par blocs : pendant que `content` s'écrit (`streaming`), le texte affiché ne bouge plus ; voir « Markdown en streaming ».                   |
-| `<Terminal command active prefix? cwd? env? onExit? />`                                                                                | Un programme local (shell, vim, un Client luciole) sur un PTY, rendu dans l'arbre ; voir « Terminaux embarqués ».                                          |
-| `<TerminalView program label spawn active prefix? onExit? />`                                                                          | Comme `<Terminal>`, mais l'hôte démarre lui-même le programme (`spawn(io)` : un Client confiné par `@luciole-sh/core/sandbox`, un arrêt autre que SIGHUP). |
-| `host`, `CapabilityDenied`                                                                                                             | Ce que l'application demande à son hôte (presse-papiers, notification, URL, secret, onglets) ; voir « Capacités médiées ».                                 |
-| `useHostMessage(fn)`, `useGlobalKey(key, fn)`, `useCapability(name)`                                                                   | Messages des autres onglets et touches globales tant que le composant est monté ; état `granted`, `denied` ou `prompt` d'une capacité.                     |
-| `<DebugOverlay limit? />`                                                                                                              | Requêtes, requêtes ouvertes, octets, dernier RTT et derniers événements depuis son montage.                                                                |
-| `instrumentTracing(app, tracer)`                                                                                                       | Un span par requête vers un `Tracer` OpenTelemetry (ou compatible) ; renvoie la fonction d'arrêt.                                                          |
-| `TransportError`, `BuildMismatch`, `AuthenticationRequired`                                                                            | Échecs de transport typés ; `outcome` vaut `not-sent`, `rejected` ou `unknown`.                                                                            |
-| `LayoutProps`, `LoadingProps`, `ErrorProps`, `NotFoundProps`                                                                           | Props des fichiers `layout.tsx`, `loading.tsx`, `error.tsx` et `not-found.tsx` (voir plus bas).                                                            |
+| API                                                                                                                                    | Contrat                                                                                                                                                                    |
+| -------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `useNavigate()`, `useRouter()`, `useRouterState()`, `useParams()`, `useSearch()`, `useLocation()`, `useMatchRoute()`, `useCanGoBack()` | Primitives TanStack Router réexportées telles quelles ; TanStack est l'unique état de navigation.                                                                          |
+| `useApplication()`                                                                                                                     | `{ setToken(token?), refresh(), invalidate(paths?), cancel(), withSignal(signal, call), onEvent(listener), status, error }` du runtime terminal.                           |
+| `<Input name? value onInput />`, `<Textarea name? value onChange />`                                                                   | `input` et `textarea` d'OpenTUI, contrôlés ; un `name` rend leur texte restaurable (voir « Champs restaurables »).                                                         |
+| `useRestoredFields(group)`                                                                                                             | `{ submit(action, { failed? }?), clear() }` des champs `group/…` de l'entrée d'historique courante.                                                                        |
+| `useRestoredFocus(names)`                                                                                                              | `[focus, setFocus]` : lequel de `names` a le focus, gardé par entrée d'historique.                                                                                         |
+| `<ScrollBox name? …>`                                                                                                                  | `scrollbox` d'OpenTUI ; un `name` garde sa position de défilement par entrée.                                                                                              |
+| `useConnection()`                                                                                                                      | `{ status, error, buildError, activity, refresh }` pour le chrome de l'application ; `activity` vaut `connect`, `navigate`, `refresh` ou `idle`.                           |
+| `useInvalidation(listener)`                                                                                                            | Appelé à chaque invalidation (Server ou Client) avec les chemins et les tags : pour les données lues hors des loaders de routes.                                           |
+| `useLive(source, args, { limit }?)`                                                                                                    | `{ items, done, error }` d'une Server Function génératrice, abonnée tant que le composant est monté.                                                                       |
+| `useBindings()`, `useActiveKeys()`, `useKeymap()`, `usePendingSequence()`                                                              | Keymap OpenTUI réexportée : couches de raccourcis liées au cycle de vie des composants.                                                                                    |
+| `<KeyHelp groups? inline? />`                                                                                                          | Aide générée depuis les raccourcis actifs qui déclarent un `desc` (filtrés par `group`), groupe `luciole` en premier puis couches applicatives dans leur ordre de montage. |
+| `<Embed app name active prefix? />`, `openApplication({ bundle, url, instance? })`                                                     | Une autre application luciole dans un pane de celle-ci ; voir « Applications embarquées ».                                                                                 |
+| `<Markdown content streaming syntaxStyle onLink? imageBase? />`                                                                        | Markdown rendu par blocs : pendant que `content` s'écrit (`streaming`), le texte affiché ne bouge plus ; voir « Markdown en streaming ».                                   |
+| `<Terminal command active prefix? cwd? env? onExit? />`                                                                                | Un programme local (shell, vim, un Client luciole) sur un PTY, rendu dans l'arbre ; voir « Terminaux embarqués ».                                                          |
+| `<TerminalView program label spawn active prefix? onExit? />`                                                                          | Comme `<Terminal>`, mais l'hôte démarre lui-même le programme (`spawn(io)` : un Client confiné par `@luciole-sh/core/sandbox`, un arrêt autre que SIGHUP).                 |
+| `host`, `CapabilityDenied`                                                                                                             | Ce que l'application demande à son hôte (presse-papiers, notification, URL, secret, onglets) ; voir « Capacités médiées ».                                                 |
+| `useHostMessage(fn)`, `useGlobalKey(key, fn)`, `useCapability(name)`                                                                   | Messages des autres onglets et touches globales tant que le composant est monté ; état `granted`, `denied` ou `prompt` d'une capacité.                                     |
+| `<DebugOverlay limit? />`                                                                                                              | Requêtes, requêtes ouvertes, octets, dernier RTT et derniers événements depuis son montage.                                                                                |
+| `instrumentTracing(app, tracer)`                                                                                                       | Un span par requête vers un `Tracer` OpenTelemetry (ou compatible) ; renvoie la fonction d'arrêt.                                                                          |
+| `TransportError`, `BuildMismatch`, `AuthenticationRequired`                                                                            | Échecs de transport typés ; `outcome` vaut `not-sent`, `rejected` ou `unknown`.                                                                                            |
+| `LayoutProps`, `LoadingProps`, `ErrorProps`, `NotFoundProps`                                                                           | Props des fichiers `layout.tsx`, `loading.tsx`, `error.tsx` et `not-found.tsx` (voir plus bas).                                                                            |
 
 Le framework ne possède aucun état métier : ni Draft, ni opération en attente, ni
 politique de reprise. Il rapporte ce qui est arrivé à chaque requête ; l'application
@@ -255,6 +255,13 @@ useBindings(
 <KeyHelp inline groups={["note"]} />;
 ```
 
+`KeyHelp` affiche les raccourcis actifs du groupe `luciole` en premier, puis ceux
+de l'application dans l'ordre de montage des couches. Une mise à jour conserve
+cet ordre. Le Runtime donne une priorité explicite à sa couche, au-dessus des
+couches applicatives ordinaires : Ctrl+C quitte avant un raccourci applicatif
+concurrent ; Échap annule d'abord la navigation, puis laisse passer la touche.
+Le Ctrl+C d'un `Terminal` focalisé et `quitOnCtrlC: false` gardent leurs exceptions.
+
 Une couche vit avec son composant : quitter une page retire ses raccourcis et leur
 aide. `useKeyboard` d'OpenTUI reste utilisable à côté.
 
@@ -322,7 +329,7 @@ passe par `<Embed>`.
 ## Markdown en streaming
 
 `<Markdown>` affiche du Markdown qui arrive par morceaux, typiquement la réponse d'un
-modèle, sans que le texte déjà affiché clignote ou saute. Le `<markdown>` d'OpenTUI 0.6.8
+modèle, sans que le texte déjà affiché clignote ou saute. Le `<markdown>` d'OpenTUI 0.8.1
 redessine son dernier bloc depuis un aperçu puis depuis Tree-sitter à chaque changement :
 la réponse bascule entre texte brut et mis en forme.
 
@@ -356,7 +363,7 @@ import { Markdown } from "@luciole-sh/core/client";
   collé à son contenu. Le bandeau est peint, pas écrit : une sélection copie le titre seul.
 - Blocs de code : sur le fond de `markup.raw.block` (`bg`), avec une marge intérieure et le
   langage discret en haut à droite ; sans ce `bg`, le code reste sans fond. Colorés par
-  Tree-sitter une fois la clôture arrivée : OpenTUI 0.6.8 connaît JavaScript, TypeScript,
+  Tree-sitter une fois la clôture arrivée : OpenTUI 0.8.1 connaît JavaScript, TypeScript,
   Markdown et Zig ; `import "@luciole-sh/core/grammars"` (une fois, côté Client) ajoute Bash, C, C++,
   CSS, Go, HTML, Java, JSON, PHP, Python, Ruby, Rust, TOML et YAML, pour `<code>` et
   `<diff>` aussi. L'import est facultatif : le build copie chaque grammaire à côté du

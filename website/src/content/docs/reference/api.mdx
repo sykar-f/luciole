@@ -354,7 +354,12 @@ The keymap hooks are OpenTUI's, re-exported so that every layer shares the Shell
 | `accent`            | `string`            | `"#67d9bc"`                 | The color of the keys.                           |
 
 The [chat's layout above](#reach-the-app-and-its-connection) binds keys with `useBindings` and
-lists them with `<KeyHelp inline />`.
+lists them with `<KeyHelp inline />`. Help lists the active `luciole` group first,
+then app bindings in layer mount order. A layer update keeps that order.
+
+Runtime gives Ctrl+C (quit) and Escape (cancel a pending navigation) priority above
+ordinary app layers. Escape then lets the app handle the key. Focused Terminal
+Ctrl+C and `quitOnCtrlC: false` keep their behavior.
 
 ### Show other apps, terminals and Markdown
 

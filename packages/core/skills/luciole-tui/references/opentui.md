@@ -1,4 +1,4 @@
-# Choose an installed OpenTUI widget (0.6.8)
+# Choose an installed OpenTUI widget (0.8.1)
 
 Before composing controls, read
 `node_modules/@luciole-sh/core/docs/reference/upstream-libraries.md` for luciole's boundaries.
@@ -122,13 +122,33 @@ async action. luciole owns its renderer’s shutdown; code that owns a separate 
 `destroy()` then awaits `closed` before reusing its streams or exiting gracefully. Destruction
 starts cleanup synchronously; `closed` can reject if output fails.
 
+## ScrollBox and key help on 0.8.1
+
+ScrollBox parts are facades. Children belong to the box. Use the scrollbar's
+`scrollPosition` and the box's viewport geometry. Remove access to `slider` and
+arrow parts. Check part options against the installed declarations. Use whole-cell
+viewport padding. ScrollBox clips content that extends outside it.
+
+A node with zero width or height draws nothing and receives no mouse events.
+Set `flexShrink: 0` on a header above a growing ScrollBox.
+
+`KeyHelp` lists active `luciole` bindings first, then app bindings in layer mount
+order. A `useBindings` update keeps that order. Runtime gives its Ctrl+C and Escape
+layer priority above ordinary app layers. Escape cancels a pending navigation,
+then lets the app handle the key. Focused Terminal Ctrl+C and `quitOnCtrlC: false`
+keep their behavior.
+
+Browser video is unavailable. Use no `VideoRenderable` in a web app. Prepared
+native builds use no `-Drequire-video`; video is unavailable without an FFmpeg
+prefix for Zig 0.17.0. Prepare native and web runtimes with Zig 0.17.0.
+
 ## Layout updates and custom drawing
 
 Use a character that fills one terminal cell for `customBorderChars` and `drawGrid`.
-OpenTUI 0.6.8 rejects default-ignorable characters such as U+200E or U+FFA0;
+OpenTUI 0.8.1 rejects default-ignorable characters such as U+200E or U+FFA0;
 a space is valid. Direction marks take zero cells in ordinary text.
 
-- In 0.6.8, removing a React layout prop, or writing `null`/`undefined`, restores the omitted
+- In 0.8.1, removing a React layout prop, or writing `null`/`undefined`, restores the omitted
   option’s default. Clearing an edge spacing override lets its shorthand apply again;
   `0` sets an explicit edge. Built-in intrinsic widths/heights restore their class size,
   but other class defaults need not return (for example `flexShrink` resets to `1`).
@@ -138,6 +158,11 @@ a space is valid. Direction marks take zero cells in ordinary text.
   These return Yoga values/enums; `width`, `height`, `x` and `y` are computed geometry
   from the last layout. `getLayoutNode()` is removed. Inspect
   `node_modules/@opentui/core/Renderable.d.ts` for signatures.
+- Hooks are cached when the class is constructed. Call `refreshHooks()` after a
+  change through reflection. Assign `renderBefore`, `renderAfter` and
+  `onLifecyclePass` in the constructor.
+- Keep `translateX` and `translateY` within the 32-bit float range. Values outside
+  that range throw `RangeError`.
 - `renderBefore`, `renderSelf` and `renderAfter` on an unbuffered renderable receive a
   recording buffer: issue drawing commands, rather than read cells through `buffers`,
   `withBuffers`, `getRealCharBytes` or `getSpanLines` (they throw). Read/change cells in an

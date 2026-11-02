@@ -39,6 +39,11 @@ les transmet à son Server ([DISTRIBUTION.md](DISTRIBUTION.md)). Avec
 `"server": "per-launch"`, une fenêtre est un lancement : fermer la fenêtre est un quit,
 son Server s'arrête.
 
+Lors d'une sortie volontaire desktop, `run()` accepte l'erreur native structurée
+`OutputFailed` d'une sortie déjà fermée, que le backend utilise
+`ot_session_post_stdout` ou `ot_session_drain_stdout`. Les autres erreurs restent
+fatales, y compris une erreur de sortie dans un terminal ordinaire.
+
 Côté code, `run()` lit la variable et crée l'Application avec `quitOnCtrlC: false`
 (`ApplicationOptions`) ; `Runtime` ne déclare alors plus `ctrl+c`, et la barre d'aide
 générée ne l'affiche plus. Un hôte qui ouvre des panes (`openApplication`) leur passe la
@@ -79,11 +84,13 @@ luciole native-runtime                              # cible de la machine
 luciole native-runtime --target bun-linux-x64-musl    # autre cible
 ```
 
-La commande prépare un couple JavaScript et bibliothèque native OpenTUI v0.6.8 avec
-le patch partagé du défilement en pixels. Elle demande git, le réseau et Zig 0.16.0
+La commande prépare un couple JavaScript et bibliothèque native OpenTUI v0.8.1 avec
+le patch partagé du défilement en pixels. Elle demande git, le réseau et Zig 0.17.0
 au premier lancement ; `ZIG=/chemin/vers/zig` choisit l'exécutable. Sur macOS, le SDK
 des Command Line Tools est utilisé par défaut lorsqu'il est installé ; `DEVELOPER_DIR`
 permet de choisir un autre SDK.
+La construction n'utilise pas `-Drequire-video` ; sans préfixe FFmpeg compatible
+avec Zig 0.17.0, la vidéo reste indisponible.
 
 Les six cibles sont `bun-darwin-arm64`, `bun-darwin-x64`, `bun-linux-x64`,
 `bun-linux-arm64`, `bun-linux-x64-musl` et `bun-linux-arm64-musl`. Les bibliothèques

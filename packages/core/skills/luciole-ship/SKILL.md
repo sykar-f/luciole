@@ -49,6 +49,10 @@ luciole build --compile --client-only --name notes --outfile dist/notes
 Copy `native/` with the binary when the build writes one beside it (apps with native Server
 packages such as sharp); it must stay next to the binary.
 
+Prepare the native runtime with Zig 0.17.0. Prepared native builds use no
+`-Drequire-video`; video is unavailable without an FFmpeg prefix for Zig 0.17.0.
+Test the app with its prepared runtime before distribution.
+
 ## Another platform needs its native packages
 
 Without a prepared OpenTUI entry for the target, a foreign `--target` needs
@@ -113,7 +117,9 @@ Users then run `luciole install @ada/notes` and `luciole update notes`.
 
 ## The web target
 
-`--web` and `--web-local` need the network, `git` and Zig 0.16.0 on the first build of a
+Browser video is unavailable.
+
+`--web` and `--web-local` need the network, `git` and Zig 0.17.0 on the first build of a
 framework version (`luciole web-runtime` prepares it). A `--web` Server serves the page only
 to the origin in `LUCIOLE_WEB_ORIGIN`. `--web-local` is a static site whose Server code cannot
 spawn processes or write files: such an app keeps `--web`.

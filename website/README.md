@@ -154,10 +154,10 @@ pour chaque démo (`forge`, `notes`, `mdreader`, `chat`, `coder`, `latency`, `de
 sans les source maps dans
 `public/demo/<app>/`, que Git ignore. Le runtime web, commun à toutes les applications, est
 publié une fois dans `public/demo/runtime/` : la première démo lancée met en cache les plus
-gros fichiers des autres. Après un changement du framework ou d'un exemple, relancer
-`bun run demo` ; si le framework a changé, le runtime web est reconstruit et demande Zig
-0.16.0 (`ZIG=/chemin/vers/zig bun run demo`). Sans cette étape, la page se construit
-quand même, mais le hero reste sur sa capture.
+gros fichiers des autres. After a framework or example change, run `bun run demo` again. A framework
+change rebuilds the web runtime with Zig 0.17.0
+(`ZIG=/path/to/zig bun run demo`). Without this step, the page builds, but the
+hero keeps its screen capture.
 
 `LiveTerminal.astro` dessine d'abord la capture de l'écran (aucune attente, aucun décalage),
 démarre l'application derrière elle dans un `iframe` à la même grille, affiche les étapes
@@ -211,8 +211,8 @@ preview. `bun run deploy` construit les démos (`bun run demo`), puis le site
 (`bun run build`), puis publie `dist/` (`wrangler deploy`). Ensuite, chaque push sur `main`
 publie le site tout seul : `.github/workflows/deploy-site.yml` attend que CI réussisse sur ce
 commit, vérifie qu'il est encore le dernier de `main`, puis lance `bun run deploy`, avec
-`CLOUDFLARE_API_TOKEN` et `CLOUDFLARE_ACCOUNT_ID`, ses deux seuls secrets. Le runner installe
-Zig 0.16.0 : il n'a pas de runtime web en cache, et `bun run demo` le reconstruit.
+`CLOUDFLARE_API_TOKEN` et `CLOUDFLARE_ACCOUNT_ID`, ses deux seuls secrets. The runner installs
+Zig 0.17.0. It has no cached web runtime, so `bun run demo` rebuilds it.
 
 Les limites des static assets : 20 000 fichiers par version avec le plan Workers Free
 (100 000 avec Paid) et 25 MiB par fichier. Le 4 octobre 2026, avec les démos, `dist/`
@@ -252,7 +252,7 @@ Ce que le propriétaire fait une fois, dans l'ordre :
    cd website
    bun install --frozen-lockfile
    bunx wrangler login     # OAuth dans le navigateur, ou CLOUDFLARE_API_TOKEN et CLOUDFLARE_ACCOUNT_ID dans l'environnement
-   bun run deploy          # sans runtime web en cache, demande Zig 0.16.0 : dans le PATH ou dans ZIG
+   bun run deploy          # without a cached web runtime, needs Zig 0.17.0 in PATH or ZIG
    bunx wrangler logout    # facultatif : la CI a son propre token
    ```
 
