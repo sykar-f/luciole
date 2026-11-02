@@ -250,6 +250,8 @@ function Runtime({ children }: { children: ReactNode }) {
   const quitOnCtrlC = app.options.quitOnCtrlC !== false;
   useBindings(
     () => ({
+      // Keep the pre-0.8 precedence over default-priority application layers.
+      priority: 1,
       bindings: [
         ...(quitOnCtrlC
           ? [{ key: "ctrl+c", cmd: () => app.quit?.(), desc: "quit", group: "luciole" }]
