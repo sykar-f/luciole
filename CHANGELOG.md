@@ -13,6 +13,11 @@ and marked **Breaking**.
 
 ## [Unreleased]
 
+### Fixed
+
+- Keep the Client's exit code when a late close restores the terminal.
+  Write a warning when queued output is dropped. Other close failures still exit with code 1.
+
 ## [0.7.0] - 2026-11-02
 
 ### Changed

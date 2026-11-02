@@ -177,8 +177,9 @@ export async function run(
   // A hangup may reach the Client twice. Every exit waits for terminal restoration.
   let ending = false;
   const stop = async (code: number, voluntary = false) => {
+    let active: CliRenderer | undefined;
     try {
-      const active = renderer ?? (await creating);
+      active = renderer ?? (await creating);
       active?.destroy();
       await active?.closed;
     } catch (error) {
@@ -191,7 +192,20 @@ export async function run(
         (error.operation === "ot_session_drain_stdout" ||
           error.operation === "ot_session_post_stdout") &&
         error.status === NativeStatus.OutputFailed;
-      if (!closedOutput) {
+      // In pinned OpenTUI 0.8.1, closed rejects with a close interruption only
+      // after the native pump reports Closed. Transition interruptions reject
+      // their own wait, never closed. Detect the private session conservatively.
+      const session: unknown = active && Reflect.get(active, "nativeSession");
+      const isCloseInterruption: unknown =
+        typeof session === "object" && session !== null
+          ? Reflect.get(session, "isCloseInterruption")
+          : undefined;
+      const late =
+        typeof isCloseInterruption === "function" &&
+        isCloseInterruption.call(session, error) === true;
+      if (late) {
+        console.error("Terminal close was late; queued output was dropped.");
+      } else if (!closedOutput) {
         console.error(messageOf(error));
         code = 1;
       }
