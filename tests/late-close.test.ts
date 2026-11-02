@@ -23,7 +23,16 @@ test("installed OpenTUI exposes the identity-based close interruption seam", asy
 });
 
 for (const ending of ["quit", "SIGINT", "SIGTERM", "SIGHUP", "SIGQUIT", "failure"]) {
-  for (const kind of ["late", "unrestored", "lookalike", "missing", "nonfunction"]) {
+  for (const kind of [
+    "late",
+    "unrestored",
+    "lookalike",
+    "missing",
+    "nonfunction",
+    "method-throws",
+    "session-getter-throws",
+    "method-getter-throws",
+  ]) {
     test(`${ending} with ${kind} close keeps the correct exit code`, async () => {
       const work = await mkdtemp(`${process.env.TMPDIR ?? "/tmp"}/luciole-late-close-`);
       const ready = Promise.withResolvers<void>();
@@ -60,7 +69,11 @@ for (const ending of ["quit", "SIGINT", "SIGTERM", "SIGHUP", "SIGQUIT", "failure
         expect(code, errors).toBe(expected);
         if (kind === "late")
           expect(errors).toContain("Terminal close was late; queued output was dropped.");
-        else expect(errors).not.toContain("Terminal close was late;");
+        else {
+          expect(errors).not.toContain("Terminal close was late;");
+          expect(errors).toContain(lateMessage);
+          expect(errors).not.toContain("Close detector failed");
+        }
         if (ending === "failure") expect(errors).toContain(lateMessage);
       } finally {
         if (child.exitCode === null) child.kill("SIGKILL");

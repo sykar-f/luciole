@@ -13,6 +13,7 @@ const closed = Promise.withResolvers<void>();
 const session = {
   late,
   isCloseInterruption(error: unknown) {
+    if (process.env.CLOSE_KIND === "method-throws") throw new Error("Close detector failed");
     return error === this.late && process.env.CLOSE_KIND !== "unrestored";
   },
 };
@@ -31,6 +32,18 @@ const renderer = {
     closed.reject(rejection);
   },
 };
+if (process.env.CLOSE_KIND === "session-getter-throws")
+  Object.defineProperty(renderer, "nativeSession", {
+    get() {
+      throw new Error("Close detector failed");
+    },
+  });
+if (process.env.CLOSE_KIND === "method-getter-throws")
+  Object.defineProperty(session, "isCloseInterruption", {
+    get() {
+      throw new Error("Close detector failed");
+    },
+  });
 void mock.module(resolve("packages/core/src/connect.ts"), () => ({
   serverUrl: async () => "http://localhost",
   connect: async () => ({ url: "http://localhost", close() {} }),
