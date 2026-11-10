@@ -132,16 +132,17 @@ fenêtre (webview système)          processus principal (Bun)            PTY
                                   └──────────────────────────┘        └──────────────┘
 ```
 
-| Fichier                     | Rôle                                                                        |
-| --------------------------- | --------------------------------------------------------------------------- |
-| `scripts/stage.ts`          | Build, binaire à deux rôles, métadonnées et icône (iconset macOS) du stage  |
-| `electrobun.config.ts`      | Nom, identifiant, version et icône de l'app ; main Bun, vue, binaire copié  |
-| `scripts/single-runtime.ts` | Hook `postBuild` : le binaire de l'app exécute aussi l'hôte (un seul Bun)   |
-| `scripts/smoke.ts`          | Ouvre le bundle construit comme sur un Mac neuf et vérifie toute la chaîne  |
-| `src/host/session.ts`       | PTY ↔ vue, sans Electrobun : testé par `tests/desktop-session.test.ts`      |
-| `src/host/index.ts`         | Fenêtre, RPC, menus (Cmd+Q, Cmd+W, copier, coller), hangup à la fermeture   |
-| `src/view/index.ts`         | xterm.js (WebGL si disponible), taille ajustée à la fenêtre                 |
-| `src/protocol.ts`           | Messages RPC : `open`, `input`, `resize` vers l'hôte ; `output` vers la vue |
+| Fichier                     | Rôle                                                                                    |
+| --------------------------- | --------------------------------------------------------------------------------------- |
+| `scripts/stage.ts`          | Build, binaire à deux rôles, métadonnées et icône (iconset macOS) du stage              |
+| `electrobun.config.ts`      | Nom, identifiant, version et icône de l'app ; main Bun, vue, binaire copié              |
+| `scripts/single-runtime.ts` | Hook `postBuild` : le binaire de l'app exécute aussi l'hôte (un seul Bun)               |
+| `scripts/smoke.ts`          | Ouvre le bundle construit comme sur un Mac neuf et vérifie toute la chaîne              |
+| `src/host/session.ts`       | PTY ↔ vue, sans Electrobun : testé par `tests/desktop-session.test.ts`                  |
+| `src/host/index.ts`         | Fenêtre, RPC, menus (Cmd+Q, Cmd+W, copier, coller), hangup à la fermeture               |
+| `src/view/index.ts`         | xterm.js (WebGL si disponible), taille ajustée à la fenêtre                             |
+| `src/protocol.ts`           | Messages RPC : `open`, `input`, `resize` vers l'hôte ; `output`, `settings` vers la vue |
+| `src/settings.ts`           | Réglages de la fenêtre déclarés par l'app (`luciole.desktop`), appliqués à xterm.js     |
 
 ```sh
 cd packages/desktop
@@ -204,6 +205,17 @@ cas de Bun 1.4.x où un `Bun.Terminal` alloué avant le spawn reste sans termina
 Le stage contient le lanceur universel (arm64 et x86_64, macOS 13 ou plus) dans `native/` ;
 le stage le signe avec le binaire de l’app (`--sign`, signature ad hoc par défaut).
 Le hook du build vérifie sa signature avant la signature du bundle. Aucun compilateur n'est requis à l'installation.
+
+Dans la fenêtre, Option est Meta par défaut, comme dans les keymaps des applications de
+terminal : Option+L envoie Échap puis `l`. Un caractère composé avec Option n'arrive
+donc pas à l'app : `|` (Option+Maj+L sur un clavier français), `[` ou `€`. Une app qui
+en a besoin déclare `"desktop": { "macOptionIsMeta": false }` dans le champ `luciole`
+de son `package.json` ([API.md](API.md)). Option tape alors ce qu'il compose, et ses
+raccourcis Option ne sont plus des touches Meta. L'hôte transmet ce réglage à la vue
+(message `settings`, `src/settings.ts`) avant de lancer le programme. Jusque-là, la vue
+ne transmet aucune touche. `tests/desktop-settings.test.ts` vérifie cet ordre, et
+`bun test ./scripts/web/desktop-option.check.ts` le résultat dans xterm.js (Chrome
+headless, macOS).
 
 L'app tourne dans son répertoire de données (`Utils.paths.userData`,
 `~/Library/Application Support/<identifier>/…`) : ce qu'elle écrit par chemin relatif

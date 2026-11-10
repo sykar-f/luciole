@@ -515,6 +515,7 @@ de `capabilities` :
     "displayName": "Notes", // titre de fenêtre, menu, Dock ; le nom du répertoire sinon
     "identifier": "dev.luciole.examples.notes", // DNS inversé : identifiant du bundle macOS
     "icon": "assets/icon.png", // PNG carré, 512 px ou plus (1024 pour le Retina)
+    "desktop": { "macOptionIsMeta": false }, // fenêtre desktop : Option compose « | », « € »
   },
 }
 ```

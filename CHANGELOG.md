@@ -13,6 +13,12 @@ and marked **Breaking**.
 
 ## [Unreleased]
 
+### Added
+
+- Desktop apps can type characters composed with Option, such as `|` or `€`.
+  Declare `"desktop": { "macOptionIsMeta": false }` under `luciole` in the
+  app's `package.json`. By default, Option stays Meta and sends Escape first.
+
 ## [0.7.1] - 2026-11-02
 
 ### Fixed

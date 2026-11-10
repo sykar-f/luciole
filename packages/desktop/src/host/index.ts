@@ -7,11 +7,14 @@ import { mkdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { ApplicationMenu, BrowserView, BrowserWindow, PATHS, Utils, app } from "electrobun/main";
 import type { TerminalRPC } from "../protocol";
+import { windowSettings } from "../settings";
 import { BUNDLED, METADATA, readMetadata } from "../staged";
 import { createWindowSession } from "./session";
 
 const bundled = join(PATHS.RESOURCES_FOLDER, "app", BUNDLED);
-const { name, displayName } = readMetadata(readFileSync(join(bundled, METADATA), "utf8"));
+const metadata = readMetadata(readFileSync(join(bundled, METADATA), "utf8"));
+const { name, displayName } = metadata;
+const settings = windowSettings(metadata);
 
 // The app's own data directory (~/Library/Application Support/<identifier>/… on macOS):
 // what it writes by relative path stays its own, never in the user's home or the bundle.
@@ -27,6 +30,7 @@ const session = createWindowSession({
       : join(bundled, "bin", name),
   ],
   cwd,
+  configure: () => mainWindow.webview.rpc?.send.settings(settings),
   send: (data) => mainWindow.webview.rpc?.send.output({ data }),
   onExit: () => mainWindow.close(),
 });
