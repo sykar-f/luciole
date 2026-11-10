@@ -25,6 +25,11 @@ const Identifier = z
   .check(z.regex(/^[a-z0-9-]+(\.[a-z0-9-]+)+$/i, "must be reverse DNS, as com.example.notes"));
 
 const MAX_DISPLAY_NAME = 64;
+/**
+ * The desktop window (packages/desktop). `macOptionIsMeta`: Option is Meta, so Option+L
+ * sends Escape and `l` (the default); `false`: Option types what it composes, `|` or `€`.
+ */
+const Desktop = z.object({ macOptionIsMeta: z.optional(z.boolean()) });
 /** The fields of an application's package.json the build reads. */
 const AppPackage = z.looseObject({
   version: z.optional(z.string()),
@@ -39,6 +44,7 @@ const AppPackage = z.looseObject({
       icon: z.optional(z.string().check(z.minLength(1))),
       server: z.optional(ServerScope),
       grace: z.optional(Grace),
+      desktop: z.optional(Desktop),
     }),
   ),
 });
@@ -64,6 +70,8 @@ export const AppMetadata = z.object({
   server: z.optional(ServerScope),
   /** How long its Server waits for a lost Client, unless `--grace` says (`15m`, `0`…). */
   grace: z.optional(Grace),
+  /** `luciole.desktop`, as declared. */
+  desktop: z.optional(Desktop),
   /** The command-line arguments `app/args.ts` declares (src/args.ts). */
   args: z.optional(
     z.object({
@@ -138,6 +146,7 @@ export async function readAppDeclaration(root: string): Promise<AppDeclaration> 
       ...(iconFile ? { icon: APP_ICON } : {}),
       ...(luciole.server === undefined ? {} : { server: luciole.server }),
       ...(luciole.grace === undefined ? {} : { grace: luciole.grace }),
+      ...(luciole.desktop === undefined ? {} : { desktop: luciole.desktop }),
     },
   };
 }

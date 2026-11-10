@@ -16,6 +16,8 @@ export type WindowSessionOptions = {
   command: readonly string[];
   env?: Record<string, string | undefined>;
   cwd?: string;
+  /** Sends the application's settings to the view (../settings.ts), before the program starts. */
+  configure?: () => void;
   /** The program's output, decoded, a batch per event loop turn. */
   send: (data: string) => void;
   onExit: (code: number | null) => void;
@@ -47,6 +49,7 @@ export function createWindowSession(options: WindowSessionOptions): WindowSessio
   return {
     open(size) {
       if (pty || ended) return;
+      options.configure?.();
       pty = spawnPty({
         command: options.command,
         cols: size.cols,

@@ -75,6 +75,18 @@ test("display name, identifier, icon, and the package's version and description"
   expect(await Bun.file(join(output, APP_ICON)).bytes()).toEqual(pngHeader(1024, 1024));
 });
 
+test("the desktop window's Option key, Meta unless the application lets it compose", async () => {
+  const declaration = await readAppDeclaration(
+    await app({ luciole: { desktop: { macOptionIsMeta: false } } }),
+  );
+  expect(declaration.metadata.desktop).toEqual({ macOptionIsMeta: false });
+  const output = join(work, "option-output");
+  await mkdir(output);
+  await writeAppMetadata(output, declaration);
+  const written = AppMetadata.parse(JSON.parse(await readFile(join(output, APP_METADATA), "utf8")));
+  expect(written.desktop).toEqual({ macOptionIsMeta: false });
+});
+
 test.each([
   ["a missing icon", { icon: "assets/none.png" }, {}, "does not exist"],
   [
@@ -97,6 +109,12 @@ test.each([
   ],
   ["an icon outside the application", { icon: "../icon.png" }, {}, "inside the application"],
   ["an identifier that is not reverse DNS", { identifier: "notes" }, {}, "reverse DNS"],
+  [
+    "an Option key setting that is not a boolean",
+    { desktop: { macOptionIsMeta: "no" } },
+    {},
+    "macOptionIsMeta",
+  ],
 ])("%s fails the build", async (_, luciole, files, message) => {
   const error = await rejectionOf(readAppDeclaration(await app({ luciole }, files)));
   expect(String(error)).toContain(message);

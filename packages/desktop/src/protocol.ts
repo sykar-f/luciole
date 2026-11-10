@@ -4,6 +4,7 @@
  */
 import type { RPCSchema } from "electrobun/rpc";
 import type { Size } from "./host/session";
+import type { WindowSettings } from "./settings";
 
 export type TerminalRPC = {
   /** What the host receives. */
@@ -23,6 +24,8 @@ export type TerminalRPC = {
   webview: RPCSchema<{
     messages: {
       output: { data: string };
+      /** The application's settings of the window, sent once, when the view opens. */
+      settings: WindowSettings;
     };
   }>;
 };
